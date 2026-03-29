@@ -131,8 +131,8 @@ const rules = {
   messages: {
     allow: {
       create: "canViewChannel && isSender && validMessageType && validThreadShape",
-      delete: "isSenderOrWorkspaceAdmin",
-      update: "isSenderOrWorkspaceAdmin && onlyEditableFields",
+      delete: "isSenderOrWorkspaceManager",
+      update: "isSenderOrWorkspaceManager && onlyEditableFields",
       view: "canViewChannel",
     },
     bind: {
