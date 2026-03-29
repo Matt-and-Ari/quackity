@@ -21,17 +21,14 @@
     box-sizing: border-box;
   }
 
-  html {
-    @apply min-h-full;
+  html,
+  body {
+    @apply h-full overflow-hidden;
   }
 
   body {
-    @apply min-h-screen min-w-[320px] text-slate-900;
-    background-image:
-      radial-gradient(circle at top left, rgba(250, 204, 21, 0.6), transparent 28%),
-      radial-gradient(circle at top right, rgba(251, 191, 36, 0.34), transparent 24%),
-      radial-gradient(circle at bottom center, rgba(255, 255, 255, 0.5), transparent 36%),
-      linear-gradient(180deg, #fffdf3 0%, #fff6cf 46%, #fde68a 100%);
+    @apply min-w-[320px] text-slate-900;
+    background: linear-gradient(180deg, #fffdf3 0%, #fef3c7 100%);
   }
 
   body,
@@ -56,12 +53,6 @@
   }
 
   #app {
-    @apply min-h-screen;
-  }
-}
-
-@layer components {
-  .quack-shell {
-    @apply rounded-[34px] border border-white/60 bg-[linear-gradient(180deg,rgba(255,252,242,0.94),rgba(255,249,219,0.86))] shadow-[0_28px_80px_rgba(146,104,0,0.12)] backdrop-blur-xl;
+    @apply h-full overflow-hidden;
   }
 }

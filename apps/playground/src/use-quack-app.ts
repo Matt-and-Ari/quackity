@@ -2,28 +2,29 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useRoute } from "wouter";
 
 import {
-  quackWorkspaceSnapshot,
-  type QuackAttachmentRecord,
-  type QuackChannelRecord,
-  type QuackMessageRecord,
-  type QuackReactionRecord,
-  type QuackUserRecord,
-  type QuackWorkspaceMemberRecord,
-  type QuackWorkspaceSnapshot,
+  createReactionKey,
+  mockWorkspace,
+  type MockAttachment,
+  type MockChannel,
+  type MockMessage,
+  type MockReaction,
+  type MockWorkspaceMember,
+  type User,
+  type WorkspaceSnapshot,
 } from "./quack-data";
 
-interface UseQuackAppResult {
-  activeChannel: QuackChannelRecord;
-  attachmentsByMessageId: Map<string, QuackAttachmentRecord[]>;
+export interface UseQuackAppResult {
+  activeChannel: MockChannel;
+  attachmentsByMessageId: Map<string, MockAttachment[]>;
   channelDraft: string;
-  currentUser: QuackUserRecord;
+  currentUser: User;
   editingDraft: string;
   editingMessageId: string | null;
-  messages: QuackMessageRecord[];
-  onlineMembers: QuackWorkspaceMemberRecord[];
-  reactionsByMessageId: Map<string, QuackReactionRecord[]>;
-  selectedThreadMessage: QuackMessageRecord | null;
-  selectedThreadReplies: QuackMessageRecord[];
+  messages: MockMessage[];
+  onlineMembers: MockWorkspaceMember[];
+  reactionsByMessageId: Map<string, MockReaction[]>;
+  selectedThreadMessage: MockMessage | null;
+  selectedThreadReplies: MockMessage[];
   setChannelDraft: (value: string) => void;
   setEditingDraft: (value: string) => void;
   setThreadDraft: (value: string) => void;
@@ -35,18 +36,18 @@ interface UseQuackAppResult {
   threadDraft: string;
   threadReplyCountByMessageId: Map<string, number>;
   toggleReaction: (messageId: string, emoji: string) => void;
-  usersById: Map<string, QuackUserRecord>;
-  workspace: QuackWorkspaceSnapshot["workspace"];
-  workspaceMembersByUserId: Map<string, QuackWorkspaceMemberRecord>;
-  visibleChannels: QuackChannelRecord[];
+  usersById: Map<string, User>;
+  workspace: WorkspaceSnapshot["workspace"];
+  workspaceMembersByUserId: Map<string, MockWorkspaceMember>;
+  visibleChannels: MockChannel[];
   openThread: (messageId: string) => void;
   closeThread: () => void;
   deleteMessage: (messageId: string) => void;
 }
 
 export function useQuackApp(): UseQuackAppResult {
-  const [workspaceData, setWorkspaceData] = useState<QuackWorkspaceSnapshot>(() => {
-    return structuredClone(quackWorkspaceSnapshot);
+  const [workspaceData, setWorkspaceData] = useState<WorkspaceSnapshot>(() => {
+    return structuredClone(mockWorkspace);
   });
   const [channelDraft, setChannelDraft] = useState("");
   const [threadDraft, setThreadDraft] = useState("");
@@ -101,7 +102,7 @@ export function useQuackApp(): UseQuackAppResult {
     }
 
     const selectedThreadMessage = workspaceData.messages.find(
-      (message) => message.id === selectedThreadMessageId,
+      (m) => m.id === selectedThreadMessageId,
     );
 
     if (!selectedThreadMessage || selectedThreadMessage.channelId !== activeChannel.id) {
@@ -119,24 +120,24 @@ export function useQuackApp(): UseQuackAppResult {
   }, [workspaceData.workspaceMembers]);
 
   const reactionsByMessageId = useMemo(() => {
-    const map = new Map<string, QuackReactionRecord[]>();
+    const map = new Map<string, MockReaction[]>();
 
     for (const reaction of workspaceData.reactions) {
-      const currentReactions = map.get(reaction.messageId) ?? [];
-      currentReactions.push(reaction);
-      map.set(reaction.messageId, currentReactions);
+      const list = map.get(reaction.messageId) ?? [];
+      list.push(reaction);
+      map.set(reaction.messageId, list);
     }
 
     return map;
   }, [workspaceData.reactions]);
 
   const attachmentsByMessageId = useMemo(() => {
-    const map = new Map<string, QuackAttachmentRecord[]>();
+    const map = new Map<string, MockAttachment[]>();
 
     for (const attachment of workspaceData.messageAttachments) {
-      const currentAttachments = map.get(attachment.messageId) ?? [];
-      currentAttachments.push(attachment);
-      map.set(attachment.messageId, currentAttachments);
+      const list = map.get(attachment.messageId) ?? [];
+      list.push(attachment);
+      map.set(attachment.messageId, list);
     }
 
     return map;
@@ -144,8 +145,8 @@ export function useQuackApp(): UseQuackAppResult {
 
   const messages = useMemo(() => {
     return workspaceData.messages
-      .filter((message) => message.channelId === activeChannel.id && !message.parentMessageId)
-      .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
+      .filter((m) => m.channelId === activeChannel.id && !m.parentMessageId)
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   }, [activeChannel.id, workspaceData.messages]);
 
   const selectedThreadMessage = useMemo(() => {
@@ -153,7 +154,7 @@ export function useQuackApp(): UseQuackAppResult {
       return null;
     }
 
-    return workspaceData.messages.find((message) => message.id === selectedThreadMessageId) ?? null;
+    return workspaceData.messages.find((m) => m.id === selectedThreadMessageId) ?? null;
   }, [selectedThreadMessageId, workspaceData.messages]);
 
   const selectedThreadReplies = useMemo(() => {
@@ -162,8 +163,8 @@ export function useQuackApp(): UseQuackAppResult {
     }
 
     return workspaceData.messages
-      .filter((message) => message.parentMessageId === selectedThreadMessage.id)
-      .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
+      .filter((m) => m.parentMessageId === selectedThreadMessage.id)
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   }, [selectedThreadMessage, workspaceData.messages]);
 
   const threadReplyCountByMessageId = useMemo(() => {
@@ -181,13 +182,11 @@ export function useQuackApp(): UseQuackAppResult {
   }, [workspaceData.messages]);
 
   const onlineMembers = useMemo(() => {
-    const channelMemberUserIds = workspaceData.channelMembers
-      .filter((membership) => membership.channelId === activeChannel.id)
-      .map((membership) => membership.userId);
+    const channelUserIds = workspaceData.channelMembers
+      .filter((cm) => cm.channelId === activeChannel.id)
+      .map((cm) => cm.userId);
 
-    return workspaceData.workspaceMembers.filter((member) => {
-      return channelMemberUserIds.includes(member.userId);
-    });
+    return workspaceData.workspaceMembers.filter((m) => channelUserIds.includes(m.userId));
   }, [activeChannel.id, workspaceData.channelMembers, workspaceData.workspaceMembers]);
 
   const currentUser = useMemo(() => {
@@ -212,7 +211,7 @@ export function useQuackApp(): UseQuackAppResult {
   }
 
   function startEditingMessage(messageId: string) {
-    const message = workspaceData.messages.find((entry) => entry.id === messageId);
+    const message = workspaceData.messages.find((m) => m.id === messageId);
 
     if (!message || message.deletedAt) {
       return;
@@ -232,57 +231,42 @@ export function useQuackApp(): UseQuackAppResult {
       return;
     }
 
-    const trimmedDraft = editingDraft.trim();
+    const trimmed = editingDraft.trim();
 
-    if (!trimmedDraft) {
+    if (!trimmed) {
       return;
     }
 
-    setWorkspaceData((currentWorkspaceData) => {
-      return {
-        ...currentWorkspaceData,
-        messages: currentWorkspaceData.messages.map((message) => {
-          if (message.id !== editingMessageId) {
-            return message;
-          }
-
-          return {
-            ...message,
-            body: trimmedDraft,
-            updatedAt: new Date(),
-          };
-        }),
-      };
-    });
+    setWorkspaceData((prev) => ({
+      ...prev,
+      messages: prev.messages.map((m) =>
+        m.id !== editingMessageId
+          ? m
+          : { ...m, body: trimmed, updatedAt: new Date().toISOString() },
+      ),
+    }));
 
     setEditingMessageId(null);
     setEditingDraft("");
   }
 
   function sendChannelMessage() {
-    const trimmedDraft = channelDraft.trim();
+    const trimmed = channelDraft.trim();
 
-    if (!trimmedDraft) {
+    if (!trimmed) {
       return;
     }
 
-    const nextMessage: QuackMessageRecord = {
-      entity: "messages",
-      id: createLocalId("message"),
-      body: trimmedDraft,
-      createdAt: new Date(),
+    const next: MockMessage = {
+      id: `msg-${crypto.randomUUID().slice(0, 8)}`,
+      body: trimmed,
+      createdAt: new Date().toISOString(),
       messageType: "message",
       channelId: activeChannel.id,
       senderUserId: workspaceData.currentUserId,
     };
 
-    setWorkspaceData((currentWorkspaceData) => {
-      return {
-        ...currentWorkspaceData,
-        messages: [...currentWorkspaceData.messages, nextMessage],
-      };
-    });
-
+    setWorkspaceData((prev) => ({ ...prev, messages: [...prev.messages, next] }));
     setChannelDraft("");
   }
 
@@ -291,50 +275,33 @@ export function useQuackApp(): UseQuackAppResult {
       return;
     }
 
-    const trimmedDraft = threadDraft.trim();
+    const trimmed = threadDraft.trim();
 
-    if (!trimmedDraft) {
+    if (!trimmed) {
       return;
     }
 
-    const nextMessage: QuackMessageRecord = {
-      entity: "messages",
-      id: createLocalId("thread-reply"),
-      body: trimmedDraft,
-      createdAt: new Date(),
+    const next: MockMessage = {
+      id: `reply-${crypto.randomUUID().slice(0, 8)}`,
+      body: trimmed,
+      createdAt: new Date().toISOString(),
       messageType: "message",
       channelId: selectedThreadMessage.channelId,
       senderUserId: workspaceData.currentUserId,
       parentMessageId: selectedThreadMessage.id,
     };
 
-    setWorkspaceData((currentWorkspaceData) => {
-      return {
-        ...currentWorkspaceData,
-        messages: [...currentWorkspaceData.messages, nextMessage],
-      };
-    });
-
+    setWorkspaceData((prev) => ({ ...prev, messages: [...prev.messages, next] }));
     setThreadDraft("");
   }
 
   function deleteMessage(messageId: string) {
-    setWorkspaceData((currentWorkspaceData) => {
-      return {
-        ...currentWorkspaceData,
-        messages: currentWorkspaceData.messages.map((message) => {
-          if (message.id !== messageId) {
-            return message;
-          }
-
-          return {
-            ...message,
-            body: undefined,
-            deletedAt: new Date(),
-          };
-        }),
-      };
-    });
+    setWorkspaceData((prev) => ({
+      ...prev,
+      messages: prev.messages.map((m) =>
+        m.id !== messageId ? m : { ...m, body: undefined, deletedAt: new Date().toISOString() },
+      ),
+    }));
 
     if (editingMessageId === messageId) {
       cancelEditingMessage();
@@ -342,36 +309,25 @@ export function useQuackApp(): UseQuackAppResult {
   }
 
   function toggleReaction(messageId: string, emoji: string) {
-    const reactionKey = createReactionKey(messageId, workspaceData.currentUserId, emoji);
+    const key = createReactionKey(messageId, workspaceData.currentUserId, emoji);
 
-    setWorkspaceData((currentWorkspaceData) => {
-      const existingReaction = currentWorkspaceData.reactions.find((reaction) => {
-        return reaction.reactionKey === reactionKey;
-      });
+    setWorkspaceData((prev) => {
+      const existing = prev.reactions.find((r) => r.reactionKey === key);
 
-      if (existingReaction) {
-        return {
-          ...currentWorkspaceData,
-          reactions: currentWorkspaceData.reactions.filter(
-            (reaction) => reaction.id !== existingReaction.id,
-          ),
-        };
+      if (existing) {
+        return { ...prev, reactions: prev.reactions.filter((r) => r.id !== existing.id) };
       }
 
-      const nextReaction: QuackReactionRecord = {
-        entity: "reactions",
-        id: createLocalId("reaction"),
-        createdAt: new Date(),
+      const next: MockReaction = {
+        id: `rx-${crypto.randomUUID().slice(0, 8)}`,
+        createdAt: new Date().toISOString(),
         emoji,
-        reactionKey,
+        reactionKey: key,
         messageId,
-        userId: currentWorkspaceData.currentUserId,
+        userId: prev.currentUserId,
       };
 
-      return {
-        ...currentWorkspaceData,
-        reactions: [...currentWorkspaceData.reactions, nextReaction],
-      };
+      return { ...prev, reactions: [...prev.reactions, next] };
     });
   }
 
@@ -406,12 +362,4 @@ export function useQuackApp(): UseQuackAppResult {
     closeThread,
     deleteMessage,
   };
-}
-
-function createLocalId(prefix: string) {
-  return `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
-}
-
-function createReactionKey(messageId: string, userId: string, emoji: string) {
-  return `${messageId}:${userId}:${emoji}`;
 }
