@@ -1,10 +1,10 @@
 {
   "compilerOptions": {
-    "target": "ESNext",
-    "lib": ["ES2023"],
+    "target": "ES2023",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "types": ["bun-types", "bun-types/test"],
     "strict": true,
     "noUnusedLocals": true,
     "noEmit": true,
@@ -14,5 +14,5 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true
   },
-  "include": ["src", "tests"]
+  "include": ["index.tsx"]
 }

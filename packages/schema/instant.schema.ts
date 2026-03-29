@@ -26,12 +26,19 @@ const _schema = i.schema({
       slug: i.string().unique().indexed(),
     }),
     workspaceMembers: i.entity({
+      acceptedInviteKey: i.string().optional().indexed(),
       displayName: i.string().optional(),
       joinedAt: i.date().indexed(),
       memberKey: i.string().unique().indexed(),
       role: i.string().indexed(),
       roleKey: i.string().indexed(),
       status: i.string().optional(),
+    }),
+    workspaceInvites: i.entity({
+      createdAt: i.date().indexed(),
+      email: i.string().indexed(),
+      inviteKey: i.string().unique().indexed(),
+      role: i.string().indexed(),
     }),
     channels: i.entity({
       archivedAt: i.date().optional().indexed(),
@@ -45,6 +52,14 @@ const _schema = i.schema({
     channelMembers: i.entity({
       joinedAt: i.date().indexed(),
       membershipKey: i.string().unique().indexed(),
+    }),
+    channelMeetings: i.entity({
+      channelMeetingKey: i.string().unique().indexed(),
+      cloudflareMeetingId: i.string().unique().indexed(),
+      createdAt: i.date().indexed(),
+      endedAt: i.date().optional().indexed(),
+      lastJoinedAt: i.date().optional().indexed(),
+      status: i.string().indexed(),
     }),
     messages: i.entity({
       body: i.string().optional(),
@@ -145,6 +160,32 @@ const _schema = i.schema({
         label: "workspaceMemberships",
       },
     },
+    workspaceInviteWorkspace: {
+      forward: {
+        on: "workspaceInvites",
+        has: "one",
+        label: "workspace",
+        required: true,
+      },
+      reverse: {
+        on: "workspaces",
+        has: "many",
+        label: "invites",
+      },
+    },
+    workspaceInviteInvitedBy: {
+      forward: {
+        on: "workspaceInvites",
+        has: "one",
+        label: "invitedBy",
+        required: true,
+      },
+      reverse: {
+        on: "$users",
+        has: "many",
+        label: "sentWorkspaceInvites",
+      },
+    },
     channelWorkspace: {
       forward: {
         on: "channels",
@@ -195,6 +236,32 @@ const _schema = i.schema({
         on: "$users",
         has: "many",
         label: "channelMemberships",
+      },
+    },
+    channelMeetingChannel: {
+      forward: {
+        on: "channelMeetings",
+        has: "one",
+        label: "channel",
+        required: true,
+      },
+      reverse: {
+        on: "channels",
+        has: "one",
+        label: "meeting",
+      },
+    },
+    channelMeetingCreatedBy: {
+      forward: {
+        on: "channelMeetings",
+        has: "one",
+        label: "createdBy",
+        required: true,
+      },
+      reverse: {
+        on: "$users",
+        has: "many",
+        label: "createdChannelMeetings",
       },
     },
     messageChannel: {

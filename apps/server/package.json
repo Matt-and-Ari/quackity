@@ -7,9 +7,11 @@
     "dev": "bun --env-file=../../.env --watch src/index.ts",
     "start": "bun --env-file=../../.env src/index.ts",
     "build": "tsc --noEmit",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "test:cloudflare-realtime": "bun --env-file=../../.env test tests/cloudflare-realtime.integration.test.ts"
   },
   "dependencies": {
+    "@elysiajs/cors": "latest",
     "@instantdb/admin": "latest",
     "@quack/schema": "workspace:*",
     "elysia": "latest"
