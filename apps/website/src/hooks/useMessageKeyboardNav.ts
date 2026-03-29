@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { MessageRecord } from "../types/quack";
 
 interface UseMessageKeyboardNavProps {
+  activeChannelId: string | null;
   canEditOrDelete: (message: MessageRecord) => boolean;
   channelInputRef: React.RefObject<HTMLTextAreaElement | null>;
   messages: MessageRecord[];
@@ -15,6 +16,7 @@ interface UseMessageKeyboardNavProps {
 export interface UseMessageKeyboardNavResult {
   clearSelection: () => void;
   handleInputKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  handleMessageClick: (messageId: string) => void;
   selectedMessageId: string | null;
 }
 
@@ -23,7 +25,15 @@ export function useMessageKeyboardNav(
 ): UseMessageKeyboardNavResult {
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
 
+  const propsRef = useRef(props);
+  propsRef.current = props;
+
   const visibleMessages = props.messages.filter((m) => !m.deletedAt);
+  const visibleMessagesRef = useRef(visibleMessages);
+  visibleMessagesRef.current = visibleMessages;
+
+  const selectedMessageIdRef = useRef(selectedMessageId);
+  selectedMessageIdRef.current = selectedMessageId;
 
   const clearSelection = useCallback(() => {
     setSelectedMessageId(null);
@@ -34,10 +44,27 @@ export function useMessageKeyboardNav(
   }, [props.messages.length, clearSelection]);
 
   useEffect(() => {
+    setSelectedMessageId(null);
+  }, [props.activeChannelId]);
+
+  useEffect(() => {
     if (selectedMessageId && !visibleMessages.some((m) => m.id === selectedMessageId)) {
       clearSelection();
     }
   }, [visibleMessages, selectedMessageId, clearSelection]);
+
+  useEffect(() => {
+    if (selectedMessageId) {
+      props.channelInputRef.current?.blur();
+    }
+  }, [selectedMessageId, props.channelInputRef]);
+
+  function selectMessage(messageId: string | null) {
+    setSelectedMessageId(messageId);
+    if (messageId) {
+      propsRef.current.channelInputRef.current?.blur();
+    }
+  }
 
   function handleInputKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key !== "ArrowUp") return;
@@ -45,81 +72,86 @@ export function useMessageKeyboardNav(
     const textarea = event.currentTarget;
     if (textarea.selectionStart !== 0 || textarea.selectionEnd !== 0) return;
 
-    const lastMessage = visibleMessages[visibleMessages.length - 1];
+    const msgs = visibleMessagesRef.current;
+    const lastMessage = msgs[msgs.length - 1];
     if (!lastMessage) return;
 
     event.preventDefault();
-    setSelectedMessageId(lastMessage.id);
+    selectMessage(lastMessage.id);
+  }
+
+  function handleMessageClick(messageId: string) {
+    selectMessage(messageId);
   }
 
   useEffect(() => {
-    if (!selectedMessageId) return;
-
     function handleKeyDown(event: KeyboardEvent) {
-      if (!selectedMessageId) return;
+      const currentId = selectedMessageIdRef.current;
+      if (!currentId) return;
 
       const target = event.target as HTMLElement;
       const isInInput =
         target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
-
       if (isInInput) return;
 
-      const selectedIndex = visibleMessages.findIndex((m) => m.id === selectedMessageId);
+      const msgs = visibleMessagesRef.current;
+      const selectedIndex = msgs.findIndex((m) => m.id === currentId);
       if (selectedIndex === -1) return;
 
-      const selectedMessage = visibleMessages[selectedIndex];
+      const selectedMessage = msgs[selectedIndex];
+      const p = propsRef.current;
 
       switch (event.key) {
         case "ArrowUp": {
           event.preventDefault();
           if (selectedIndex > 0) {
-            setSelectedMessageId(visibleMessages[selectedIndex - 1].id);
+            selectMessage(msgs[selectedIndex - 1].id);
           }
           break;
         }
         case "ArrowDown": {
           event.preventDefault();
-          if (selectedIndex < visibleMessages.length - 1) {
-            setSelectedMessageId(visibleMessages[selectedIndex + 1].id);
+          if (selectedIndex < msgs.length - 1) {
+            selectMessage(msgs[selectedIndex + 1].id);
           } else {
             setSelectedMessageId(null);
-            props.channelInputRef.current?.focus();
+            p.channelInputRef.current?.focus();
           }
           break;
         }
         case "Escape": {
           event.preventDefault();
           setSelectedMessageId(null);
-          props.channelInputRef.current?.focus();
+          p.channelInputRef.current?.focus();
           break;
         }
         case "e": {
           if (!selectedMessage || selectedMessage.deletedAt) break;
-          if (!props.canEditOrDelete(selectedMessage)) break;
+          if (!p.canEditOrDelete(selectedMessage)) break;
           event.preventDefault();
-          props.onStartEdit(selectedMessage.id);
+          p.onStartEdit(selectedMessage.id);
           setSelectedMessageId(null);
           break;
         }
         case "r": {
           if (!selectedMessage || selectedMessage.deletedAt) break;
           event.preventDefault();
-          props.onOpenReactionMenu(selectedMessage.id);
+          p.onOpenReactionMenu(selectedMessage.id);
           break;
         }
         case "t": {
           if (!selectedMessage) break;
           event.preventDefault();
-          props.onReply(selectedMessage.id);
+          p.onReply(selectedMessage.id);
           setSelectedMessageId(null);
           break;
         }
         case "Backspace":
         case "Delete": {
           if (!selectedMessage || selectedMessage.deletedAt) break;
-          if (!props.canEditOrDelete(selectedMessage)) break;
+          if (!p.canEditOrDelete(selectedMessage)) break;
           event.preventDefault();
-          props.onDelete(selectedMessage.id);
+          p.onDelete(selectedMessage.id);
           break;
         }
       }
@@ -127,11 +159,12 @@ export function useMessageKeyboardNav(
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [selectedMessageId, visibleMessages, props]);
+  }, []);
 
   return {
     clearSelection,
     handleInputKeyDown,
+    handleMessageClick,
     selectedMessageId,
   };
 }

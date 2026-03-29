@@ -47,6 +47,7 @@ interface MessageCardProps {
   isSelected?: boolean;
   message: MessageRecord;
   onCancelEdit: () => void;
+  onClick?: () => void;
   onContextMenu: (event: React.MouseEvent, message: MessageRecord) => void;
   onDelete: () => void;
   onEditDraftChange: (value: string) => void;
@@ -220,6 +221,7 @@ export function MessageCard(props: MessageCardProps) {
             : "hover:bg-slate-50/80",
       )}
       data-message-id={props.message.id}
+      onClick={props.onClick}
       onContextMenu={(event) => props.onContextMenu(event, props.message)}
       ref={messageRef}
     >

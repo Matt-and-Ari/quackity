@@ -91,6 +91,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     side: "left",
   });
   const channelInputRef = useRef<HTMLTextAreaElement>(null);
+  const pendingFocusChannelIdRef = useRef<string | null>(null);
   const threadInputRef = useRef<HTMLTextAreaElement>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [emojiMenuState, setEmojiMenuState] = useState<{
@@ -128,6 +129,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
   }
 
   const keyboardNav = useMessageKeyboardNav({
+    activeChannelId: app.activeChannel?.id ?? null,
     canEditOrDelete: isOwnMessage,
     channelInputRef,
     messages: app.messages,
@@ -149,7 +151,26 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
   }, [app.activeChannel?.name]);
 
   useEffect(() => {
-    channelInputRef.current?.focus();
+    if (!app.activeChannel?.id) return;
+    pendingFocusChannelIdRef.current = app.activeChannel.id;
+
+    let attempts = 0;
+    const maxAttempts = 10;
+
+    function tryFocus() {
+      if (pendingFocusChannelIdRef.current !== app.activeChannel?.id) return;
+      if (channelInputRef.current) {
+        channelInputRef.current.focus();
+        pendingFocusChannelIdRef.current = null;
+        return;
+      }
+      attempts++;
+      if (attempts < maxAttempts) {
+        requestAnimationFrame(tryFocus);
+      }
+    }
+
+    requestAnimationFrame(tryFocus);
     if (isMobile) closeSidebar();
   }, [app.activeChannel?.id, isMobile, closeSidebar]);
 
@@ -492,6 +513,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                         key={message.id}
                         message={message}
                         onCancelEdit={app.cancelEditingMessage}
+                        onClick={() => keyboardNav.handleMessageClick(message.id)}
                         onContextMenu={handleMessageContextMenu}
                         onDelete={() => setPendingDeleteMessageId(message.id)}
                         onEditDraftChange={app.setEditingDraft}
