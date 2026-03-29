@@ -4,6 +4,8 @@ packages:
   - tools/*
 
 catalog:
+  "@cloudflare/realtimekit-react": ^1.2.5
+  "@cloudflare/realtimekit-react-ui": ^1.1.1
   "@emoji-mart/data": ^1.2.1
   "@instantdb/core": ^0.22.174
   "@instantdb/react": ^0.22.174
@@ -12,6 +14,7 @@ catalog:
   "@types/react": ^19.2.14
   "@types/react-dom": ^19.2.3
   "@vitejs/plugin-react": ^6.0.1
+  clsx: ^2.1.1
   instant-cli: ^0.22.174
   react: ^19.2.4
   react-dom: ^19.2.4

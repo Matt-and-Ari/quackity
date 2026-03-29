@@ -9,11 +9,16 @@
     "preview": "vp preview"
   },
   "dependencies": {
+    "@cloudflare/realtimekit-react": "catalog:",
+    "@cloudflare/realtimekit-react-ui": "catalog:",
     "@elysiajs/eden": "latest",
+    "@emoji-mart/data": "catalog:",
+    "@instantdb/core": "catalog:",
     "@instantdb/react": "catalog:",
     "@quack/calls": "workspace:*",
     "@quack/data": "workspace:*",
     "@quack/schema": "workspace:*",
+    "clsx": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "wouter": "latest"
