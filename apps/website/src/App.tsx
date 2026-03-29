@@ -1335,14 +1335,17 @@ async function acceptWorkspaceInvite(invite: WorkspaceInvite, user: Authenticate
     workspaceId: invite.workspace.id,
   });
 
-  await instantDB.transact([
-    membership.tx,
+  // Create the membership before deleting the invite so Instant perms can still
+  // verify the accepted invite key against the pending invite record.
+  await instantDB.transact(membership.tx);
+
+  await instantDB.transact(
     deleteWorkspaceInviteByKeyTx({
       email: invite.email,
       role,
       workspaceId: invite.workspace.id,
     }),
-  ]);
+  );
 
   return `/workspaces/${invite.workspace.id}`;
 }
