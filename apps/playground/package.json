@@ -9,6 +9,7 @@
     "preview": "vp preview"
   },
   "dependencies": {
+    "@emoji-mart/data": "catalog:",
     "@instantdb/core": "catalog:",
     "@quack/data": "workspace:*",
     "@quack/schema": "workspace:*",

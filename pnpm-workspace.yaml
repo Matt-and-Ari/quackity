@@ -4,6 +4,7 @@ packages:
   - tools/*
 
 catalog:
+  "@emoji-mart/data": ^1.2.1
   "@instantdb/core": ^0.22.174
   "@instantdb/react": ^0.22.174
   "@tailwindcss/vite": ^4.2.2

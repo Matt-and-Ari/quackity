@@ -6,6 +6,9 @@ settings:
 
 catalogs:
   default:
+    '@emoji-mart/data':
+      specifier: ^1.2.1
+      version: 1.2.1
     '@instantdb/core':
       specifier: ^0.22.174
       version: 0.22.174
@@ -60,6 +63,9 @@ importers:
 
   apps/playground:
     dependencies:
+      '@emoji-mart/data':
+        specifier: 'catalog:'
+        version: 1.2.1
       '@instantdb/core':
         specifier: 'catalog:'
         version: 0.22.174
@@ -317,6 +323,9 @@ packages:
 
   '@emnapi/wasi-threads@1.2.0':
     resolution: {integrity: sha512-N10dEJNSsUx41Z6pZsXU8FjPjpBEplgH24sfkmITrBED1/U2Esum9F3lfLrMjKHHjmi557zQn7kR9R+XWXu5Rg==}
+
+  '@emoji-mart/data@1.2.1':
+    resolution: {integrity: sha512-no2pQMWiBy6gpBEiqGeU77/bFejDqUTRY7KX+0+iur13op3bqUsXdnwoZs6Xb1zbv0gAj5VvS1PWoUUckSr5Dw==}
 
   '@esbuild/aix-ppc64@0.23.1':
     resolution: {integrity: sha512-6VhYk1diRqrhBAqpJEdjASR/+WVRtfjpqKuNw11cLiaWpAT/Uu+nokB+UJnevzy/P9C/ty6AOe0dwueMrGh/iQ==}
@@ -2322,6 +2331,8 @@ snapshots:
     dependencies:
       tslib: 2.8.1
     optional: true
+
+  '@emoji-mart/data@1.2.1': {}
 
   '@esbuild/aix-ppc64@0.23.1':
     optional: true

@@ -17,6 +17,7 @@ export interface UseQuackAppResult {
   activeChannel: MockChannel;
   attachmentsByMessageId: Map<string, MockAttachment[]>;
   channelDraft: string;
+  channelRenameDraft: string;
   currentUser: User;
   editingDraft: string;
   editingMessageId: string | null;
@@ -26,8 +27,12 @@ export interface UseQuackAppResult {
   selectedThreadMessage: MockMessage | null;
   selectedThreadReplies: MockMessage[];
   setChannelDraft: (value: string) => void;
+  setChannelRenameDraft: (value: string) => void;
   setEditingDraft: (value: string) => void;
   setThreadDraft: (value: string) => void;
+  startRenamingChannel: (channelId: string) => void;
+  saveRenamingChannel: () => void;
+  cancelRenamingChannel: () => void;
   startEditingMessage: (messageId: string) => void;
   saveEditingMessage: () => void;
   cancelEditingMessage: () => void;
@@ -43,6 +48,9 @@ export interface UseQuackAppResult {
   openThread: (messageId: string) => void;
   closeThread: () => void;
   deleteMessage: (messageId: string) => void;
+  deleteChannel: (channelId: string) => void;
+  leaveChannel: (channelId: string) => void;
+  renamingChannelId: string | null;
 }
 
 export function useQuackApp(): UseQuackAppResult {
@@ -50,18 +58,28 @@ export function useQuackApp(): UseQuackAppResult {
     return structuredClone(mockWorkspace);
   });
   const [channelDraft, setChannelDraft] = useState("");
+  const [channelRenameDraft, setChannelRenameDraft] = useState("");
   const [threadDraft, setThreadDraft] = useState("");
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingDraft, setEditingDraft] = useState("");
   const [selectedThreadMessageId, setSelectedThreadMessageId] = useState<string | null>(null);
+  const [renamingChannelId, setRenamingChannelId] = useState<string | null>(null);
 
   const [, setLocation] = useLocation();
   const [isChannelRouteMatch, channelParams] = useRoute("/channels/:channelSlug");
   const routedChannelSlug = channelParams?.channelSlug;
 
   const visibleChannels = useMemo(() => {
-    return workspaceData.channels.filter((channel) => !channel.archivedAt);
-  }, [workspaceData.channels]);
+    const currentUserChannelIds = new Set(
+      workspaceData.channelMembers
+        .filter((channelMember) => channelMember.userId === workspaceData.currentUserId)
+        .map((channelMember) => channelMember.channelId),
+    );
+
+    return workspaceData.channels.filter(
+      (channel) => !channel.archivedAt && currentUserChannelIds.has(channel.id),
+    );
+  }, [workspaceData.channelMembers, workspaceData.channels, workspaceData.currentUserId]);
 
   const activeChannel = useMemo(() => {
     const defaultChannel = visibleChannels[0];
@@ -210,6 +228,61 @@ export function useQuackApp(): UseQuackAppResult {
     setThreadDraft("");
   }
 
+  function startRenamingChannel(channelId: string) {
+    const channel = workspaceData.channels.find((item) => item.id === channelId);
+
+    if (!channel || channel.archivedAt) {
+      return;
+    }
+
+    setRenamingChannelId(channelId);
+    setChannelRenameDraft(channel.name);
+  }
+
+  function cancelRenamingChannel() {
+    setRenamingChannelId(null);
+    setChannelRenameDraft("");
+  }
+
+  function saveRenamingChannel() {
+    if (!renamingChannelId) {
+      return;
+    }
+
+    const trimmedName = channelRenameDraft.trim();
+
+    if (!trimmedName) {
+      return;
+    }
+
+    const nextSlug = createUniqueChannelSlug({
+      channels: workspaceData.channels,
+      name: trimmedName,
+      workspaceSlug: workspaceData.workspace.slug,
+      currentChannelId: renamingChannelId,
+    });
+
+    setWorkspaceData((prev) => ({
+      ...prev,
+      channels: prev.channels.map((channel) =>
+        channel.id !== renamingChannelId
+          ? channel
+          : {
+              ...channel,
+              name: trimmedName,
+              scopedSlug: `${prev.workspace.slug}:${nextSlug}`,
+              slug: nextSlug,
+            },
+      ),
+    }));
+
+    if (activeChannel.id === renamingChannelId) {
+      setLocation(`/channels/${nextSlug}`);
+    }
+
+    cancelRenamingChannel();
+  }
+
   function startEditingMessage(messageId: string) {
     const message = workspaceData.messages.find((m) => m.id === messageId);
 
@@ -308,6 +381,41 @@ export function useQuackApp(): UseQuackAppResult {
     }
   }
 
+  function deleteChannel(channelId: string) {
+    if (visibleChannels.length <= 1) {
+      return;
+    }
+
+    setWorkspaceData((prev) => ({
+      ...prev,
+      channels: prev.channels.map((channel) =>
+        channel.id !== channelId ? channel : { ...channel, archivedAt: new Date().toISOString() },
+      ),
+    }));
+
+    if (renamingChannelId === channelId) {
+      cancelRenamingChannel();
+    }
+  }
+
+  function leaveChannel(channelId: string) {
+    if (visibleChannels.length <= 1) {
+      return;
+    }
+
+    setWorkspaceData((prev) => ({
+      ...prev,
+      channelMembers: prev.channelMembers.filter(
+        (channelMember) =>
+          !(channelMember.channelId === channelId && channelMember.userId === prev.currentUserId),
+      ),
+    }));
+
+    if (renamingChannelId === channelId) {
+      cancelRenamingChannel();
+    }
+  }
+
   function toggleReaction(messageId: string, emoji: string) {
     const key = createReactionKey(messageId, workspaceData.currentUserId, emoji);
 
@@ -335,6 +443,7 @@ export function useQuackApp(): UseQuackAppResult {
     activeChannel,
     attachmentsByMessageId,
     channelDraft,
+    channelRenameDraft,
     currentUser,
     editingDraft,
     editingMessageId,
@@ -344,8 +453,12 @@ export function useQuackApp(): UseQuackAppResult {
     selectedThreadMessage,
     selectedThreadReplies,
     setChannelDraft,
+    setChannelRenameDraft,
     setEditingDraft,
     setThreadDraft,
+    startRenamingChannel,
+    saveRenamingChannel,
+    cancelRenamingChannel,
     startEditingMessage,
     saveEditingMessage,
     cancelEditingMessage,
@@ -361,5 +474,44 @@ export function useQuackApp(): UseQuackAppResult {
     openThread,
     closeThread,
     deleteMessage,
+    deleteChannel,
+    leaveChannel,
+    renamingChannelId,
   };
+}
+
+interface CreateUniqueChannelSlugProps {
+  channels: MockChannel[];
+  currentChannelId: string;
+  name: string;
+  workspaceSlug: string;
+}
+
+function createUniqueChannelSlug(props: CreateUniqueChannelSlugProps) {
+  const baseSlug = slugifyChannelName(props.name);
+  const siblingScopedSlugs = new Set(
+    props.channels
+      .filter((channel) => channel.id !== props.currentChannelId)
+      .map((channel) => channel.scopedSlug),
+  );
+
+  let suffix = 1;
+  let nextSlug = baseSlug;
+
+  while (siblingScopedSlugs.has(`${props.workspaceSlug}:${nextSlug}`)) {
+    suffix += 1;
+    nextSlug = `${baseSlug}-${suffix}`;
+  }
+
+  return nextSlug;
+}
+
+function slugifyChannelName(value: string) {
+  const nextSlug = value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return nextSlug || "channel";
 }
