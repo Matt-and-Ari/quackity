@@ -88,6 +88,11 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
   });
 
   useEffect(() => {
+    const channelName = app.activeChannel?.name;
+    document.title = channelName ? `${channelName} | Quack` : "Quack";
+  }, [app.activeChannel?.name]);
+
+  useEffect(() => {
     channelInputRef.current?.focus();
   }, [app.activeChannel?.id]);
 
@@ -322,9 +327,27 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
               aria-label="Channels"
               className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 py-3"
             >
-              <p className="mb-1 px-2 text-[0.65rem] font-semibold uppercase tracking-widest text-slate-400">
-                Channels
-              </p>
+              <div className="mb-1 flex items-center justify-between px-2">
+                <p className="text-[0.65rem] font-semibold uppercase tracking-widest text-slate-400">
+                  Channels
+                </p>
+                {app.canManageChannels ? (
+                  <button
+                    className="flex size-5 items-center justify-center rounded-md text-slate-400 transition-colors duration-100 hover:bg-amber-100/60 hover:text-slate-600"
+                    onClick={() => setIsCreateChannelOpen(true)}
+                    type="button"
+                  >
+                    <svg fill="none" height="12" viewBox="0 0 12 12" width="12">
+                      <path
+                        d="M6 1v10M1 6h10"
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeWidth="1.5"
+                      />
+                    </svg>
+                  </button>
+                ) : null}
+              </div>
               {app.visibleChannels.map((channel) => (
                 <ChannelLink
                   channel={channel}
