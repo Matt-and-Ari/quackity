@@ -498,6 +498,15 @@ export function deleteReactionTx(reactionId: string) {
   return tx.reactions[reactionId].delete();
 }
 
+export function updateUserProfileTx(
+  userId: string,
+  patch: {
+    imageURL?: string;
+  },
+) {
+  return tx.$users[userId].update(patch);
+}
+
 export function deleteReactionByKeyTx(input: { emoji: string; messageId: string; userId: string }) {
   return tx.reactions
     .lookup("reactionKey", createReactionKey(input.messageId, input.userId, input.emoji))

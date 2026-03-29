@@ -3,10 +3,12 @@ import { useEffect, useLayoutEffect, useRef, type KeyboardEvent, type ReactNode 
 import clsx from "clsx";
 import { Link } from "wouter";
 
+import type { StagedFile } from "../../hooks/useFileUpload";
 import { QUICK_REACTION_EMOJI, formatBytes, initials, nameFromEmail } from "../../lib/ui";
 import type {
   ChannelRecord,
   InstantUserEntity,
+  MessageAttachmentRecord,
   MessageRecord,
   ReactionRecord,
   WorkspaceMemberRecord,
@@ -28,6 +30,7 @@ interface ResizeHandleProps {
 
 interface ChannelLinkProps {
   channel: ChannelRecord;
+  hasActiveCall: boolean;
   href: string;
   isActive: boolean;
   isRenaming: boolean;
@@ -61,10 +64,13 @@ interface MessageCardProps {
 }
 
 interface MessageInputProps {
+  onAddFiles?: (files: FileList) => void;
   onKeyDown?: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
+  onRemoveFile?: (fileId: string) => void;
   onSubmit: () => void;
   onValueChange: (value: string) => void;
   placeholder: string;
+  stagedFiles?: StagedFile[];
   textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
   value: string;
 }
@@ -75,11 +81,13 @@ interface ThreadPanelProps {
   editingDraft: string;
   editingMessageId: string | null;
   isMobile?: boolean;
+  onAddFiles?: (files: FileList) => void;
   onCancelEdit: () => void;
   onClose: () => void;
   onDeleteMessage: (messageId: string) => void;
   onEditDraftChange: (value: string) => void;
   onMessageContextMenu: (event: React.MouseEvent, message: MessageRecord) => void;
+  onRemoveFile?: (fileId: string) => void;
   onReply: () => void;
   onSaveEdit: () => void;
   onStartEdit: (messageId: string) => void;
@@ -87,6 +95,7 @@ interface ThreadPanelProps {
   onThreadDraftChange: (value: string) => void;
   replies: MessageRecord[];
   rootMessage: MessageRecord | null;
+  stagedFiles?: StagedFile[];
   startThreadResize: (event: React.MouseEvent) => void;
   threadDraft: string;
   threadInputRef?: React.RefObject<HTMLTextAreaElement | null>;
@@ -178,6 +187,24 @@ export function ChannelLink(props: ChannelLinkProps) {
         </span>
       </HoverTooltip>
       <span className="truncate">{props.channel.name}</span>
+      {props.hasActiveCall ? (
+        <HoverTooltip content="Call in progress">
+          <span
+            className={clsx(
+              "ml-auto flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[0.6rem] font-semibold",
+              props.isActive ? "bg-white/20 text-white" : "bg-emerald-500/15 text-emerald-600",
+            )}
+          >
+            <span
+              className={clsx(
+                "size-1.5 animate-pulse rounded-full",
+                props.isActive ? "bg-white" : "bg-emerald-500",
+              )}
+            />
+            Live
+          </span>
+        </HoverTooltip>
+      ) : null}
     </Link>
   );
 }
@@ -305,16 +332,7 @@ export function MessageCard(props: MessageCardProps) {
           {props.message.attachments && props.message.attachments.length > 0 ? (
             <div className="mt-2 flex flex-wrap gap-2">
               {props.message.attachments.map((attachment) => (
-                <div
-                  className="inline-flex select-none items-center gap-2 rounded-lg border border-amber-100 bg-amber-50/50 px-3 py-1.5 text-xs text-slate-600"
-                  key={attachment.id}
-                >
-                  <span>📎</span>
-                  <span>{attachment.name}</span>
-                  {attachment.sizeBytes ? (
-                    <span className="text-slate-400">{formatBytes(attachment.sizeBytes)}</span>
-                  ) : null}
-                </div>
+                <AttachmentDisplay attachment={attachment} key={attachment.id} />
               ))}
             </div>
           ) : null}
@@ -354,7 +372,11 @@ export function MessageCard(props: MessageCardProps) {
 export function MessageInput(props: MessageInputProps) {
   const fallbackRef = useRef<HTMLTextAreaElement>(null);
   const textareaRef = props.textareaRef ?? fallbackRef;
-  const hasContent = props.value.trim().length > 0;
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const hasContent = props.value.trim().length > 0 || (props.stagedFiles ?? []).length > 0;
+  const isDraggingRef = useRef(false);
+  const dragCounterRef = useRef(0);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
     const textarea = textareaRef.current;
@@ -379,31 +401,150 @@ export function MessageInput(props: MessageInputProps) {
     }
   }
 
+  function handleFileInputChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const files = event.target.files;
+    if (files && files.length > 0 && props.onAddFiles) {
+      props.onAddFiles(files);
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
+  function handleDragEnter(event: React.DragEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    dragCounterRef.current++;
+    if (!isDraggingRef.current) {
+      isDraggingRef.current = true;
+      containerRef.current?.classList.add("ring-2", "ring-amber-400", "ring-inset");
+    }
+  }
+
+  function handleDragLeave(event: React.DragEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    dragCounterRef.current--;
+    if (dragCounterRef.current <= 0) {
+      dragCounterRef.current = 0;
+      isDraggingRef.current = false;
+      containerRef.current?.classList.remove("ring-2", "ring-amber-400", "ring-inset");
+    }
+  }
+
+  function handleDragOver(event: React.DragEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  function handleDrop(event: React.DragEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    dragCounterRef.current = 0;
+    isDraggingRef.current = false;
+    containerRef.current?.classList.remove("ring-2", "ring-amber-400", "ring-inset");
+
+    const files = event.dataTransfer.files;
+    if (files.length > 0 && props.onAddFiles) {
+      props.onAddFiles(files);
+    }
+  }
+
+  function handlePaste(event: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const items = event.clipboardData.items;
+    const files: File[] = [];
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.kind === "file") {
+        const file = item.getAsFile();
+        if (file) files.push(file);
+      }
+    }
+
+    if (files.length > 0 && props.onAddFiles) {
+      props.onAddFiles(createFileList(files));
+    }
+  }
+
+  const stagedFiles = props.stagedFiles ?? [];
+
   return (
-    <div className="relative">
-      <textarea
-        className="w-full resize-none rounded-xl border border-amber-200/70 bg-white px-4 py-3 pr-12 text-sm leading-6 text-slate-700 outline-none transition-colors duration-100 placeholder:text-slate-400 focus:border-amber-400"
-        onChange={(event) => props.onValueChange(event.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder={props.placeholder}
-        ref={textareaRef}
-        rows={1}
-        value={props.value}
-      />
-      <button
-        aria-label="Send message"
-        className={clsx(
-          "absolute bottom-3.5 right-3 flex size-7 select-none items-center justify-center rounded-lg transition-colors duration-100",
-          hasContent ? "bg-amber-500 text-white hover:bg-amber-600" : "bg-amber-50 text-slate-300",
-        )}
-        disabled={!hasContent}
-        onClick={props.onSubmit}
-        type="button"
-      >
-        <svg fill="none" height="14" viewBox="0 0 16 16" width="14">
-          <path d="M3 13V9L11 8L3 7V3L14 8L3 13Z" fill="currentColor" />
-        </svg>
-      </button>
+    <div
+      className="relative rounded-xl border border-amber-200/70 bg-white transition-colors duration-100 focus-within:border-amber-400"
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      ref={containerRef}
+    >
+      {stagedFiles.length > 0 ? (
+        <div className="flex flex-wrap gap-2 px-3 pt-3">
+          {stagedFiles.map((staged) => (
+            <StagedFileChip
+              key={staged.id}
+              onRemove={props.onRemoveFile ? () => props.onRemoveFile!(staged.id) : undefined}
+              staged={staged}
+            />
+          ))}
+        </div>
+      ) : null}
+
+      <div className="flex items-end">
+        {props.onAddFiles ? (
+          <>
+            <input
+              accept="*/*"
+              className="hidden"
+              multiple
+              onChange={handleFileInputChange}
+              ref={fileInputRef}
+              type="file"
+            />
+            <HoverTooltip content="Attach a file">
+              <button
+                aria-label="Attach file"
+                className="mb-2.5 ml-2 flex size-7 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors duration-100 hover:bg-amber-50 hover:text-slate-600"
+                onClick={() => fileInputRef.current?.click()}
+                type="button"
+              >
+                <AttachGlyph />
+              </button>
+            </HoverTooltip>
+          </>
+        ) : null}
+
+        <textarea
+          className={clsx(
+            "w-full resize-none bg-transparent px-3 py-3 pr-12 text-sm leading-6 text-slate-700 outline-none placeholder:text-slate-400",
+            !props.onAddFiles && "pl-4",
+          )}
+          onChange={(event) => props.onValueChange(event.target.value)}
+          onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
+          placeholder={props.placeholder}
+          ref={textareaRef}
+          rows={1}
+          value={props.value}
+        />
+
+        <button
+          aria-label="Send message"
+          className={clsx(
+            "absolute bottom-2.5 right-3 flex size-7 select-none items-center justify-center rounded-lg transition-colors duration-100",
+            hasContent
+              ? "bg-amber-500 text-white hover:bg-amber-600"
+              : "bg-amber-50 text-slate-300",
+          )}
+          disabled={!hasContent}
+          onClick={props.onSubmit}
+          type="button"
+        >
+          <svg fill="none" height="14" viewBox="0 0 16 16" width="14">
+            <path d="M3 13V9L11 8L3 7V3L14 8L3 13Z" fill="currentColor" />
+          </svg>
+        </button>
+      </div>
     </div>
   );
 }
@@ -509,9 +650,12 @@ export function ThreadPanel(props: ThreadPanelProps) {
 
       <div className="border-t border-amber-100/70 px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <MessageInput
+          onAddFiles={props.onAddFiles}
+          onRemoveFile={props.onRemoveFile}
           onSubmit={props.onReply}
           onValueChange={props.onThreadDraftChange}
           placeholder="Reply in thread..."
+          stagedFiles={props.stagedFiles}
           textareaRef={props.threadInputRef}
           value={props.threadDraft}
         />
@@ -610,12 +754,7 @@ function ThreadMessage(props: ThreadMessageProps) {
       {props.message.attachments && props.message.attachments.length > 0 ? (
         <div className="mt-1.5 flex flex-wrap gap-1.5">
           {props.message.attachments.map((attachment) => (
-            <span
-              className="inline-flex select-none items-center gap-1 rounded-md border border-amber-100 bg-amber-50/50 px-2 py-1 text-xs text-slate-500"
-              key={attachment.id}
-            >
-              📎 {attachment.name}
-            </span>
+            <AttachmentDisplay attachment={attachment} key={attachment.id} size="sm" />
           ))}
         </div>
       ) : null}
@@ -816,6 +955,161 @@ function reactionTooltipLabel(names: string[], emoji: string) {
   }
 
   return `${names[0]}, ${names[1]}, and ${names.length - 2} more reacted with ${emoji}`;
+}
+
+function StagedFileChip(props: { onRemove?: () => void; staged: StagedFile }) {
+  const isImage = props.staged.attachmentType === "image";
+
+  return (
+    <div
+      className={clsx(
+        "group relative inline-flex select-none items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs",
+        props.staged.status === "error"
+          ? "border-rose-200 bg-rose-50/60 text-rose-600"
+          : props.staged.status === "uploading"
+            ? "border-amber-200 bg-amber-50/60 text-amber-700"
+            : "border-amber-100 bg-amber-50/50 text-slate-600",
+      )}
+    >
+      {isImage && props.staged.previewUrl ? (
+        <img
+          alt={props.staged.name}
+          className="size-8 rounded object-cover"
+          draggable={false}
+          src={props.staged.previewUrl}
+        />
+      ) : (
+        <FileIconGlyph />
+      )}
+      <span className="max-w-[120px] truncate">{props.staged.name}</span>
+      <span className="text-slate-400">{formatBytes(props.staged.sizeBytes)}</span>
+      {props.staged.status === "uploading" ? (
+        <span className="size-3 animate-spin rounded-full border-2 border-amber-300 border-t-amber-600" />
+      ) : null}
+      {props.onRemove && props.staged.status !== "uploading" ? (
+        <button
+          className="flex size-4 items-center justify-center rounded-full text-slate-400 opacity-0 transition-opacity duration-100 hover:bg-slate-200 hover:text-slate-600 group-hover:opacity-100"
+          onClick={props.onRemove}
+          type="button"
+        >
+          <svg fill="none" height="8" viewBox="0 0 8 8" width="8">
+            <path
+              d="M1 1l6 6M7 1l-6 6"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeWidth="1.5"
+            />
+          </svg>
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function AttachmentDisplay(props: { attachment: MessageAttachmentRecord; size?: "sm" | "md" }) {
+  const isImage = props.attachment.attachmentType === "image";
+  const fileUrl = props.attachment.$file?.url;
+  const small = props.size === "sm";
+
+  if (isImage && fileUrl) {
+    return (
+      <a
+        className={clsx(
+          "block overflow-hidden rounded-lg border border-amber-100 transition-shadow duration-100 hover:shadow-md",
+          small ? "max-w-[180px]" : "max-w-[280px]",
+        )}
+        href={fileUrl}
+        rel="noopener noreferrer"
+        target="_blank"
+      >
+        <img
+          alt={props.attachment.name}
+          className={clsx("w-full object-cover", small ? "max-h-[120px]" : "max-h-[200px]")}
+          draggable={false}
+          loading="lazy"
+          src={fileUrl}
+        />
+        <div className="flex items-center gap-1.5 bg-amber-50/50 px-2.5 py-1.5">
+          <span className="truncate text-xs text-slate-600">{props.attachment.name}</span>
+          {props.attachment.sizeBytes ? (
+            <span className="shrink-0 text-[0.65rem] text-slate-400">
+              {formatBytes(props.attachment.sizeBytes)}
+            </span>
+          ) : null}
+        </div>
+      </a>
+    );
+  }
+
+  return (
+    <a
+      className={clsx(
+        "inline-flex select-none items-center gap-2 rounded-lg border border-amber-100 bg-amber-50/50 text-xs text-slate-600 transition-colors duration-100 hover:border-amber-200 hover:bg-amber-50",
+        small ? "px-2 py-1" : "px-3 py-1.5",
+      )}
+      download={props.attachment.name}
+      href={fileUrl ?? "#"}
+      rel="noopener noreferrer"
+      target="_blank"
+    >
+      <FileIconGlyph />
+      <span className="max-w-[180px] truncate">{props.attachment.name}</span>
+      {props.attachment.sizeBytes ? (
+        <span className="text-slate-400">{formatBytes(props.attachment.sizeBytes)}</span>
+      ) : null}
+      <DownloadGlyph />
+    </a>
+  );
+}
+
+function createFileList(files: File[]): FileList {
+  const dt = new DataTransfer();
+  for (const file of files) {
+    dt.items.add(file);
+  }
+  return dt.files;
+}
+
+function AttachGlyph() {
+  return (
+    <svg className="size-4" fill="none" viewBox="0 0 16 16">
+      <path
+        d="M13.5 7.5l-5.8 5.8a3.2 3.2 0 0 1-4.5-4.5l5.8-5.8a2 2 0 0 1 2.8 2.8L6 11.6a.8.8 0 0 1-1.1-1.1L10.1 5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.2"
+      />
+    </svg>
+  );
+}
+
+function FileIconGlyph() {
+  return (
+    <svg className="size-4 shrink-0 text-amber-500" fill="none" viewBox="0 0 16 16">
+      <path
+        d="M9 1.5H4.5a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V5L9 1.5Z"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.1"
+      />
+      <path d="M9 1.5V5h3.5" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.1" />
+    </svg>
+  );
+}
+
+function DownloadGlyph() {
+  return (
+    <svg className="size-3.5 shrink-0 text-slate-400" fill="none" viewBox="0 0 14 14">
+      <path
+        d="M7 1.5v8M4 7l3 3 3-3M2.5 12h9"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.2"
+      />
+    </svg>
+  );
 }
 
 export function EditGlyph(props: { className?: string }) {

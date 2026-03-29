@@ -2,6 +2,7 @@ import {
   archiveChannelTx,
   channelsByWorkspaceQuery,
   createChannelTx,
+  createMessageAttachmentTx,
   createMessageTx,
   createReactionTx,
   deleteChannelMemberTx,
@@ -17,6 +18,7 @@ import { useLocation } from "wouter";
 
 import { instantDB } from "../lib/instant";
 import { asArray, slugifyChannelName, toErrorMessage } from "../lib/ui";
+import type { UploadedFile } from "./useFileUpload";
 import type {
   AuthenticatedUser,
   ChannelRecord,
@@ -68,8 +70,8 @@ export interface UseQuackWorkspaceResult {
   saveRenamingChannel: () => Promise<void>;
   selectedThreadMessage: MessageRecord | null;
   selectedThreadReplies: MessageRecord[];
-  sendChannelMessage: () => Promise<void>;
-  sendThreadReply: () => Promise<void>;
+  sendChannelMessage: (files?: UploadedFile[]) => Promise<void>;
+  sendThreadReply: (files?: UploadedFile[]) => Promise<void>;
   setChannelDraft: (value: string) => void;
   setChannelRenameDraft: (value: string) => void;
   setEditingDraft: (value: string) => void;
@@ -350,49 +352,77 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
     }
   }
 
-  async function sendChannelMessage() {
+  async function sendChannelMessage(files?: UploadedFile[]) {
     if (!activeChannel) {
       return;
     }
 
     const trimmedBody = channelDraft.trim();
+    const hasFiles = files && files.length > 0;
 
-    if (!trimmedBody) {
+    if (!trimmedBody && !hasFiles) {
       return;
     }
 
     try {
       const nextMessage = createMessageTx({
-        body: trimmedBody,
+        body: trimmedBody || undefined,
         channelId: activeChannel.id,
         senderId: props.user.id,
       });
-      await instantDB.transact(nextMessage.tx);
+
+      const attachmentTxs = (files ?? []).map(
+        (file) =>
+          createMessageAttachmentTx({
+            attachmentType: file.attachmentType,
+            contentType: file.contentType,
+            fileId: file.fileId,
+            messageId: nextMessage.messageId,
+            name: file.name,
+            sizeBytes: file.sizeBytes,
+          }).tx,
+      );
+
+      await instantDB.transact([nextMessage.tx, ...attachmentTxs]);
       setChannelDraft("");
     } catch (error) {
       setNotice(toErrorMessage(error, "Could not send the message."));
     }
   }
 
-  async function sendThreadReply() {
+  async function sendThreadReply(files?: UploadedFile[]) {
     if (!activeChannel || !selectedThreadMessage) {
       return;
     }
 
     const trimmedBody = threadDraft.trim();
+    const hasFiles = files && files.length > 0;
 
-    if (!trimmedBody) {
+    if (!trimmedBody && !hasFiles) {
       return;
     }
 
     try {
       const reply = createMessageTx({
-        body: trimmedBody,
+        body: trimmedBody || undefined,
         channelId: activeChannel.id,
         parentMessageId: selectedThreadMessage.id,
         senderId: props.user.id,
       });
-      await instantDB.transact(reply.tx);
+
+      const attachmentTxs = (files ?? []).map(
+        (file) =>
+          createMessageAttachmentTx({
+            attachmentType: file.attachmentType,
+            contentType: file.contentType,
+            fileId: file.fileId,
+            messageId: reply.messageId,
+            name: file.name,
+            sizeBytes: file.sizeBytes,
+          }).tx,
+      );
+
+      await instantDB.transact([reply.tx, ...attachmentTxs]);
       setThreadDraft("");
     } catch (error) {
       setNotice(toErrorMessage(error, "Could not send the thread reply."));

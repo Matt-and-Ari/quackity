@@ -12,6 +12,7 @@ export type ChannelEntity = InstaQLEntity<AppSchema, "channels">;
 export type ChannelMemberEntity = InstaQLEntity<AppSchema, "channelMembers">;
 export type MessageEntity = InstaQLEntity<AppSchema, "messages">;
 export type MessageAttachmentEntity = InstaQLEntity<AppSchema, "messageAttachments">;
+export type ChannelMeetingEntity = InstaQLEntity<AppSchema, "channelMeetings">;
 export type ReactionEntity = InstaQLEntity<AppSchema, "reactions">;
 
 export interface WorkspaceSummary extends WorkspaceEntity {
@@ -33,6 +34,7 @@ export interface WorkspaceMemberRecord extends WorkspaceMemberEntity {
 
 export interface ChannelRecord extends ChannelEntity {
   createdBy?: InstantUserEntity | null;
+  meeting?: ChannelMeetingEntity | null;
   members?: ChannelMemberRecord[] | null;
   workspace?: WorkspaceSummary | null;
 }

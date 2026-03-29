@@ -1,4 +1,10 @@
-import { createWorkspaceInviteTx, type ChannelVisibility, type WorkspaceRole } from "@quack/data";
+import {
+  createWorkspaceInviteTx,
+  createWorkspaceMemberTx,
+  deleteWorkspaceInviteByKeyTx,
+  type ChannelVisibility,
+  type WorkspaceRole,
+} from "@quack/data";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "wouter";
@@ -27,16 +33,19 @@ import {
 import { EmojiMenu } from "../../components/ui/EmojiMenu";
 import { HoverTooltip } from "../../components/ui/HoverTooltip";
 import { anchorFromPoint, type FloatingAnchor } from "../../components/ui/floating";
+import { useFileUpload } from "../../hooks/useFileUpload";
 import { useMessageKeyboardNav } from "../../hooks/useMessageKeyboardNav";
 import { useResizeHandle } from "../../hooks/useResizeHandle";
 import { useQuackWorkspace } from "../../hooks/useQuackWorkspace";
+import { SettingsPage } from "../settings/SettingsPage";
 import { CallModal, useChannelCall } from "../../lib/channel-calls";
 import { instantDB } from "../../lib/instant";
-import { normalizeEmail, parseInviteEmails } from "../../lib/workspaces";
+import { createWorkspaceInviteKey, normalizeEmail, parseInviteEmails } from "../../lib/workspaces";
 import type {
   AuthenticatedUser,
   ChannelRecord,
   MessageRecord,
+  WorkspaceInviteRecord,
   WorkspaceMemberRecord,
 } from "../../types/quack";
 
@@ -67,12 +76,14 @@ interface WorkspaceChatPageProps {
   channelSlug?: string;
   memberships: WorkspaceMemberRecord[];
   onSignOut: () => Promise<void>;
+  pendingInvites: WorkspaceInviteRecord[];
   user: AuthenticatedUser;
   workspaceId: string;
 }
 
 export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
   const isMobile = useIsMobile();
+  const [, navigate] = useLocation();
   const app = useQuackWorkspace({
     channelSlug: props.channelSlug,
     user: props.user,
@@ -103,6 +114,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
   });
   const [isCreateChannelOpen, setIsCreateChannelOpen] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [pendingDeleteMessageId, setPendingDeleteMessageId] = useState<string | null>(null);
 
@@ -115,6 +127,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     meeting,
     openPrejoin,
     phase: callPhase,
+    session: callSession,
   } = useChannelCall({
     channelId: app.activeChannel?.id ?? "",
     displayName: app.currentUserMember?.displayName ?? props.user.email ?? undefined,
@@ -122,7 +135,12 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     serverUrl,
   });
 
+  const callChannelId = callSession?.channelId ?? null;
+
   const closeSidebar = useCallback(() => setIsSidebarOpen(false), []);
+
+  const channelUpload = useFileUpload({ workspaceId: props.workspaceId });
+  const threadUpload = useFileUpload({ workspaceId: props.workspaceId });
 
   function isOwnMessage(message: MessageRecord) {
     return message.sender?.id === props.user.id;
@@ -172,6 +190,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
 
     requestAnimationFrame(tryFocus);
     if (isMobile) closeSidebar();
+    channelUpload.clearFiles();
   }, [app.activeChannel?.id, isMobile, closeSidebar]);
 
   const previousThreadIdRef = useRef<string | null>(null);
@@ -213,6 +232,18 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     return <Navigate to="/" />;
   }
 
+  async function handleSendChannelMessage() {
+    const uploaded = channelUpload.hasFiles ? await channelUpload.uploadAll() : undefined;
+    await app.sendChannelMessage(uploaded);
+    channelUpload.clearFiles();
+  }
+
+  async function handleSendThreadReply() {
+    const uploaded = threadUpload.hasFiles ? await threadUpload.uploadAll() : undefined;
+    await app.sendThreadReply(uploaded);
+    threadUpload.clearFiles();
+  }
+
   function closeContextMenu() {
     setContextMenu(null);
   }
@@ -245,7 +276,74 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
       canRemoveChannel &&
       isPrivateMembership &&
       Boolean(channel.members?.some((member) => member.$user?.id === props.user.id));
-    const entries: ContextMenuEntry[] = [
+    const hasCall = channelHasActiveCall(channel, callChannelId);
+    const isInCallOnThisChannel = isInCall && callChannelId === channel.id;
+    const isInCallOnDifferentChannel = isInCall && callChannelId !== channel.id;
+
+    const entries: ContextMenuEntry[] = [];
+
+    if (hasCall && !isInCallOnThisChannel) {
+      entries.push({
+        disabled: false,
+        hint: isInCallOnDifferentChannel
+          ? "Leave your current call to join this one"
+          : "Join the active call in this channel",
+        icon: <CallGlyph />,
+        id: "join-call",
+        label: "Join call",
+        onSelect: () => {
+          if (isInCallOnDifferentChannel) {
+            void leave().then(() => {
+              if (channel.id !== app.activeChannel?.id) {
+                navigate(`/workspaces/${props.workspaceId}/channels/${channel.slug}`);
+              }
+              requestAnimationFrame(() => openPrejoin());
+            });
+          } else {
+            if (channel.id !== app.activeChannel?.id) {
+              navigate(`/workspaces/${props.workspaceId}/channels/${channel.slug}`);
+            }
+            requestAnimationFrame(() => openPrejoin());
+          }
+        },
+      });
+    }
+
+    if (!hasCall && !isInCall) {
+      entries.push({
+        disabled: !channel.id || !props.user.refresh_token,
+        hint: "Start a new call in this channel",
+        icon: <CallGlyph />,
+        id: "start-call",
+        label: "Start call",
+        onSelect: () => {
+          if (channel.id !== app.activeChannel?.id) {
+            navigate(`/workspaces/${props.workspaceId}/channels/${channel.slug}`);
+          }
+          requestAnimationFrame(() => openPrejoin());
+        },
+      });
+    }
+
+    if (isInCallOnThisChannel) {
+      entries.push({
+        disabled: false,
+        hint: "Leave the active call",
+        icon: <HangUpGlyph />,
+        id: "leave-call",
+        label: "Leave call",
+        onSelect: () => {
+          void leave();
+        },
+        tone: "danger",
+      });
+    }
+
+    if (entries.length > 0) {
+      entries.push({ id: "separator-call-actions", type: "separator" });
+    }
+
+    entries.push(
       {
         disabled: !app.canManageChannels,
         hint: app.canManageChannels
@@ -286,7 +384,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
           void app.leaveChannel(channel.id);
         },
       },
-    ];
+    );
 
     setContextMenu({
       entries,
@@ -379,15 +477,18 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                       <aside className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col overflow-hidden rounded-r-2xl bg-amber-50/95 shadow-[4px_0_30px_rgba(15,23,42,0.14)] backdrop-blur-xl">
                         <SidebarContent
                           app={app}
+                          callChannelId={callChannelId}
                           canManageChannels={app.canManageChannels}
                           onChannelContextMenu={handleChannelContextMenu}
                           onClose={closeSidebar}
                           onCreateChannel={() => setIsCreateChannelOpen(true)}
                           onInvite={() => setIsInviteOpen(true)}
+                          onSettings={() => setIsSettingsOpen(true)}
                           onSignOut={() => {
                             void props.onSignOut();
                           }}
                           memberships={props.memberships}
+                          pendingInvites={props.pendingInvites}
                           user={props.user}
                           workspace={workspace}
                           workspaceId={workspace.id}
@@ -406,14 +507,17 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
             >
               <SidebarContent
                 app={app}
+                callChannelId={callChannelId}
                 canManageChannels={app.canManageChannels}
                 onChannelContextMenu={handleChannelContextMenu}
                 onCreateChannel={() => setIsCreateChannelOpen(true)}
                 onInvite={() => setIsInviteOpen(true)}
+                onSettings={() => setIsSettingsOpen(true)}
                 onSignOut={() => {
                   void props.onSignOut();
                 }}
                 memberships={props.memberships}
+                pendingInvites={props.pendingInvites}
                 user={props.user}
                 workspace={workspace}
                 workspaceId={workspace.id}
@@ -537,12 +641,15 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
             <footer className="border-t border-amber-100/70 px-2 py-2 sm:px-4 sm:py-3">
               <div className="mx-auto max-w-3xl">
                 <MessageInput
+                  onAddFiles={channelUpload.addFiles}
                   onKeyDown={keyboardNav.handleInputKeyDown}
+                  onRemoveFile={channelUpload.removeFile}
                   onSubmit={() => {
-                    void app.sendChannelMessage();
+                    void handleSendChannelMessage();
                   }}
                   onValueChange={app.setChannelDraft}
                   placeholder={`Message #${app.activeChannel?.name ?? "channel"}`}
+                  stagedFiles={channelUpload.stagedFiles}
                   textareaRef={channelInputRef}
                   value={app.channelDraft}
                 />
@@ -566,6 +673,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                     editingDraft={app.editingDraft}
                     editingMessageId={app.editingMessageId}
                     isMobile
+                    onAddFiles={threadUpload.addFiles}
                     onCancelEdit={app.cancelEditingMessage}
                     onClose={app.closeThread}
                     onDeleteMessage={(messageId) => {
@@ -573,8 +681,9 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                     }}
                     onEditDraftChange={app.setEditingDraft}
                     onMessageContextMenu={handleMessageContextMenu}
+                    onRemoveFile={threadUpload.removeFile}
                     onReply={() => {
-                      void app.sendThreadReply();
+                      void handleSendThreadReply();
                     }}
                     onSaveEdit={() => {
                       void app.saveEditingMessage();
@@ -586,6 +695,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                     }}
                     replies={app.selectedThreadReplies}
                     rootMessage={app.selectedThreadMessage}
+                    stagedFiles={threadUpload.stagedFiles}
                     startThreadResize={thread.startResize}
                     threadDraft={app.threadDraft}
                     threadInputRef={threadInputRef}
@@ -607,6 +717,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                 currentUserId={props.user.id}
                 editingDraft={app.editingDraft}
                 editingMessageId={app.editingMessageId}
+                onAddFiles={threadUpload.addFiles}
                 onCancelEdit={app.cancelEditingMessage}
                 onClose={app.closeThread}
                 onDeleteMessage={(messageId) => {
@@ -614,8 +725,9 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                 }}
                 onEditDraftChange={app.setEditingDraft}
                 onMessageContextMenu={handleMessageContextMenu}
+                onRemoveFile={threadUpload.removeFile}
                 onReply={() => {
-                  void app.sendThreadReply();
+                  void handleSendThreadReply();
                 }}
                 onSaveEdit={() => {
                   void app.saveEditingMessage();
@@ -627,6 +739,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                 }}
                 replies={app.selectedThreadReplies}
                 rootMessage={app.selectedThreadMessage}
+                stagedFiles={threadUpload.stagedFiles}
                 startThreadResize={thread.startResize}
                 threadDraft={app.threadDraft}
                 threadInputRef={threadInputRef}
@@ -700,6 +813,20 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
         }}
         phase={callPhase}
       />
+
+      {isSettingsOpen ? (
+        <div className="fixed inset-0 z-40 flex items-end justify-center bg-slate-950/20 backdrop-blur-sm sm:items-center sm:px-4">
+          <div className="flex h-[min(92dvh,780px)] w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl border border-amber-200/80 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.14)] sm:rounded-2xl">
+            <SettingsPage
+              currentUserMember={app.currentUserMember}
+              invites={app.invites}
+              onClose={() => setIsSettingsOpen(false)}
+              user={props.user}
+              workspace={workspace}
+            />
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }
@@ -935,13 +1062,16 @@ function WorkspaceSwitcherItem(props: WorkspaceSwitcherItemProps) {
 
 interface SidebarContentProps {
   app: ReturnType<typeof useQuackWorkspace>;
+  callChannelId: string | null;
   canManageChannels: boolean;
   memberships: WorkspaceMemberRecord[];
   onChannelContextMenu: (event: React.MouseEvent, channel: ChannelRecord) => void;
   onClose?: () => void;
   onCreateChannel: () => void;
   onInvite: () => void;
+  onSettings: () => void;
   onSignOut: () => void;
+  pendingInvites: WorkspaceInviteRecord[];
   user: AuthenticatedUser;
   workspace: NonNullable<ReturnType<typeof useQuackWorkspace>["workspace"]>;
   workspaceId: string;
@@ -959,6 +1089,7 @@ function SidebarContent(props: SidebarContentProps) {
         <SidebarMenuButton
           onCreateChannel={props.canManageChannels ? props.onCreateChannel : undefined}
           onInvite={props.onInvite}
+          onSettings={props.onSettings}
           onSignOut={props.onSignOut}
         />
         {props.onClose ? (
@@ -1017,6 +1148,7 @@ function SidebarContent(props: SidebarContentProps) {
         {props.app.visibleChannels.map((channel) => (
           <ChannelLink
             channel={channel}
+            hasActiveCall={channelHasActiveCall(channel, props.callChannelId)}
             href={`/workspaces/${props.workspaceId}/channels/${channel.slug}`}
             isActive={channel.id === props.app.activeChannel?.id}
             isRenaming={channel.id === props.app.renamingChannelId}
@@ -1031,6 +1163,22 @@ function SidebarContent(props: SidebarContentProps) {
           />
         ))}
       </nav>
+
+      {props.pendingInvites.length > 0 ? (
+        <div className="border-t border-amber-200/50 px-3 py-3">
+          <p className="mb-2 px-1 text-[0.65rem] font-semibold uppercase tracking-widest text-slate-400">
+            Invites
+            <span className="ml-1.5 inline-flex size-4 items-center justify-center rounded-full bg-amber-500 text-[0.55rem] font-bold text-white">
+              {props.pendingInvites.length}
+            </span>
+          </p>
+          <div className="flex flex-col gap-1.5">
+            {props.pendingInvites.map((invite) => (
+              <SidebarInviteCard invite={invite} key={invite.id} user={props.user} />
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <div className="border-t border-amber-200/50 px-3 py-3">
         <p className="mb-2 px-1 text-[0.65rem] font-semibold uppercase tracking-widest text-slate-400">
@@ -1054,11 +1202,84 @@ function SidebarContent(props: SidebarContentProps) {
   );
 }
 
+/* ── Sidebar invite card ── */
+
+interface SidebarInviteCardProps {
+  invite: WorkspaceInviteRecord;
+  user: AuthenticatedUser;
+}
+
+function SidebarInviteCard(props: SidebarInviteCardProps) {
+  const [, navigate] = useLocation();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function handleAccept() {
+    if (!props.user.email || !props.invite.workspace) return;
+
+    setIsSubmitting(true);
+
+    try {
+      const role = coerceWorkspaceRole(props.invite.role);
+      const membership = createWorkspaceMemberTx({
+        acceptedInviteKey: createWorkspaceInviteKey(
+          props.invite.workspace.id,
+          props.invite.email,
+          role,
+        ),
+        displayName: props.user.email.split("@")[0],
+        role,
+        userId: props.user.id,
+        workspaceId: props.invite.workspace.id,
+      });
+
+      await instantDB.transact([
+        membership.tx,
+        deleteWorkspaceInviteByKeyTx({
+          email: props.invite.email,
+          role,
+          workspaceId: props.invite.workspace.id,
+        }),
+      ]);
+
+      navigate(`/workspaces/${props.invite.workspace.id}`);
+    } catch {
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-amber-200/40 bg-amber-50/50 px-3 py-2.5">
+      <div className="flex items-center gap-2">
+        <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 to-amber-500 text-[0.6rem] font-bold text-white shadow-sm">
+          {(props.invite.workspace?.name ?? "W").charAt(0).toUpperCase()}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-slate-800">
+            {props.invite.workspace?.name ?? "Workspace"}
+          </p>
+          <p className="text-[0.65rem] text-slate-400">as {props.invite.role}</p>
+        </div>
+      </div>
+      <button
+        className="mt-2 w-full rounded-lg bg-amber-500 px-2.5 py-1.5 text-xs font-medium text-white transition-colors duration-100 hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
+        disabled={isSubmitting}
+        onClick={() => {
+          void handleAccept();
+        }}
+        type="button"
+      >
+        {isSubmitting ? "Joining..." : "Accept invite"}
+      </button>
+    </div>
+  );
+}
+
 /* ── Sidebar action menu ── */
 
 function SidebarMenuButton(props: {
   onCreateChannel?: () => void;
   onInvite: () => void;
+  onSettings: () => void;
   onSignOut: () => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -1112,6 +1333,13 @@ function SidebarMenuButton(props: {
             onClick={() => {
               setIsOpen(false);
               props.onInvite();
+            }}
+          />
+          <MenuRow
+            label="Settings"
+            onClick={() => {
+              setIsOpen(false);
+              props.onSettings();
             }}
           />
           <div className="my-1 h-px bg-amber-100" />
@@ -1445,4 +1673,13 @@ function coerceWorkspaceRole(value: string): WorkspaceRole {
   }
 
   return "member";
+}
+
+function channelHasActiveCall(channel: ChannelRecord, callChannelId: string | null): boolean {
+  if (callChannelId === channel.id) {
+    return true;
+  }
+
+  const meeting = channel.meeting;
+  return meeting !== null && meeting !== undefined && meeting.status === "active";
 }

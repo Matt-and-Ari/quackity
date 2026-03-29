@@ -193,6 +193,7 @@ export function channelsByWorkspaceQuery(workspaceId: string) {
         },
       },
       createdBy: {},
+      meeting: {},
       members: channelMemberFields,
       workspace: {
         owner: {},

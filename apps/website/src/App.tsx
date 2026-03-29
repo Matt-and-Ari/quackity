@@ -128,6 +128,7 @@ function LoggedInApp(props: { user: AuthenticatedUser }) {
             <WorkspaceChatPage
               memberships={memberships}
               onSignOut={handleSignOut}
+              pendingInvites={pendingInvites}
               user={user}
               workspaceId={params.workspaceId}
             />
@@ -144,6 +145,7 @@ function LoggedInApp(props: { user: AuthenticatedUser }) {
               channelSlug={params.channelSlug}
               memberships={memberships}
               onSignOut={handleSignOut}
+              pendingInvites={pendingInvites}
               user={user}
               workspaceId={params.workspaceId}
             />
@@ -159,6 +161,7 @@ function LoggedInApp(props: { user: AuthenticatedUser }) {
             <WorkspaceChatPage
               memberships={memberships}
               onSignOut={handleSignOut}
+              pendingInvites={pendingInvites}
               user={user}
               workspaceId={params.workspaceId}
             />
