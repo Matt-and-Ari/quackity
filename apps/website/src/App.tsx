@@ -1,16 +1,23 @@
 import type { User } from "@instantdb/react";
-import { workspaceInvitesByEmailQuery, workspaceMembershipsByUserQuery } from "@quack/data";
-import { useMemo } from "react";
-import { Route, Switch } from "wouter";
+import {
+  createWorkspaceMemberTx,
+  deleteWorkspaceInviteByKeyTx,
+  workspaceInvitesByEmailQuery,
+  workspaceMembershipsByUserQuery,
+  type WorkspaceRole,
+} from "@quack/data";
+import { useEffect, useMemo, useState } from "react";
+import { Link, Route, Switch, useLocation } from "wouter";
 
 import { AppFrame } from "./components/layout/AppFrame";
 import { LoadingCard } from "./components/layout/LoadingCard";
 import { Navigate } from "./components/layout/Navigate";
+import { Notice } from "./components/ui/FormFields";
 import { LoggedOutPage, OnboardingPage } from "./features/auth/AuthScreens";
 import { WorkspaceChatPage } from "./features/workspace/WorkspaceChatPage";
 import { instantDB } from "./lib/instant";
-import { asArray } from "./lib/ui";
-import { normalizeEmail } from "./lib/workspaces";
+import { asArray, toErrorMessage } from "./lib/ui";
+import { createWorkspaceInviteKey, normalizeEmail } from "./lib/workspaces";
 import type { WorkspaceInviteRecord, WorkspaceMemberRecord } from "./types/quack";
 
 type AuthenticatedUser = User;
@@ -34,6 +41,10 @@ export default function App() {
       <AppFrame statusLabel="Sign in">
         <Switch>
           <Route path="/login">
+            <LoggedOutPage />
+          </Route>
+
+          <Route path="/join/:workspaceId">
             <LoggedOutPage />
           </Route>
 
@@ -85,6 +96,20 @@ function LoggedInApp(props: { user: AuthenticatedUser }) {
     <Switch>
       <Route path="/login">
         <Navigate to={primaryWorkspaceId ? `/workspaces/${primaryWorkspaceId}` : "/onboarding"} />
+      </Route>
+
+      <Route path="/join/:workspaceId">
+        {(params) =>
+          memberships.some((m) => m.workspace?.id === params.workspaceId) ? (
+            <Navigate to={`/workspaces/${params.workspaceId}`} />
+          ) : (
+            <WorkspaceInviteAcceptPage
+              pendingInvites={pendingInvites}
+              user={user}
+              workspaceId={params.workspaceId}
+            />
+          )
+        }
       </Route>
 
       <Route path="/onboarding">
@@ -149,4 +174,158 @@ function LoggedInApp(props: { user: AuthenticatedUser }) {
       </Route>
     </Switch>
   );
+}
+
+function WorkspaceInviteAcceptPage(props: {
+  pendingInvites: WorkspaceInviteRecord[];
+  user: AuthenticatedUser;
+  workspaceId: string;
+}) {
+  const [, navigate] = useLocation();
+  const [hasAttempted, setHasAttempted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const invite =
+    props.pendingInvites.find((entry) => entry.workspace?.id === props.workspaceId) ?? null;
+
+  useEffect(() => {
+    if (!invite || isSubmitting || hasAttempted) {
+      return;
+    }
+
+    let isCancelled = false;
+
+    async function run() {
+      setHasAttempted(true);
+      setIsSubmitting(true);
+      setNotice(null);
+
+      try {
+        const destination = await acceptWorkspaceInvite(invite!, props.user);
+
+        if (!isCancelled) {
+          navigate(destination);
+        }
+      } catch (error) {
+        if (!isCancelled) {
+          setNotice(toErrorMessage(error, "Could not accept the invite."));
+          setIsSubmitting(false);
+        }
+      }
+    }
+
+    void run();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [hasAttempted, invite, isSubmitting, navigate, props.user]);
+
+  if (!invite) {
+    return (
+      <AppFrame statusLabel="Invite not found">
+        <section className="flex flex-1 items-center justify-center py-14">
+          <div className="w-full max-w-md rounded-[1.45rem] border border-amber-200/60 bg-white/82 p-6 shadow-[0_18px_50px_rgba(217,119,6,0.08)]">
+            <p className="text-lg font-semibold text-slate-900">Invite not found</p>
+            <p className="mt-2 text-sm text-slate-500">
+              This account does not have a pending invite for that workspace. Sign in with the
+              invited email address or ask the workspace owner to send a new invite.
+            </p>
+            <Link
+              className="mt-4 inline-block rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-medium text-white transition-colors duration-100 hover:bg-amber-600"
+              href="/"
+            >
+              Back to Quack
+            </Link>
+          </div>
+        </section>
+      </AppFrame>
+    );
+  }
+
+  return (
+    <AppFrame statusLabel="Accepting invite">
+      <section className="flex flex-1 items-center justify-center py-14">
+        <div className="w-full max-w-md rounded-[1.45rem] border border-amber-200/60 bg-white/82 p-6 shadow-[0_18px_50px_rgba(217,119,6,0.08)]">
+          <p className="text-lg font-semibold text-slate-900">Accepting your invite</p>
+          <p className="mt-2 text-sm text-slate-500">
+            Joining{" "}
+            <span className="font-medium text-slate-900">
+              {invite.workspace?.name ?? "workspace"}
+            </span>{" "}
+            as <span className="font-medium text-slate-900">{invite.role}</span>.
+          </p>
+          {notice ? (
+            <div className="mt-3">
+              <Notice message={notice} tone="error" />
+            </div>
+          ) : null}
+          <div className="mt-4 flex items-center gap-2">
+            <button
+              className="rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-medium text-white transition-colors duration-100 hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isSubmitting}
+              onClick={() => {
+                if (isSubmitting) return;
+
+                setIsSubmitting(true);
+                setNotice(null);
+
+                void acceptWorkspaceInvite(invite, props.user)
+                  .then((destination) => navigate(destination))
+                  .catch((error) => {
+                    setNotice(toErrorMessage(error, "Could not accept the invite."));
+                    setIsSubmitting(false);
+                  });
+              }}
+              type="button"
+            >
+              {isSubmitting ? "Joining..." : "Retry"}
+            </button>
+            <Link
+              className="rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors duration-100 hover:bg-slate-100"
+              href="/"
+            >
+              Back to Quack
+            </Link>
+          </div>
+        </div>
+      </section>
+    </AppFrame>
+  );
+}
+
+async function acceptWorkspaceInvite(invite: WorkspaceInviteRecord, user: AuthenticatedUser) {
+  if (!user.email || !invite.workspace) {
+    throw new Error("This account needs an email before it can accept workspace invites.");
+  }
+
+  const role = coerceWorkspaceRole(invite.role);
+  const membership = createWorkspaceMemberTx({
+    acceptedInviteKey: createWorkspaceInviteKey(invite.workspace.id, invite.email, role),
+    displayName: user.email.split("@")[0],
+    role,
+    userId: user.id,
+    workspaceId: invite.workspace.id,
+  });
+
+  await instantDB.transact(membership.tx);
+
+  await instantDB.transact(
+    deleteWorkspaceInviteByKeyTx({
+      email: invite.email,
+      role,
+      workspaceId: invite.workspace.id,
+    }),
+  );
+
+  return `/workspaces/${invite.workspace.id}`;
+}
+
+function coerceWorkspaceRole(value: string): WorkspaceRole {
+  if (value === "admin" || value === "guest") {
+    return value;
+  }
+
+  return "member";
 }
