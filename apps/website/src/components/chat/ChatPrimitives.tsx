@@ -424,27 +424,29 @@ export function ThreadPanel(props: ThreadPanelProps) {
             workspaceMembersByUserId={props.workspaceMembersByUserId}
           />
 
-          {props.replies.length > 0 ? (
+          {props.replies.filter((r) => !r.deletedAt).length > 0 ? (
             <div className="relative ml-5 flex flex-col gap-3 border-l-2 border-amber-200/60 pl-4">
-              {props.replies.map((reply) => (
-                <ThreadMessage
-                  currentUserId={props.currentUserId}
-                  editingDraft={props.editingDraft}
-                  isEditing={props.editingMessageId === reply.id}
-                  key={reply.id}
-                  message={reply}
-                  onCancelEdit={props.onCancelEdit}
-                  onContextMenu={props.onMessageContextMenu}
-                  onDelete={() => props.onDeleteMessage(reply.id)}
-                  onEditDraftChange={props.onEditDraftChange}
-                  onSaveEdit={props.onSaveEdit}
-                  onStartEdit={() => props.onStartEdit(reply.id)}
-                  onToggleReaction={(emoji) => props.onToggleReaction(reply.id, emoji)}
-                  sender={reply.sender ?? props.currentUser}
-                  usersById={props.usersById}
-                  workspaceMembersByUserId={props.workspaceMembersByUserId}
-                />
-              ))}
+              {props.replies
+                .filter((r) => !r.deletedAt)
+                .map((reply) => (
+                  <ThreadMessage
+                    currentUserId={props.currentUserId}
+                    editingDraft={props.editingDraft}
+                    isEditing={props.editingMessageId === reply.id}
+                    key={reply.id}
+                    message={reply}
+                    onCancelEdit={props.onCancelEdit}
+                    onContextMenu={props.onMessageContextMenu}
+                    onDelete={() => props.onDeleteMessage(reply.id)}
+                    onEditDraftChange={props.onEditDraftChange}
+                    onSaveEdit={props.onSaveEdit}
+                    onStartEdit={() => props.onStartEdit(reply.id)}
+                    onToggleReaction={(emoji) => props.onToggleReaction(reply.id, emoji)}
+                    sender={reply.sender ?? props.currentUser}
+                    usersById={props.usersById}
+                    workspaceMembersByUserId={props.workspaceMembersByUserId}
+                  />
+                ))}
             </div>
           ) : null}
         </div>

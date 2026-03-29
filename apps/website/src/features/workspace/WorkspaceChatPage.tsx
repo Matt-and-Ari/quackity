@@ -383,7 +383,10 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                 <div className="flex items-center gap-1">
                   {isInCall ? (
                     <>
-                      <HoverTooltip content={isMeetingPanelOpen ? "Hide call" : "Show call"}>
+                      <HoverTooltip
+                        content={isMeetingPanelOpen ? "Hide call" : "Show call"}
+                        side="bottom"
+                      >
                         <button
                           className={clsx(
                             "rounded-lg p-1.5 transition-colors duration-100",
@@ -398,7 +401,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                           <CallGlyph />
                         </button>
                       </HoverTooltip>
-                      <HoverTooltip content="Leave call">
+                      <HoverTooltip content="Leave call" side="bottom">
                         <button
                           className="rounded-lg p-1.5 text-rose-500 transition-colors duration-100 hover:bg-rose-50"
                           onClick={() => {
@@ -411,13 +414,13 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                       </HoverTooltip>
                     </>
                   ) : (
-                    <HoverTooltip content={isJoining ? "Joining..." : "Join call"}>
+                    <HoverTooltip content={isJoining ? "Joining..." : "Start a call"} side="bottom">
                       <button
                         className={clsx(
-                          "rounded-lg p-1.5 transition-colors duration-100",
+                          "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors duration-100",
                           isJoining
                             ? "cursor-wait text-slate-300"
-                            : "text-slate-500 hover:bg-slate-100",
+                            : "text-slate-500 hover:bg-amber-50 hover:text-amber-700",
                         )}
                         disabled={!app.activeChannel?.id || !props.user.refresh_token || isJoining}
                         onClick={() => {
@@ -426,6 +429,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                         type="button"
                       >
                         <CallGlyph />
+                        <span>Call</span>
                       </button>
                     </HoverTooltip>
                   )}
@@ -466,33 +470,39 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
 
             <section className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
               <div className="mx-auto flex max-w-3xl flex-col gap-1">
-                {app.messages.map((message) => (
-                  <MessageCard
-                    currentUserId={props.user.id}
-                    editingDraft={app.editingDraft}
-                    isActiveThread={message.id === app.selectedThreadMessage?.id}
-                    isEditing={app.editingMessageId === message.id}
-                    key={message.id}
-                    message={message}
-                    onCancelEdit={app.cancelEditingMessage}
-                    onContextMenu={handleMessageContextMenu}
-                    onDelete={() => {
-                      void app.deleteMessage(message.id);
-                    }}
-                    onEditDraftChange={app.setEditingDraft}
-                    onOpenReactionMenu={(anchor) => openEmojiMenu(anchor, message.id)}
-                    onReply={() => app.openThread(message.id)}
-                    onSaveEdit={() => {
-                      void app.saveEditingMessage();
-                    }}
-                    onStartEdit={() => app.startEditingMessage(message.id)}
-                    onToggleReaction={(emoji) => {
-                      void app.toggleReaction(message.id, emoji);
-                    }}
-                    usersById={app.usersById}
-                    workspaceMembersByUserId={app.workspaceMembersByUserId}
-                  />
-                ))}
+                {app.messages.filter((m) => !m.deletedAt).length === 0 ? (
+                  <ChannelEmptyState channelName={app.activeChannel?.name ?? "channel"} />
+                ) : (
+                  app.messages
+                    .filter((m) => !m.deletedAt)
+                    .map((message) => (
+                      <MessageCard
+                        currentUserId={props.user.id}
+                        editingDraft={app.editingDraft}
+                        isActiveThread={message.id === app.selectedThreadMessage?.id}
+                        isEditing={app.editingMessageId === message.id}
+                        key={message.id}
+                        message={message}
+                        onCancelEdit={app.cancelEditingMessage}
+                        onContextMenu={handleMessageContextMenu}
+                        onDelete={() => {
+                          void app.deleteMessage(message.id);
+                        }}
+                        onEditDraftChange={app.setEditingDraft}
+                        onOpenReactionMenu={(anchor) => openEmojiMenu(anchor, message.id)}
+                        onReply={() => app.openThread(message.id)}
+                        onSaveEdit={() => {
+                          void app.saveEditingMessage();
+                        }}
+                        onStartEdit={() => app.startEditingMessage(message.id)}
+                        onToggleReaction={(emoji) => {
+                          void app.toggleReaction(message.id, emoji);
+                        }}
+                        usersById={app.usersById}
+                        workspaceMembersByUserId={app.workspaceMembersByUserId}
+                      />
+                    ))
+                )}
               </div>
             </section>
 
@@ -881,6 +891,36 @@ function HangUpGlyph() {
         strokeWidth="1.2"
       />
     </svg>
+  );
+}
+
+function ChannelEmptyState(props: { channelName: string }) {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center py-20 select-none">
+      <div className="flex size-16 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-100 to-amber-200/80 shadow-[0_8px_24px_rgba(217,119,6,0.12)]">
+        <svg fill="none" height="28" viewBox="0 0 24 24" width="28">
+          <path
+            d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10Z"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="1.5"
+            className="text-amber-500"
+          />
+          <path
+            d="M8 10h.01M12 10h.01M16 10h.01"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeWidth="2"
+            className="text-amber-400"
+          />
+        </svg>
+      </div>
+      <p className="mt-4 text-sm font-semibold text-slate-900">Welcome to #{props.channelName}</p>
+      <p className="mt-1 max-w-xs text-center text-xs leading-5 text-slate-400">
+        This is the very beginning of the channel. Send a message to start the conversation.
+      </p>
+    </div>
   );
 }
 
