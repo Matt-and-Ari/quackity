@@ -19,6 +19,52 @@ const _schema = i.schema({
       imageURL: i.string().optional(),
       type: i.string().optional(),
     }),
+    workspaces: i.entity({
+      createdAt: i.date().indexed(),
+      imageUrl: i.string().optional(),
+      name: i.string(),
+      slug: i.string().unique().indexed(),
+    }),
+    workspaceMembers: i.entity({
+      displayName: i.string().optional(),
+      joinedAt: i.date().indexed(),
+      memberKey: i.string().unique().indexed(),
+      role: i.string().indexed(),
+      roleKey: i.string().indexed(),
+      status: i.string().optional(),
+    }),
+    channels: i.entity({
+      archivedAt: i.date().optional().indexed(),
+      createdAt: i.date().indexed(),
+      name: i.string(),
+      scopedSlug: i.string().unique().indexed(),
+      slug: i.string().indexed(),
+      topic: i.string().optional(),
+      visibility: i.string().indexed(),
+    }),
+    channelMembers: i.entity({
+      joinedAt: i.date().indexed(),
+      membershipKey: i.string().unique().indexed(),
+    }),
+    messages: i.entity({
+      body: i.string().optional(),
+      createdAt: i.date().indexed(),
+      deletedAt: i.date().optional().indexed(),
+      messageType: i.string().indexed(),
+      updatedAt: i.date().optional().indexed(),
+    }),
+    messageAttachments: i.entity({
+      attachmentType: i.string().indexed(),
+      contentType: i.string().optional(),
+      createdAt: i.date().indexed(),
+      name: i.string(),
+      sizeBytes: i.number().optional(),
+    }),
+    reactions: i.entity({
+      createdAt: i.date().indexed(),
+      emoji: i.string().indexed(),
+      reactionKey: i.string().unique().indexed(),
+    }),
   },
   links: {
     $streams$files: {
@@ -45,6 +91,200 @@ const _schema = i.schema({
         on: "$users",
         has: "many",
         label: "linkedGuestUsers",
+      },
+    },
+    workspaceCreatedBy: {
+      forward: {
+        on: "workspaces",
+        has: "one",
+        label: "createdBy",
+        required: true,
+      },
+      reverse: {
+        on: "$users",
+        has: "many",
+        label: "createdWorkspaces",
+      },
+    },
+    workspaceOwner: {
+      forward: {
+        on: "workspaces",
+        has: "one",
+        label: "owner",
+        required: true,
+      },
+      reverse: {
+        on: "$users",
+        has: "many",
+        label: "ownedWorkspaces",
+      },
+    },
+    workspaceMemberWorkspace: {
+      forward: {
+        on: "workspaceMembers",
+        has: "one",
+        label: "workspace",
+        required: true,
+      },
+      reverse: {
+        on: "workspaces",
+        has: "many",
+        label: "members",
+      },
+    },
+    workspaceMemberUser: {
+      forward: {
+        on: "workspaceMembers",
+        has: "one",
+        label: "$user",
+        required: true,
+      },
+      reverse: {
+        on: "$users",
+        has: "many",
+        label: "workspaceMemberships",
+      },
+    },
+    channelWorkspace: {
+      forward: {
+        on: "channels",
+        has: "one",
+        label: "workspace",
+        required: true,
+      },
+      reverse: {
+        on: "workspaces",
+        has: "many",
+        label: "channels",
+      },
+    },
+    channelCreatedBy: {
+      forward: {
+        on: "channels",
+        has: "one",
+        label: "createdBy",
+        required: true,
+      },
+      reverse: {
+        on: "$users",
+        has: "many",
+        label: "createdChannels",
+      },
+    },
+    channelMemberChannel: {
+      forward: {
+        on: "channelMembers",
+        has: "one",
+        label: "channel",
+        required: true,
+      },
+      reverse: {
+        on: "channels",
+        has: "many",
+        label: "members",
+      },
+    },
+    channelMemberUser: {
+      forward: {
+        on: "channelMembers",
+        has: "one",
+        label: "$user",
+        required: true,
+      },
+      reverse: {
+        on: "$users",
+        has: "many",
+        label: "channelMemberships",
+      },
+    },
+    messageChannel: {
+      forward: {
+        on: "messages",
+        has: "one",
+        label: "channel",
+        required: true,
+      },
+      reverse: {
+        on: "channels",
+        has: "many",
+        label: "messages",
+      },
+    },
+    messageSender: {
+      forward: {
+        on: "messages",
+        has: "one",
+        label: "sender",
+        required: true,
+      },
+      reverse: {
+        on: "$users",
+        has: "many",
+        label: "sentMessages",
+      },
+    },
+    messageParentMessage: {
+      forward: {
+        on: "messages",
+        has: "one",
+        label: "parentMessage",
+      },
+      reverse: {
+        on: "messages",
+        has: "many",
+        label: "threadReplies",
+      },
+    },
+    messageAttachmentMessage: {
+      forward: {
+        on: "messageAttachments",
+        has: "one",
+        label: "message",
+        required: true,
+      },
+      reverse: {
+        on: "messages",
+        has: "many",
+        label: "attachments",
+      },
+    },
+    messageAttachmentFile: {
+      forward: {
+        on: "messageAttachments",
+        has: "one",
+        label: "$file",
+        required: true,
+      },
+      reverse: {
+        on: "$files",
+        has: "many",
+        label: "messageAttachments",
+      },
+    },
+    reactionMessage: {
+      forward: {
+        on: "reactions",
+        has: "one",
+        label: "message",
+        required: true,
+      },
+      reverse: {
+        on: "messages",
+        has: "many",
+        label: "reactions",
+      },
+    },
+    reactionUser: {
+      forward: {
+        on: "reactions",
+        has: "one",
+        label: "$user",
+        required: true,
+      },
+      reverse: {
+        on: "$users",
+        has: "many",
+        label: "reactions",
       },
     },
   },

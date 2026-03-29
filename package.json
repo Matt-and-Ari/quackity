@@ -6,6 +6,8 @@
   "scripts": {
     "ready": "vp fmt && vp lint && vp run test -r && vp run build -r",
     "dev": "vp run website#dev",
+    "dev:playground": "vp run playground#dev",
+    "dev:website": "vp run website#dev",
     "instant:pull": "instant-cli pull",
     "instant:push": "instant-cli push schema && instant-cli push perms",
     "prepare": "vp config"
