@@ -1,0 +1,12 @@
+.cursor
+.git
+.github
+.turbo
+coverage
+dist
+node_modules
+**/dist
+**/node_modules
+*.log
+.DS_Store
+.env
