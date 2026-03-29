@@ -87,7 +87,7 @@ export default function App() {
 }
 
 function LoggedOutApp({ authErrorMessage }: { authErrorMessage?: string }) {
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [step, setStep] = useState<"email" | "code">("email");
@@ -125,7 +125,7 @@ function LoggedOutApp({ authErrorMessage }: { authErrorMessage?: string }) {
       }
 
       await instantDB.auth.signInWithToken(response.data.token);
-      navigate("/");
+      navigate(location === "/login" ? "/" : location);
     } catch (error) {
       setNotice(toErrorMessage(error, "Something went wrong during sign in."));
     } finally {
@@ -136,6 +136,58 @@ function LoggedOutApp({ authErrorMessage }: { authErrorMessage?: string }) {
   return (
     <AppFrame statusLabel="Sign in with a magic code">
       <Switch>
+        <Route path="/join/:workspaceId">
+          {(params) => (
+            <section className="grid flex-1 items-center gap-10 py-14 lg:grid-cols-[1.05fr_0.95fr]">
+              <div className="space-y-7">
+                <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.07] px-4 py-2 text-sm text-slate-200 shadow-2xl shadow-cyan-950/20 backdrop-blur">
+                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_20px_rgba(74,222,128,0.75)]" />
+                  Accept your workspace invite after signing in.
+                </div>
+
+                <div className="space-y-5">
+                  <p className="font-display text-5xl leading-none tracking-[-0.04em] text-white sm:text-6xl">
+                    Join a workspace from your invite link.
+                  </p>
+                  <p className="max-w-2xl text-lg leading-8 text-slate-300">
+                    Sign in with the email address that received the invite. Quack will accept the
+                    pending invite for workspace{" "}
+                    <span className="text-white">{params.workspaceId}</span> once you are
+                    authenticated.
+                  </p>
+                </div>
+
+                <MetricGroup
+                  metrics={[
+                    { label: "Route", value: "/join/:workspaceId" },
+                    { label: "Auth", value: "Magic code" },
+                    { label: "Next step", value: "Auto-accept" },
+                  ]}
+                />
+              </div>
+
+              <AuthCard
+                authErrorMessage={authErrorMessage}
+                code={code}
+                email={email}
+                isSubmitting={isSubmitting}
+                notice={notice}
+                onCodeChange={setCode}
+                onEditEmail={() => {
+                  setStep("email");
+                  setCode("");
+                  setNotice(null);
+                }}
+                onEmailChange={setEmail}
+                onSubmit={handleSubmit}
+                step={step}
+                subtitle="Use the invited email so Quack can match your pending workspace invite."
+                title="Sign in to accept invite"
+              />
+            </section>
+          )}
+        </Route>
+
         <Route path="/login">
           <section className="grid flex-1 items-center gap-10 py-14 lg:grid-cols-[1.05fr_0.95fr]">
             <div className="space-y-7">
@@ -246,6 +298,20 @@ function LoggedInApp({
           ) : (
             <OnboardingPage pendingInvites={pendingInvites} user={user} />
           )}
+        </Route>
+
+        <Route path="/join/:workspaceId">
+          {(params) =>
+            memberships.some((member) => member.workspace?.id === params.workspaceId) ? (
+              <Navigate to={`/workspaces/${params.workspaceId}`} />
+            ) : (
+              <WorkspaceInviteAcceptPage
+                pendingInvites={pendingInvites}
+                user={user}
+                workspaceId={params.workspaceId}
+              />
+            )
+          }
         </Route>
 
         <Route path="/workspaces/:workspaceId/setup">
@@ -452,34 +518,11 @@ function PendingInviteCard({ invite, user }: { invite: WorkspaceInvite; user: Au
   const [notice, setNotice] = useState<string | null>(null);
 
   async function acceptInvite() {
-    if (!user.email || !invite.workspace) {
-      setNotice("This account needs an email before it can accept workspace invites.");
-      return;
-    }
-
     setIsSubmitting(true);
     setNotice(null);
 
     try {
-      const role = coerceWorkspaceRole(invite.role);
-      const membership = createWorkspaceMemberTx({
-        acceptedInviteKey: createWorkspaceInviteKey(invite.workspace.id, invite.email, role),
-        displayName: user.email.split("@")[0],
-        role,
-        userId: user.id,
-        workspaceId: invite.workspace.id,
-      });
-
-      await instantDB.transact([
-        membership.tx,
-        deleteWorkspaceInviteByKeyTx({
-          email: invite.email,
-          role,
-          workspaceId: invite.workspace.id,
-        }),
-      ]);
-
-      navigate(`/workspaces/${invite.workspace.id}`);
+      navigate(await acceptWorkspaceInvite(invite, user));
     } catch (error) {
       setNotice(toErrorMessage(error, "Could not accept the invite."));
     } finally {
@@ -507,6 +550,123 @@ function PendingInviteCard({ invite, user }: { invite: WorkspaceInvite; user: Au
         {isSubmitting ? "Joining..." : "Accept invite"}
       </button>
     </div>
+  );
+}
+
+function WorkspaceInviteAcceptPage({
+  pendingInvites,
+  user,
+  workspaceId,
+}: {
+  pendingInvites: WorkspaceInvite[];
+  user: AuthenticatedUser;
+  workspaceId: string;
+}) {
+  const [, navigate] = useLocation();
+  const [hasAttempted, setHasAttempted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const invite = pendingInvites.find((entry) => entry.workspace?.id === workspaceId) ?? null;
+
+  useEffect(() => {
+    if (!invite || isSubmitting || hasAttempted) {
+      return;
+    }
+
+    let isCancelled = false;
+    const pendingInvite = invite;
+
+    async function run() {
+      setHasAttempted(true);
+      setIsSubmitting(true);
+      setNotice(null);
+
+      try {
+        const destination = await acceptWorkspaceInvite(pendingInvite, user);
+
+        if (!isCancelled) {
+          navigate(destination);
+        }
+      } catch (error) {
+        if (!isCancelled) {
+          setNotice(toErrorMessage(error, "Could not accept the invite."));
+          setIsSubmitting(false);
+        }
+      }
+    }
+
+    void run();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [hasAttempted, invite, isSubmitting, navigate, user]);
+
+  if (!invite) {
+    return (
+      <section className="flex flex-1 items-center justify-center py-14">
+        <div className="w-full max-w-2xl rounded-[2rem] border border-white/[0.12] bg-slate-900/75 p-8 shadow-[0_30px_120px_rgba(2,8,23,0.7)] backdrop-blur-2xl">
+          <p className="font-display text-3xl text-white">Invite not found</p>
+          <p className="mt-3 leading-7 text-slate-300">
+            This account does not have a pending invite for that workspace. Sign in with the invited
+            email address or ask the workspace owner to send a new invite link.
+          </p>
+          <div className="mt-6">
+            <Link
+              className="inline-flex rounded-full border border-white/10 bg-white/[0.06] px-5 py-3 font-medium text-slate-100 transition hover:bg-white/[0.1]"
+              href="/"
+            >
+              Back to Quack
+            </Link>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="flex flex-1 items-center justify-center py-14">
+      <div className="w-full max-w-2xl rounded-[2rem] border border-white/[0.12] bg-slate-900/75 p-8 shadow-[0_30px_120px_rgba(2,8,23,0.7)] backdrop-blur-2xl">
+        <p className="font-display text-3xl text-white">Accepting your invite</p>
+        <p className="mt-3 leading-7 text-slate-300">
+          Joining <span className="text-white">{invite.workspace?.name ?? "workspace"}</span> as{" "}
+          <span className="text-white">{invite.role}</span>.
+        </p>
+        {notice ? <Notice message={notice} tone="error" /> : null}
+        <div className="mt-6 flex flex-wrap gap-3">
+          <button
+            className="rounded-full bg-white px-5 py-3 font-semibold text-slate-950 transition hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={isSubmitting}
+            onClick={() => {
+              if (isSubmitting) {
+                return;
+              }
+
+              setIsSubmitting(true);
+              setNotice(null);
+
+              void acceptWorkspaceInvite(invite, user)
+                .then((destination) => {
+                  navigate(destination);
+                })
+                .catch((error) => {
+                  setNotice(toErrorMessage(error, "Could not accept the invite."));
+                  setIsSubmitting(false);
+                });
+            }}
+            type="button"
+          >
+            {isSubmitting ? "Joining workspace..." : "Retry invite acceptance"}
+          </button>
+          <Link
+            className="inline-flex rounded-full border border-white/10 bg-white/[0.06] px-5 py-3 font-medium text-slate-100 transition hover:bg-white/[0.1]"
+            href="/"
+          >
+            Back to Quack
+          </Link>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -763,6 +923,9 @@ function InviteTeammatesPanel({
   workspace: WorkspaceSummary;
 }) {
   const [inviteEmails, setInviteEmails] = useState("");
+  const inviteLink = getWorkspaceInviteLink(workspace.id);
+  const invitePath = getWorkspaceInvitePath(workspace.id);
+  const [linkNotice, setLinkNotice] = useState<string | null>(null);
   const [role, setRole] = useState<WorkspaceRole>("member");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -819,6 +982,46 @@ function InviteTeammatesPanel({
         Invite people by email so they can join the workspace after signing in.
       </p>
 
+      <div className="mt-5 rounded-3xl border border-white/10 bg-slate-950/70 p-4">
+        <p className="text-sm font-medium text-white">Invite link</p>
+        <p className="mt-2 text-sm leading-6 text-slate-400">
+          Share this link with invited users. If they sign in with the invited email, Quack will
+          accept their pending invite for this workspace.
+        </p>
+        <code className="mt-3 block overflow-x-auto rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-xs text-cyan-100">
+          {inviteLink}
+        </code>
+        <div className="mt-3 flex flex-wrap gap-3">
+          <button
+            className="rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-sm font-medium text-slate-100 transition hover:bg-white/[0.1]"
+            onClick={() => {
+              void navigator.clipboard
+                .writeText(inviteLink)
+                .then(() => {
+                  setLinkNotice("Invite link copied to clipboard.");
+                })
+                .catch(() => {
+                  setLinkNotice("Could not copy the link. You can still copy it manually.");
+                });
+            }}
+            type="button"
+          >
+            Copy invite link
+          </button>
+          <Link
+            className="inline-flex rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-sm font-medium text-slate-100 transition hover:bg-white/[0.1]"
+            href={invitePath}
+          >
+            Open invite route
+          </Link>
+        </div>
+        {linkNotice ? (
+          <div className="mt-3">
+            <Notice message={linkNotice} />
+          </div>
+        ) : null}
+      </div>
+
       <form className="mt-5 space-y-4" onSubmit={invitePeople}>
         <TextareaField
           label="Emails"
@@ -865,6 +1068,8 @@ function AuthCard({
   onEmailChange,
   onSubmit,
   step,
+  subtitle = "Use your email to request a magic code from the Bun server.",
+  title = "Sign in to Quack",
 }: {
   authErrorMessage?: string;
   code: string;
@@ -876,6 +1081,8 @@ function AuthCard({
   onEmailChange: (value: string) => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => Promise<void>;
   step: "email" | "code";
+  subtitle?: string;
+  title?: string;
 }) {
   return (
     <div className="relative">
@@ -885,10 +1092,8 @@ function AuthCard({
       <div className="relative rounded-[2rem] border border-white/[0.12] bg-slate-900/75 p-6 shadow-[0_30px_120px_rgba(2,8,23,0.7)] backdrop-blur-2xl">
         <form className="space-y-6" onSubmit={onSubmit}>
           <div className="border-b border-white/10 pb-4">
-            <p className="font-display text-2xl text-white">Sign in to Quack</p>
-            <p className="mt-2 text-sm text-slate-400">
-              Use your email to request a magic code from the Bun server.
-            </p>
+            <p className="font-display text-2xl text-white">{title}</p>
+            <p className="mt-2 text-sm text-slate-400">{subtitle}</p>
           </div>
 
           <InputField
@@ -1114,6 +1319,46 @@ function Notice({ message, tone = "info" }: { message: string; tone?: "error" | 
       : "border-cyan-400/20 bg-cyan-400/10 text-cyan-50";
 
   return <div className={`rounded-2xl border px-4 py-3 text-sm ${toneClasses}`}>{message}</div>;
+}
+
+async function acceptWorkspaceInvite(invite: WorkspaceInvite, user: AuthenticatedUser) {
+  if (!user.email || !invite.workspace) {
+    throw new Error("This account needs an email before it can accept workspace invites.");
+  }
+
+  const role = coerceWorkspaceRole(invite.role);
+  const membership = createWorkspaceMemberTx({
+    acceptedInviteKey: createWorkspaceInviteKey(invite.workspace.id, invite.email, role),
+    displayName: user.email.split("@")[0],
+    role,
+    userId: user.id,
+    workspaceId: invite.workspace.id,
+  });
+
+  await instantDB.transact([
+    membership.tx,
+    deleteWorkspaceInviteByKeyTx({
+      email: invite.email,
+      role,
+      workspaceId: invite.workspace.id,
+    }),
+  ]);
+
+  return `/workspaces/${invite.workspace.id}`;
+}
+
+function getWorkspaceInvitePath(workspaceId: string) {
+  return `/join/${workspaceId}`;
+}
+
+function getWorkspaceInviteLink(workspaceId: string) {
+  const invitePath = getWorkspaceInvitePath(workspaceId);
+
+  if (typeof window === "undefined") {
+    return invitePath;
+  }
+
+  return new URL(invitePath, window.location.origin).toString();
 }
 
 function Navigate({ to }: { to: string }) {
