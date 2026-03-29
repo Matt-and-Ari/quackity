@@ -15,6 +15,7 @@
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
   }
 
   * {
@@ -23,7 +24,8 @@
 
   html,
   body {
-    @apply h-full overflow-hidden;
+    height: 100dvh;
+    @apply overflow-hidden;
   }
 
   body {
@@ -53,6 +55,7 @@
   }
 
   #app {
-    @apply h-full overflow-hidden;
+    height: 100dvh;
+    @apply overflow-hidden;
   }
 }

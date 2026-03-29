@@ -188,15 +188,23 @@ export function EmojiMenu(props: EmojiMenuProps) {
 
   return createPortal(
     <div
-      className="fixed z-50 flex h-[30rem] w-[25rem] overflow-hidden rounded-[1.35rem] border border-amber-200/80 bg-white/96 shadow-[0_28px_90px_rgba(15,23,42,0.18)] backdrop-blur-xl"
+      className={clsx(
+        "fixed z-50 flex overflow-hidden border border-amber-200/80 bg-white/96 shadow-[0_28px_90px_rgba(15,23,42,0.18)] backdrop-blur-xl",
+        "max-md:inset-x-0 max-md:bottom-0 max-md:h-[70dvh] max-md:rounded-t-2xl max-md:border-b-0",
+        "md:h-[30rem] md:w-[25rem] md:rounded-[1.35rem]",
+      )}
       ref={containerRef}
-      style={{
-        left: position.left,
-        maxHeight: position.maxHeight,
-        top: position.top,
-      }}
+      style={
+        window.innerWidth >= 768
+          ? {
+              left: position.left,
+              maxHeight: position.maxHeight,
+              top: position.top,
+            }
+          : undefined
+      }
     >
-      <div className="flex w-14 flex-col items-center gap-1 border-r border-amber-100 bg-amber-50/70 p-2">
+      <div className="hidden w-14 flex-col items-center gap-1 border-r border-amber-100 bg-amber-50/70 p-2 md:flex">
         {emojiCategories.map((category) => (
           <button
             aria-label={category.label}

@@ -228,8 +228,8 @@ function WorkspaceInviteAcceptPage(props: {
   if (!invite) {
     return (
       <AppFrame statusLabel="Invite not found">
-        <section className="flex flex-1 items-center justify-center py-14">
-          <div className="w-full max-w-md rounded-[1.45rem] border border-amber-200/60 bg-white/82 p-6 shadow-[0_18px_50px_rgba(217,119,6,0.08)]">
+        <section className="flex flex-1 items-center justify-center px-4 py-14">
+          <div className="w-full max-w-md rounded-[1.45rem] border border-amber-200/60 bg-white/82 p-5 shadow-[0_18px_50px_rgba(217,119,6,0.08)] sm:p-6">
             <p className="text-lg font-semibold text-slate-900">Invite not found</p>
             <p className="mt-2 text-sm text-slate-500">
               This account does not have a pending invite for that workspace. Sign in with the
@@ -249,8 +249,8 @@ function WorkspaceInviteAcceptPage(props: {
 
   return (
     <AppFrame statusLabel="Accepting invite">
-      <section className="flex flex-1 items-center justify-center py-14">
-        <div className="w-full max-w-md rounded-[1.45rem] border border-amber-200/60 bg-white/82 p-6 shadow-[0_18px_50px_rgba(217,119,6,0.08)]">
+      <section className="flex flex-1 items-center justify-center px-4 py-14">
+        <div className="w-full max-w-md rounded-[1.45rem] border border-amber-200/60 bg-white/82 p-5 shadow-[0_18px_50px_rgba(217,119,6,0.08)] sm:p-6">
           <p className="text-lg font-semibold text-slate-900">Accepting your invite</p>
           <p className="mt-2 text-sm text-slate-500">
             Joining{" "}

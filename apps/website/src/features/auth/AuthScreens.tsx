@@ -68,8 +68,8 @@ export function LoggedOutPage() {
   }
 
   return (
-    <section className="flex flex-1 items-center justify-center py-8">
-      <div className="w-full max-w-sm rounded-[1.45rem] border border-amber-200/60 bg-white/82 p-6 shadow-[0_18px_50px_rgba(217,119,6,0.08)]">
+    <section className="flex flex-1 items-center justify-center px-4 py-8">
+      <div className="w-full max-w-sm rounded-[1.45rem] border border-amber-200/60 bg-white/82 p-5 shadow-[0_18px_50px_rgba(217,119,6,0.08)] sm:p-6">
         <form className="space-y-5" onSubmit={handleSubmit}>
           <div>
             <p className="text-lg font-semibold text-slate-900">Sign in to Quack</p>
@@ -101,9 +101,9 @@ export function LoggedOutPage() {
 
           {notice ? <Notice message={notice} /> : null}
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <button
-              className="rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-medium text-white transition-colors duration-100 hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-medium text-white transition-colors duration-100 hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
               disabled={isSubmitting || !email || (step === "code" && !code)}
               type="submit"
             >
@@ -200,9 +200,9 @@ export function OnboardingPage(props: OnboardingPageProps) {
   }
 
   return (
-    <section className="flex flex-1 items-start justify-center gap-6 py-8">
+    <section className="flex flex-1 flex-col items-start justify-center gap-6 px-4 py-8 sm:flex-row">
       {props.pendingInvites.length > 0 ? (
-        <div className="w-full max-w-sm rounded-[1.45rem] border border-amber-200/60 bg-white/82 p-6 shadow-[0_18px_50px_rgba(217,119,6,0.08)]">
+        <div className="w-full max-w-sm rounded-[1.45rem] border border-amber-200/60 bg-white/82 p-5 shadow-[0_18px_50px_rgba(217,119,6,0.08)] sm:p-6">
           <p className="text-base font-semibold text-slate-900">Pending invites</p>
           <p className="mt-1 text-sm text-slate-500">
             Accept an invite to join an existing workspace.
@@ -215,7 +215,7 @@ export function OnboardingPage(props: OnboardingPageProps) {
         </div>
       ) : null}
 
-      <div className="w-full max-w-sm rounded-[1.45rem] border border-amber-200/60 bg-white/82 p-6 shadow-[0_18px_50px_rgba(217,119,6,0.08)]">
+      <div className="w-full max-w-sm rounded-[1.45rem] border border-amber-200/60 bg-white/82 p-5 shadow-[0_18px_50px_rgba(217,119,6,0.08)] sm:p-6">
         <form className="space-y-4" onSubmit={handleCreateWorkspace}>
           <div>
             <p className="text-lg font-semibold text-slate-900">Create a workspace</p>
@@ -264,7 +264,7 @@ export function OnboardingPage(props: OnboardingPageProps) {
           {notice ? <Notice message={notice} tone="error" /> : null}
 
           <button
-            className="rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-medium text-white transition-colors duration-100 hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-medium text-white transition-colors duration-100 hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
             disabled={isSubmitting || !workspaceName.trim() || !workspaceSlug.trim()}
             type="submit"
           >

@@ -43,6 +43,8 @@ interface MessageCardProps {
   editingDraft: string;
   isActiveThread: boolean;
   isEditing: boolean;
+  isOwnMessage: boolean;
+  isSelected?: boolean;
   message: MessageRecord;
   onCancelEdit: () => void;
   onContextMenu: (event: React.MouseEvent, message: MessageRecord) => void;
@@ -58,6 +60,7 @@ interface MessageCardProps {
 }
 
 interface MessageInputProps {
+  onKeyDown?: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
   onSubmit: () => void;
   onValueChange: (value: string) => void;
   placeholder: string;
@@ -70,6 +73,7 @@ interface ThreadPanelProps {
   currentUserId: string;
   editingDraft: string;
   editingMessageId: string | null;
+  isMobile?: boolean;
   onCancelEdit: () => void;
   onClose: () => void;
   onDeleteMessage: (messageId: string) => void;
@@ -187,6 +191,13 @@ export function MessageCard(props: MessageCardProps) {
   const isDeleted = Boolean(props.message.deletedAt);
   const sender = props.message.sender;
   const senderMember = sender?.id ? props.workspaceMembersByUserId.get(sender.id) : undefined;
+  const messageRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (props.isSelected && messageRef.current) {
+      messageRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [props.isSelected]);
 
   function handleOpenReactionMenu(event: React.MouseEvent<HTMLButtonElement>) {
     const anchor = anchorFromElement(event.currentTarget);
@@ -201,12 +212,18 @@ export function MessageCard(props: MessageCardProps) {
   return (
     <article
       className={clsx(
-        "group relative rounded-2xl px-4 py-3 transition-colors duration-100",
-        props.isActiveThread ? "bg-amber-50" : "hover:bg-slate-50/80",
+        "group relative rounded-xl px-3 py-2.5 transition-colors duration-100 sm:rounded-2xl sm:px-4 sm:py-3",
+        props.isSelected
+          ? "bg-amber-50 ring-2 ring-amber-300/70 ring-inset"
+          : props.isActiveThread
+            ? "bg-amber-50"
+            : "hover:bg-slate-50/80",
       )}
+      data-message-id={props.message.id}
       onContextMenu={(event) => props.onContextMenu(event, props.message)}
+      ref={messageRef}
     >
-      <div className="absolute -top-3 right-3 flex select-none items-center gap-0.5 rounded-xl border border-amber-100 bg-white/96 px-1 py-1 opacity-0 shadow-[0_12px_28px_rgba(15,23,42,0.12)] transition-opacity duration-100 group-focus-within:opacity-100 group-hover:opacity-100">
+      <div className="absolute -top-3 right-3 hidden select-none items-center gap-0.5 rounded-xl border border-amber-100 bg-white/96 px-1 py-1 opacity-0 shadow-[0_12px_28px_rgba(15,23,42,0.12)] transition-opacity duration-100 group-focus-within:opacity-100 group-hover:opacity-100 sm:flex">
         {QUICK_REACTION_EMOJI.map((emoji) => (
           <HoverTooltip content={`React with ${emoji}`} key={emoji}>
             <button
@@ -230,18 +247,22 @@ export function MessageCard(props: MessageCardProps) {
           onClick={handleOpenReactionMenu}
         />
         <ToolbarBtn icon={<ReplyGlyph />} label="Reply in thread" onClick={() => props.onReply()} />
-        <ToolbarBtn
-          disabled={isDeleted}
-          icon={<EditGlyph />}
-          label="Edit message"
-          onClick={() => props.onStartEdit()}
-        />
-        <ToolbarBtn
-          disabled={isDeleted}
-          icon={<DeleteGlyph />}
-          label="Delete message"
-          onClick={() => props.onDelete()}
-        />
+        {props.isOwnMessage ? (
+          <>
+            <ToolbarBtn
+              disabled={isDeleted}
+              icon={<EditGlyph />}
+              label="Edit message"
+              onClick={() => props.onStartEdit()}
+            />
+            <ToolbarBtn
+              disabled={isDeleted}
+              icon={<DeleteGlyph />}
+              label="Delete message"
+              onClick={() => props.onDelete()}
+            />
+          </>
+        ) : null}
       </div>
 
       <div className="flex gap-3">
@@ -347,6 +368,9 @@ export function MessageInput(props: MessageInputProps) {
   }, [props.value, textareaRef]);
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    props.onKeyDown?.(event);
+    if (event.defaultPrevented) return;
+
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       props.onSubmit();
@@ -389,20 +413,47 @@ export function ThreadPanel(props: ThreadPanelProps) {
 
   return (
     <aside
-      className="relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[1.45rem] border border-amber-200/60 bg-white/82 shadow-[0_18px_50px_rgba(15,23,42,0.07)]"
-      style={{ flexShrink: 0, width: props.threadWidth }}
+      className={clsx(
+        "relative flex min-h-0 min-w-0 flex-col overflow-hidden",
+        props.isMobile
+          ? "h-full w-full"
+          : "rounded-[1.45rem] border border-amber-200/60 bg-white/82 shadow-[0_18px_50px_rgba(15,23,42,0.07)]",
+      )}
+      style={props.isMobile ? undefined : { flexShrink: 0, width: props.threadWidth }}
     >
-      <ResizeHandle onMouseDown={props.startThreadResize} side="left" />
+      {!props.isMobile ? <ResizeHandle onMouseDown={props.startThreadResize} side="left" /> : null}
 
       <div className="flex select-none items-center justify-between border-b border-amber-100/70 px-4 py-3">
+        {props.isMobile ? (
+          <button
+            className="flex items-center gap-2 rounded-lg px-2 py-1 text-sm text-slate-500 transition-colors duration-100 hover:bg-amber-50"
+            onClick={props.onClose}
+            type="button"
+          >
+            <svg fill="none" height="14" viewBox="0 0 14 14" width="14">
+              <path
+                d="M9 2.5 4.5 7 9 11.5"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="1.5"
+              />
+            </svg>
+            Back
+          </button>
+        ) : null}
         <h3 className="text-sm font-semibold text-slate-900">Thread</h3>
-        <button
-          className="rounded-md px-2 py-1 text-xs text-slate-500 transition-colors duration-100 hover:bg-amber-50"
-          onClick={props.onClose}
-          type="button"
-        >
-          Close
-        </button>
+        {!props.isMobile ? (
+          <button
+            className="rounded-md px-2 py-1 text-xs text-slate-500 transition-colors duration-100 hover:bg-amber-50"
+            onClick={props.onClose}
+            type="button"
+          >
+            Close
+          </button>
+        ) : (
+          <div />
+        )}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
@@ -411,6 +462,7 @@ export function ThreadPanel(props: ThreadPanelProps) {
             currentUserId={props.currentUserId}
             editingDraft={props.editingDraft}
             isEditing={props.editingMessageId === props.rootMessage.id}
+            isOwnMessage={props.rootMessage.sender?.id === props.currentUserId}
             message={props.rootMessage}
             onCancelEdit={props.onCancelEdit}
             onContextMenu={props.onMessageContextMenu}
@@ -433,6 +485,7 @@ export function ThreadPanel(props: ThreadPanelProps) {
                     currentUserId={props.currentUserId}
                     editingDraft={props.editingDraft}
                     isEditing={props.editingMessageId === reply.id}
+                    isOwnMessage={reply.sender?.id === props.currentUserId}
                     key={reply.id}
                     message={reply}
                     onCancelEdit={props.onCancelEdit}
@@ -452,7 +505,7 @@ export function ThreadPanel(props: ThreadPanelProps) {
         </div>
       </div>
 
-      <div className="border-t border-amber-100/70 px-3 py-3">
+      <div className="border-t border-amber-100/70 px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <MessageInput
           onSubmit={props.onReply}
           onValueChange={props.onThreadDraftChange}
@@ -494,6 +547,7 @@ interface ThreadMessageProps {
   currentUserId: string;
   editingDraft: string;
   isEditing: boolean;
+  isOwnMessage: boolean;
   message: MessageRecord;
   onCancelEdit: () => void;
   onContextMenu: (event: React.MouseEvent, message: MessageRecord) => void;
@@ -570,29 +624,33 @@ function ThreadMessage(props: ThreadMessageProps) {
       ) : null}
       {!props.isEditing ? (
         <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-400">
-          <button
-            className={clsx(
-              "transition-colors duration-100",
-              isDeleted ? "cursor-not-allowed text-slate-300" : "hover:text-slate-600",
-            )}
-            disabled={isDeleted}
-            onClick={props.onStartEdit}
-            type="button"
-          >
-            Edit
-          </button>
-          <span>·</span>
-          <button
-            className={clsx(
-              "transition-colors duration-100",
-              isDeleted ? "cursor-not-allowed text-slate-300" : "hover:text-rose-500",
-            )}
-            disabled={isDeleted}
-            onClick={props.onDelete}
-            type="button"
-          >
-            Delete
-          </button>
+          {props.isOwnMessage ? (
+            <>
+              <button
+                className={clsx(
+                  "transition-colors duration-100",
+                  isDeleted ? "cursor-not-allowed text-slate-300" : "hover:text-slate-600",
+                )}
+                disabled={isDeleted}
+                onClick={props.onStartEdit}
+                type="button"
+              >
+                Edit
+              </button>
+              <span>·</span>
+              <button
+                className={clsx(
+                  "transition-colors duration-100",
+                  isDeleted ? "cursor-not-allowed text-slate-300" : "hover:text-rose-500",
+                )}
+                disabled={isDeleted}
+                onClick={props.onDelete}
+                type="button"
+              >
+                Delete
+              </button>
+            </>
+          ) : null}
         </div>
       ) : null}
     </div>

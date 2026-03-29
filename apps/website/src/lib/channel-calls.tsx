@@ -197,8 +197,8 @@ export function CallModal(props: CallModalProps) {
         className={clsx(
           "relative flex flex-col overflow-hidden rounded-3xl border border-amber-200/30 bg-white shadow-[0_40px_120px_rgba(15,23,42,0.18)]",
           props.phase === "active"
-            ? "h-[calc(100vh-3rem)] w-[calc(100vw-3rem)]"
-            : "w-full max-w-lg",
+            ? "h-[100dvh] w-screen sm:h-[calc(100vh-3rem)] sm:w-[calc(100vw-3rem)]"
+            : "mx-4 w-full max-w-lg",
         )}
       >
         {props.phase === "active" && props.meeting ? (

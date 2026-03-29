@@ -1,5 +1,5 @@
 import { createWorkspaceInviteTx, type ChannelVisibility, type WorkspaceRole } from "@quack/data";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "wouter";
 
@@ -27,6 +27,7 @@ import {
 import { EmojiMenu } from "../../components/ui/EmojiMenu";
 import { HoverTooltip } from "../../components/ui/HoverTooltip";
 import { anchorFromPoint, type FloatingAnchor } from "../../components/ui/floating";
+import { useMessageKeyboardNav } from "../../hooks/useMessageKeyboardNav";
 import { useResizeHandle } from "../../hooks/useResizeHandle";
 import { useQuackWorkspace } from "../../hooks/useQuackWorkspace";
 import { CallModal, useChannelCall } from "../../lib/channel-calls";
@@ -40,6 +41,27 @@ import type {
 } from "../../types/quack";
 
 const serverUrl = import.meta.env.VITE_SERVER_URL ?? "http://localhost:3001";
+const MOBILE_BREAKPOINT = 768;
+
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.innerWidth < MOBILE_BREAKPOINT,
+  );
+
+  useEffect(() => {
+    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
+
+    function handleChange(event: MediaQueryListEvent) {
+      setIsMobile(event.matches);
+    }
+
+    setIsMobile(mql.matches);
+    mql.addEventListener("change", handleChange);
+    return () => mql.removeEventListener("change", handleChange);
+  }, []);
+
+  return isMobile;
+}
 
 interface WorkspaceChatPageProps {
   channelSlug?: string;
@@ -50,6 +72,7 @@ interface WorkspaceChatPageProps {
 }
 
 export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
+  const isMobile = useIsMobile();
   const app = useQuackWorkspace({
     channelSlug: props.channelSlug,
     user: props.user,
@@ -79,6 +102,8 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
   });
   const [isCreateChannelOpen, setIsCreateChannelOpen] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [pendingDeleteMessageId, setPendingDeleteMessageId] = useState<string | null>(null);
 
   const {
     dismiss: dismissCall,
@@ -96,6 +121,28 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     serverUrl,
   });
 
+  const closeSidebar = useCallback(() => setIsSidebarOpen(false), []);
+
+  function isOwnMessage(message: MessageRecord) {
+    return message.sender?.id === props.user.id;
+  }
+
+  const keyboardNav = useMessageKeyboardNav({
+    canEditOrDelete: isOwnMessage,
+    channelInputRef,
+    messages: app.messages,
+    onDelete: (messageId) => setPendingDeleteMessageId(messageId),
+    onOpenReactionMenu: (messageId) => {
+      const el = document.querySelector(`[data-message-id="${messageId}"]`);
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        openEmojiMenu(anchorFromPoint(rect.right - 40, rect.top), messageId);
+      }
+    },
+    onReply: (messageId) => app.openThread(messageId),
+    onStartEdit: (messageId) => app.startEditingMessage(messageId),
+  });
+
   useEffect(() => {
     const channelName = app.activeChannel?.name;
     document.title = channelName ? `${channelName} | Quack` : "Quack";
@@ -103,7 +150,8 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
 
   useEffect(() => {
     channelInputRef.current?.focus();
-  }, [app.activeChannel?.id]);
+    if (isMobile) closeSidebar();
+  }, [app.activeChannel?.id, isMobile, closeSidebar]);
 
   const previousThreadIdRef = useRef<string | null>(null);
 
@@ -236,6 +284,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     const menuY = event.clientY;
     const threadTargetMessageId = message.parentMessage?.id ?? message.id;
     const isDeleted = Boolean(message.deletedAt);
+    const isOwn = isOwnMessage(message);
     const entries: ContextMenuEntry[] = [
       {
         hint: message.parentMessage ? "Jump back to the thread" : "Open the conversation drawer",
@@ -256,29 +305,32 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
           });
         },
       },
-      { id: "separator-message-actions", type: "separator" },
-      {
-        disabled: isDeleted,
-        hint: isDeleted ? "Deleted messages cannot be edited" : "Open the inline editor",
-        icon: <EditGlyph />,
-        id: "edit-message",
-        label: "Edit message",
-        onSelect: () => app.startEditingMessage(message.id),
-      },
-      {
-        disabled: isDeleted,
-        hint: isDeleted
-          ? "This message is already deleted"
-          : "Replace the body with a deleted state",
-        icon: <DeleteGlyph />,
-        id: "delete-message",
-        label: "Delete message",
-        onSelect: () => {
-          void app.deleteMessage(message.id);
-        },
-        tone: "danger",
-      },
     ];
+
+    if (isOwn) {
+      entries.push(
+        { id: "separator-message-actions", type: "separator" },
+        {
+          disabled: isDeleted,
+          hint: isDeleted ? "Deleted messages cannot be edited" : "Open the inline editor",
+          icon: <EditGlyph />,
+          id: "edit-message",
+          label: "Edit message",
+          onSelect: () => app.startEditingMessage(message.id),
+        },
+        {
+          disabled: isDeleted,
+          hint: isDeleted
+            ? "This message is already deleted"
+            : "Replace the body with a deleted state",
+          icon: <DeleteGlyph />,
+          id: "delete-message",
+          label: "Delete message",
+          onSelect: () => setPendingDeleteMessageId(message.id),
+          tone: "danger",
+        },
+      );
+    }
 
     setContextMenu({
       entries,
@@ -291,121 +343,91 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
 
   return (
     <>
-      <div className="h-screen overflow-hidden p-2 sm:p-3">
-        <div className="flex h-full gap-2 sm:gap-3">
-          {/* ── Sidebar ── */}
-          <aside
-            className="relative flex min-h-0 flex-col overflow-hidden rounded-[1.45rem] border border-amber-200/60 bg-amber-50/75 shadow-[0_18px_50px_rgba(217,119,6,0.08)] select-none"
-            style={{ flexShrink: 0, width: sidebar.width }}
-          >
-            <div className="flex items-center gap-3 border-b border-amber-200/50 px-4 py-3.5">
-              <WorkspaceSwitcher
-                currentWorkspaceId={workspace.id}
-                memberships={props.memberships}
-                workspaceName={workspace.name}
-              />
-              <SidebarMenuButton
-                onCreateChannel={
-                  app.canManageChannels ? () => setIsCreateChannelOpen(true) : undefined
-                }
+      <div className="h-[100dvh] overflow-hidden p-1.5 sm:p-2 md:p-3">
+        <div className="flex h-full gap-1.5 sm:gap-2 md:gap-3">
+          {/* ── Mobile sidebar overlay ── */}
+          {isMobile ? (
+            <>
+              {isSidebarOpen
+                ? createPortal(
+                    <div className="fixed inset-0 z-30">
+                      <div
+                        className="absolute inset-0 bg-slate-950/30 backdrop-blur-sm"
+                        onClick={closeSidebar}
+                      />
+                      <aside className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col overflow-hidden rounded-r-2xl bg-amber-50/95 shadow-[4px_0_30px_rgba(15,23,42,0.14)] backdrop-blur-xl">
+                        <SidebarContent
+                          app={app}
+                          canManageChannels={app.canManageChannels}
+                          onChannelContextMenu={handleChannelContextMenu}
+                          onClose={closeSidebar}
+                          onCreateChannel={() => setIsCreateChannelOpen(true)}
+                          onInvite={() => setIsInviteOpen(true)}
+                          onSignOut={() => {
+                            void props.onSignOut();
+                          }}
+                          memberships={props.memberships}
+                          user={props.user}
+                          workspace={workspace}
+                          workspaceId={workspace.id}
+                        />
+                      </aside>
+                    </div>,
+                    document.body,
+                  )
+                : null}
+            </>
+          ) : (
+            /* ── Desktop sidebar ── */
+            <aside
+              className="relative flex min-h-0 flex-col overflow-hidden rounded-[1.45rem] border border-amber-200/60 bg-amber-50/75 shadow-[0_18px_50px_rgba(217,119,6,0.08)] select-none"
+              style={{ flexShrink: 0, width: sidebar.width }}
+            >
+              <SidebarContent
+                app={app}
+                canManageChannels={app.canManageChannels}
+                onChannelContextMenu={handleChannelContextMenu}
+                onCreateChannel={() => setIsCreateChannelOpen(true)}
                 onInvite={() => setIsInviteOpen(true)}
                 onSignOut={() => {
                   void props.onSignOut();
                 }}
+                memberships={props.memberships}
+                user={props.user}
+                workspace={workspace}
+                workspaceId={workspace.id}
               />
-            </div>
-
-            <div className="flex items-center gap-2.5 border-b border-amber-200/50 px-4 py-3">
-              <span className="size-2 shrink-0 rounded-full bg-emerald-500" />
-              <span className="truncate text-sm font-medium text-slate-700">
-                {app.currentUserMember?.displayName ?? props.user.email ?? "You"}
-              </span>
-              <span className="ml-auto truncate text-xs text-slate-400">
-                {app.currentUserMember?.role ?? "owner"}
-              </span>
-            </div>
-
-            <nav
-              aria-label="Channels"
-              className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 py-3"
-            >
-              <div className="mb-1 flex items-center justify-between px-2">
-                <p className="text-[0.65rem] font-semibold uppercase tracking-widest text-slate-400">
-                  Channels
-                </p>
-                {app.canManageChannels ? (
-                  <button
-                    className="flex size-5 items-center justify-center rounded-md text-slate-400 transition-colors duration-100 hover:bg-amber-100/60 hover:text-slate-600"
-                    onClick={() => setIsCreateChannelOpen(true)}
-                    type="button"
-                  >
-                    <svg fill="none" height="12" viewBox="0 0 12 12" width="12">
-                      <path
-                        d="M6 1v10M1 6h10"
-                        stroke="currentColor"
-                        strokeLinecap="round"
-                        strokeWidth="1.5"
-                      />
-                    </svg>
-                  </button>
-                ) : null}
-              </div>
-              {app.visibleChannels.map((channel) => (
-                <ChannelLink
-                  channel={channel}
-                  href={`/workspaces/${workspace.id}/channels/${channel.slug}`}
-                  isActive={channel.id === app.activeChannel?.id}
-                  isRenaming={channel.id === app.renamingChannelId}
-                  key={channel.id}
-                  onCancelRename={app.cancelRenamingChannel}
-                  onContextMenu={handleChannelContextMenu}
-                  onRenameValueChange={app.setChannelRenameDraft}
-                  onSaveRename={() => {
-                    void app.saveRenamingChannel();
-                  }}
-                  renameValue={app.channelRenameDraft}
-                />
-              ))}
-            </nav>
-
-            <div className="border-t border-amber-200/50 px-3 py-3">
-              <p className="mb-2 px-1 text-[0.65rem] font-semibold uppercase tracking-widest text-slate-400">
-                Members
-              </p>
-              <div className="flex flex-col gap-1">
-                {app.onlineMembers.map((member) => (
-                  <div
-                    className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-600"
-                    key={member.id}
-                  >
-                    <span className="size-1.5 shrink-0 rounded-full bg-emerald-500" />
-                    <span className="truncate">
-                      {member.displayName ?? member.$user?.email ?? member.id}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <ResizeHandle onMouseDown={sidebar.startResize} side="right" />
-          </aside>
+              <ResizeHandle onMouseDown={sidebar.startResize} side="right" />
+            </aside>
+          )}
 
           {/* ── Main channel ── */}
-          <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[1.45rem] border border-amber-200/60 bg-white/82 shadow-[0_18px_50px_rgba(15,23,42,0.07)]">
-            <header className="select-none border-b border-amber-100/70 px-5 py-3.5">
-              <div className="flex items-center justify-between">
-                <div className="min-w-0">
-                  <h2 className="text-lg font-semibold tracking-tight text-slate-900">
-                    #{app.activeChannel?.name ?? "channel"}
-                  </h2>
-                  {app.activeChannel?.topic ? (
-                    <p className="mt-0.5 truncate text-sm text-slate-500">
-                      {app.activeChannel.topic}
-                    </p>
+          <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl md:rounded-[1.45rem] border border-amber-200/60 bg-white/82 shadow-[0_18px_50px_rgba(15,23,42,0.07)]">
+            <header className="select-none border-b border-amber-100/70 px-3 py-2.5 sm:px-5 sm:py-3.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  {isMobile ? (
+                    <button
+                      className="flex size-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors duration-100 hover:bg-amber-50 hover:text-slate-700"
+                      onClick={() => setIsSidebarOpen(true)}
+                      type="button"
+                    >
+                      <HamburgerGlyph />
+                    </button>
                   ) : null}
+                  <div className="min-w-0">
+                    <h2 className="truncate text-base font-semibold tracking-tight text-slate-900 sm:text-lg">
+                      #{app.activeChannel?.name ?? "channel"}
+                    </h2>
+                    {app.activeChannel?.topic && !isMobile ? (
+                      <p className="mt-0.5 truncate text-sm text-slate-500">
+                        {app.activeChannel.topic}
+                      </p>
+                    ) : null}
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-1">
+                <div className="flex shrink-0 items-center gap-1">
                   {isInCall ? (
                     <HoverTooltip content="Leave call" side="bottom">
                       <button
@@ -416,7 +438,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                         type="button"
                       >
                         <HangUpGlyph />
-                        <span>Leave</span>
+                        <span className="hidden sm:inline">Leave</span>
                       </button>
                     </HoverTooltip>
                   ) : (
@@ -428,7 +450,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                         type="button"
                       >
                         <CallGlyph />
-                        <span>Call</span>
+                        <span className="hidden sm:inline">Call</span>
                       </button>
                     </HoverTooltip>
                   )}
@@ -452,7 +474,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
               ) : null}
             </header>
 
-            <section className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+            <section className="min-h-0 flex-1 overflow-y-auto px-2 py-3 sm:px-4 sm:py-4">
               <div className="mx-auto flex max-w-3xl flex-col gap-1">
                 {app.messages.filter((m) => !m.deletedAt).length === 0 ? (
                   <ChannelEmptyState channelName={app.activeChannel?.name ?? "channel"} />
@@ -465,13 +487,13 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                         editingDraft={app.editingDraft}
                         isActiveThread={message.id === app.selectedThreadMessage?.id}
                         isEditing={app.editingMessageId === message.id}
+                        isOwnMessage={isOwnMessage(message)}
+                        isSelected={keyboardNav.selectedMessageId === message.id}
                         key={message.id}
                         message={message}
                         onCancelEdit={app.cancelEditingMessage}
                         onContextMenu={handleMessageContextMenu}
-                        onDelete={() => {
-                          void app.deleteMessage(message.id);
-                        }}
+                        onDelete={() => setPendingDeleteMessageId(message.id)}
                         onEditDraftChange={app.setEditingDraft}
                         onOpenReactionMenu={(anchor) => openEmojiMenu(anchor, message.id)}
                         onReply={() => app.openThread(message.id)}
@@ -490,9 +512,10 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
               </div>
             </section>
 
-            <footer className="border-t border-amber-100/70 px-4 py-3">
+            <footer className="border-t border-amber-100/70 px-2 py-2 sm:px-4 sm:py-3">
               <div className="mx-auto max-w-3xl">
                 <MessageInput
+                  onKeyDown={keyboardNav.handleInputKeyDown}
                   onSubmit={() => {
                     void app.sendChannelMessage();
                   }}
@@ -507,43 +530,89 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
 
           {/* ── Thread panel ── */}
           {app.selectedThreadMessage ? (
-            <ThreadPanel
-              currentUser={
-                app.usersById.get(props.user.id) ?? {
-                  email: props.user.email ?? undefined,
-                  id: props.user.id,
+            isMobile ? (
+              createPortal(
+                <div className="fixed inset-0 z-30 flex flex-col bg-white">
+                  <ThreadPanel
+                    currentUser={
+                      app.usersById.get(props.user.id) ?? {
+                        email: props.user.email ?? undefined,
+                        id: props.user.id,
+                      }
+                    }
+                    currentUserId={props.user.id}
+                    editingDraft={app.editingDraft}
+                    editingMessageId={app.editingMessageId}
+                    isMobile
+                    onCancelEdit={app.cancelEditingMessage}
+                    onClose={app.closeThread}
+                    onDeleteMessage={(messageId) => {
+                      setPendingDeleteMessageId(messageId);
+                    }}
+                    onEditDraftChange={app.setEditingDraft}
+                    onMessageContextMenu={handleMessageContextMenu}
+                    onReply={() => {
+                      void app.sendThreadReply();
+                    }}
+                    onSaveEdit={() => {
+                      void app.saveEditingMessage();
+                    }}
+                    onStartEdit={app.startEditingMessage}
+                    onThreadDraftChange={app.setThreadDraft}
+                    onToggleReaction={(messageId, emoji) => {
+                      void app.toggleReaction(messageId, emoji);
+                    }}
+                    replies={app.selectedThreadReplies}
+                    rootMessage={app.selectedThreadMessage}
+                    startThreadResize={thread.startResize}
+                    threadDraft={app.threadDraft}
+                    threadInputRef={threadInputRef}
+                    threadWidth={thread.width}
+                    usersById={app.usersById}
+                    workspaceMembersByUserId={app.workspaceMembersByUserId}
+                  />
+                </div>,
+                document.body,
+              )
+            ) : (
+              <ThreadPanel
+                currentUser={
+                  app.usersById.get(props.user.id) ?? {
+                    email: props.user.email ?? undefined,
+                    id: props.user.id,
+                  }
                 }
-              }
-              currentUserId={props.user.id}
-              editingDraft={app.editingDraft}
-              editingMessageId={app.editingMessageId}
-              onCancelEdit={app.cancelEditingMessage}
-              onClose={app.closeThread}
-              onDeleteMessage={(messageId) => {
-                void app.deleteMessage(messageId);
-              }}
-              onEditDraftChange={app.setEditingDraft}
-              onMessageContextMenu={handleMessageContextMenu}
-              onReply={() => {
-                void app.sendThreadReply();
-              }}
-              onSaveEdit={() => {
-                void app.saveEditingMessage();
-              }}
-              onStartEdit={app.startEditingMessage}
-              onThreadDraftChange={app.setThreadDraft}
-              onToggleReaction={(messageId, emoji) => {
-                void app.toggleReaction(messageId, emoji);
-              }}
-              replies={app.selectedThreadReplies}
-              rootMessage={app.selectedThreadMessage}
-              startThreadResize={thread.startResize}
-              threadDraft={app.threadDraft}
-              threadInputRef={threadInputRef}
-              threadWidth={thread.width}
-              usersById={app.usersById}
-              workspaceMembersByUserId={app.workspaceMembersByUserId}
-            />
+                currentUserId={props.user.id}
+                editingDraft={app.editingDraft}
+                editingMessageId={app.editingMessageId}
+                onCancelEdit={app.cancelEditingMessage}
+                onClose={app.closeThread}
+                onDeleteMessage={(messageId) => {
+                  setPendingDeleteMessageId(messageId);
+                }}
+                onEditDraftChange={app.setEditingDraft}
+                onMessageContextMenu={handleMessageContextMenu}
+                onReply={() => {
+                  void app.sendThreadReply();
+                }}
+                onSaveEdit={() => {
+                  void app.saveEditingMessage();
+                }}
+                onStartEdit={app.startEditingMessage}
+                onThreadDraftChange={app.setThreadDraft}
+                onToggleReaction={(messageId, emoji) => {
+                  void app.toggleReaction(messageId, emoji);
+                }}
+                replies={app.selectedThreadReplies}
+                rootMessage={app.selectedThreadMessage}
+                startThreadResize={thread.startResize}
+                threadDraft={app.threadDraft}
+                threadInputRef={threadInputRef}
+                threadWidth={thread.width}
+                usersById={app.usersById}
+                workspaceMembersByUserId={app.workspaceMembersByUserId}
+              />
+            )
           ) : null}
         </div>
       </div>
@@ -557,6 +626,17 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
           void handleEmojiSelect(emoji);
         }}
       />
+
+      {pendingDeleteMessageId ? (
+        <DeleteConfirmModal
+          onClose={() => setPendingDeleteMessageId(null)}
+          onConfirm={() => {
+            void app.deleteMessage(pendingDeleteMessageId);
+            setPendingDeleteMessageId(null);
+            keyboardNav.clearSelection();
+          }}
+        />
+      ) : null}
 
       {isCreateChannelOpen ? (
         <CreateChannelModal
@@ -829,6 +909,129 @@ function WorkspaceSwitcherItem(props: WorkspaceSwitcherItemProps) {
   );
 }
 
+/* ── Sidebar content (shared between mobile overlay and desktop panel) ── */
+
+interface SidebarContentProps {
+  app: ReturnType<typeof useQuackWorkspace>;
+  canManageChannels: boolean;
+  memberships: WorkspaceMemberRecord[];
+  onChannelContextMenu: (event: React.MouseEvent, channel: ChannelRecord) => void;
+  onClose?: () => void;
+  onCreateChannel: () => void;
+  onInvite: () => void;
+  onSignOut: () => void;
+  user: AuthenticatedUser;
+  workspace: NonNullable<ReturnType<typeof useQuackWorkspace>["workspace"]>;
+  workspaceId: string;
+}
+
+function SidebarContent(props: SidebarContentProps) {
+  return (
+    <>
+      <div className="flex items-center gap-3 border-b border-amber-200/50 px-4 py-3.5">
+        <WorkspaceSwitcher
+          currentWorkspaceId={props.workspaceId}
+          memberships={props.memberships}
+          workspaceName={props.workspace.name}
+        />
+        <SidebarMenuButton
+          onCreateChannel={props.canManageChannels ? props.onCreateChannel : undefined}
+          onInvite={props.onInvite}
+          onSignOut={props.onSignOut}
+        />
+        {props.onClose ? (
+          <button
+            className="flex size-7 items-center justify-center rounded-lg text-slate-400 transition-colors duration-100 hover:bg-amber-100/60 hover:text-slate-600 md:hidden"
+            onClick={props.onClose}
+            type="button"
+          >
+            <svg fill="none" height="16" viewBox="0 0 16 16" width="16">
+              <path
+                d="M4 4l8 8M12 4l-8 8"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeWidth="1.5"
+              />
+            </svg>
+          </button>
+        ) : null}
+      </div>
+
+      <div className="flex items-center gap-2.5 border-b border-amber-200/50 px-4 py-3">
+        <span className="size-2 shrink-0 rounded-full bg-emerald-500" />
+        <span className="truncate text-sm font-medium text-slate-700">
+          {props.app.currentUserMember?.displayName ?? props.user.email ?? "You"}
+        </span>
+        <span className="ml-auto truncate text-xs text-slate-400">
+          {props.app.currentUserMember?.role ?? "owner"}
+        </span>
+      </div>
+
+      <nav
+        aria-label="Channels"
+        className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 py-3"
+      >
+        <div className="mb-1 flex items-center justify-between px-2">
+          <p className="text-[0.65rem] font-semibold uppercase tracking-widest text-slate-400">
+            Channels
+          </p>
+          {props.canManageChannels ? (
+            <button
+              className="flex size-5 items-center justify-center rounded-md text-slate-400 transition-colors duration-100 hover:bg-amber-100/60 hover:text-slate-600"
+              onClick={props.onCreateChannel}
+              type="button"
+            >
+              <svg fill="none" height="12" viewBox="0 0 12 12" width="12">
+                <path
+                  d="M6 1v10M1 6h10"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeWidth="1.5"
+                />
+              </svg>
+            </button>
+          ) : null}
+        </div>
+        {props.app.visibleChannels.map((channel) => (
+          <ChannelLink
+            channel={channel}
+            href={`/workspaces/${props.workspaceId}/channels/${channel.slug}`}
+            isActive={channel.id === props.app.activeChannel?.id}
+            isRenaming={channel.id === props.app.renamingChannelId}
+            key={channel.id}
+            onCancelRename={props.app.cancelRenamingChannel}
+            onContextMenu={props.onChannelContextMenu}
+            onRenameValueChange={props.app.setChannelRenameDraft}
+            onSaveRename={() => {
+              void props.app.saveRenamingChannel();
+            }}
+            renameValue={props.app.channelRenameDraft}
+          />
+        ))}
+      </nav>
+
+      <div className="border-t border-amber-200/50 px-3 py-3">
+        <p className="mb-2 px-1 text-[0.65rem] font-semibold uppercase tracking-widest text-slate-400">
+          Members
+        </p>
+        <div className="flex flex-col gap-1">
+          {props.app.onlineMembers.map((member) => (
+            <div
+              className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-600"
+              key={member.id}
+            >
+              <span className="size-1.5 shrink-0 rounded-full bg-emerald-500" />
+              <span className="truncate">
+                {member.displayName ?? member.$user?.email ?? member.id}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
 /* ── Sidebar action menu ── */
 
 function SidebarMenuButton(props: {
@@ -1073,8 +1276,8 @@ function InviteModal(props: {
 
 function ActionModal(props: { children: ReactNode; onClose: () => void; title: string }) {
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/20 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl border border-amber-200/80 bg-white p-5 shadow-[0_30px_80px_rgba(15,23,42,0.14)]">
+    <div className="fixed inset-0 z-40 flex items-end justify-center bg-slate-950/20 px-0 backdrop-blur-sm sm:items-center sm:px-4">
+      <div className="w-full max-w-md rounded-t-2xl border border-amber-200/80 bg-white p-5 shadow-[0_30px_80px_rgba(15,23,42,0.14)] sm:rounded-2xl">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-base font-semibold text-slate-900">{props.title}</h3>
           <button
@@ -1086,6 +1289,57 @@ function ActionModal(props: { children: ReactNode; onClose: () => void; title: s
           </button>
         </div>
         {props.children}
+      </div>
+    </div>
+  );
+}
+
+/* ── Delete confirmation modal ── */
+
+function DeleteConfirmModal(props: { onClose: () => void; onConfirm: () => void }) {
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        props.onClose();
+      } else if (event.key === "Enter") {
+        event.preventDefault();
+        props.onConfirm();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [props]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/20 px-4 backdrop-blur-sm"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) props.onClose();
+      }}
+    >
+      <div className="w-full max-w-sm rounded-2xl border border-amber-200/80 bg-white p-5 shadow-[0_30px_80px_rgba(15,23,42,0.14)]">
+        <h3 className="text-base font-semibold text-slate-900">Delete message?</h3>
+        <p className="mt-2 text-sm leading-relaxed text-slate-500">
+          This action cannot be undone. The message content will be permanently removed.
+        </p>
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            className="rounded-xl px-4 py-2 text-sm font-medium text-slate-600 transition-colors duration-100 hover:bg-slate-100"
+            onClick={props.onClose}
+            type="button"
+          >
+            Cancel
+          </button>
+          <button
+            autoFocus
+            className="rounded-xl bg-rose-500 px-4 py-2 text-sm font-medium text-white transition-colors duration-100 hover:bg-rose-600"
+            onClick={props.onConfirm}
+            type="button"
+          >
+            Delete
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1115,6 +1369,19 @@ function HangUpGlyph() {
         strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth="1.2"
+      />
+    </svg>
+  );
+}
+
+function HamburgerGlyph() {
+  return (
+    <svg fill="none" height="18" viewBox="0 0 18 18" width="18">
+      <path
+        d="M3 5h12M3 9h12M3 13h12"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.5"
       />
     </svg>
   );
