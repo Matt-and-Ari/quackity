@@ -16,6 +16,7 @@ import { Link, Route, Switch, useLocation } from "wouter";
 
 import { api } from "./lib/api";
 import { instantDB } from "./lib/instant";
+import { getRuntimeEnv } from "./lib/runtimeEnv";
 import {
   createWorkspaceInviteKey,
   normalizeEmail,
@@ -61,7 +62,7 @@ type WorkspaceSummary = {
   slug: string;
 };
 
-const serverUrl = import.meta.env.VITE_SERVER_URL ?? "http://localhost:3001";
+const serverUrl = getRuntimeEnv("VITE_SERVER_URL") ?? "http://localhost:3001";
 
 export default function App() {
   const { error, isLoading, user } = instantDB.useAuth();

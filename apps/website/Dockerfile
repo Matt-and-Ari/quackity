@@ -22,7 +22,10 @@ ENV NODE_ENV=production
 RUN npm install --global serve
 
 COPY --from=build /app/apps/website/dist ./dist
+COPY apps/website/docker-entrypoint.sh /usr/local/bin/website-entrypoint
+
+RUN chmod +x /usr/local/bin/website-entrypoint
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "serve -s /app/dist -l ${PORT:-3000}"]
+CMD ["/usr/local/bin/website-entrypoint"]

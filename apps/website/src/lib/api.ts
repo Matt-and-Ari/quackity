@@ -1,6 +1,7 @@
 import { treaty } from "@elysiajs/eden";
+import { getRuntimeEnv } from "./runtimeEnv";
 
-const serverUrl = import.meta.env.VITE_SERVER_URL ?? "http://localhost:3001";
+const serverUrl = getRuntimeEnv("VITE_SERVER_URL") ?? "http://localhost:3001";
 
 const client = treaty(serverUrl) as Record<string, any>;
 
