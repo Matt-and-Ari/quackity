@@ -108,6 +108,18 @@ const _schema = i.schema({
         label: "linkedGuestUsers",
       },
     },
+    $usersAvatar: {
+      forward: {
+        on: "$users",
+        has: "one",
+        label: "avatar",
+      },
+      reverse: {
+        on: "$files",
+        has: "many",
+        label: "$usersWithAvatar",
+      },
+    },
     workspaceCreatedBy: {
       forward: {
         on: "workspaces",

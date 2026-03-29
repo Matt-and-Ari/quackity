@@ -4,11 +4,10 @@ import {
   setWorkspaceMemberRoleTx,
   updateWorkspaceMemberTx,
   updateWorkspaceTx,
-  updateUserProfileTx,
   createWorkspaceFilePath,
   type WorkspaceRole,
 } from "@quack/data";
-import { id as instantId } from "@instantdb/react";
+import { id as instantId, tx } from "@instantdb/react";
 import clsx from "clsx";
 import { useRef, useState } from "react";
 
@@ -123,10 +122,16 @@ function ProfileSettings(props: ProfileSettingsProps) {
   const [notice, setNotice] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  const currentImageURL = props.user.imageURL ?? null;
-  const [imagePreview, setImagePreview] = useState<string | null>(currentImageURL);
+  const avatarQuery = instantDB.useQuery({
+    $users: { $: { where: { id: props.user.id } }, avatar: {} },
+  });
+  const avatarUrl = avatarQuery.data?.$users[0]?.avatar?.url ?? props.user.imageURL ?? null;
+
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const displayedImage = imagePreview ?? avatarUrl;
 
   function handleImageSelect(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -169,14 +174,10 @@ function ProfileSettings(props: ProfileSettingsProps) {
       if (imageFile) {
         const fileId = instantId();
         const path = createWorkspaceFilePath(props.workspaceId, fileId, imageFile.name);
-        await instantDB.storage.uploadFile(path, imageFile, {
+        const { data: uploadData } = await instantDB.storage.uploadFile(path, imageFile, {
           contentType: imageFile.type,
         });
-        const result = await instantDB.queryOnce({ $files: { $: { where: { path } } } });
-        const fileUrl = result.data.$files[0]?.url;
-        if (fileUrl) {
-          txs.push(updateUserProfileTx(props.user.id, { imageURL: fileUrl }));
-        }
+        txs.push(tx.$users[props.user.id].link({ avatar: uploadData.id }));
         setImageFile(null);
       }
 
@@ -207,8 +208,8 @@ function ProfileSettings(props: ProfileSettingsProps) {
           onClick={() => fileInputRef.current?.click()}
           type="button"
         >
-          {imagePreview ? (
-            <img alt="Profile" className="size-full object-cover" src={imagePreview} />
+          {displayedImage ? (
+            <img alt="Profile" className="size-full object-cover" src={displayedImage} />
           ) : (
             <span className="text-lg font-bold text-amber-600">{initial}</span>
           )}
