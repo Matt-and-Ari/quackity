@@ -52,6 +52,12 @@ export function GlobalContextMenu(props: GlobalContextMenuProps) {
       props.onClose();
     }
 
+    function handleContextMenu(event: MouseEvent) {
+      if (menuRef.current?.contains(event.target as Node)) {
+        event.preventDefault();
+      }
+    }
+
     function handleEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
         props.onClose();
@@ -59,16 +65,14 @@ export function GlobalContextMenu(props: GlobalContextMenuProps) {
     }
 
     window.addEventListener("mousedown", handlePointerDown);
-    window.addEventListener("contextmenu", props.onClose);
+    window.addEventListener("contextmenu", handleContextMenu);
     window.addEventListener("resize", props.onClose);
-    window.addEventListener("scroll", props.onClose, true);
     window.addEventListener("keydown", handleEscape);
 
     return () => {
       window.removeEventListener("mousedown", handlePointerDown);
-      window.removeEventListener("contextmenu", props.onClose);
+      window.removeEventListener("contextmenu", handleContextMenu);
       window.removeEventListener("resize", props.onClose);
-      window.removeEventListener("scroll", props.onClose, true);
       window.removeEventListener("keydown", handleEscape);
     };
   }, [props.menu, props.onClose]);

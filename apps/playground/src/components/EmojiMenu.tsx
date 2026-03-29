@@ -144,16 +144,24 @@ export function EmojiMenu(props: EmojiMenuProps) {
       }
     }
 
+    function handleScroll(event: Event) {
+      if (containerRef.current?.contains(event.target as Node)) {
+        return;
+      }
+
+      props.onClose();
+    }
+
     window.addEventListener("mousedown", handlePointerDown);
     window.addEventListener("keydown", handleEscape);
     window.addEventListener("resize", props.onClose);
-    window.addEventListener("scroll", props.onClose, true);
+    window.addEventListener("scroll", handleScroll, true);
 
     return () => {
       window.removeEventListener("mousedown", handlePointerDown);
       window.removeEventListener("keydown", handleEscape);
       window.removeEventListener("resize", props.onClose);
-      window.removeEventListener("scroll", props.onClose, true);
+      window.removeEventListener("scroll", handleScroll, true);
     };
   }, [props.isOpen, props.onClose]);
 

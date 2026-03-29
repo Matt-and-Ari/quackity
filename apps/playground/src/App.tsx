@@ -1304,19 +1304,14 @@ function DeleteGlyph(props: { className?: string }) {
 function ReactionGlyph(props: { className?: string }) {
   return (
     <svg viewBox="0 0 16 16" fill="none" className={clsx("size-4", props.className)}>
-      <circle cx="8" cy="8" r="5.5" stroke="currentColor" strokeWidth="1.2" />
+      <circle cx="7" cy="8.5" r="5" stroke="currentColor" strokeWidth="1.2" />
       <path
-        d="M6 6.4h.01M10 6.4h.01M5.8 9.6c.58.8 1.29 1.2 2.2 1.2.91 0 1.62-.4 2.2-1.2"
+        d="M5.2 7.2h.01M8.8 7.2h.01M5 10.2c.5.7 1.1 1.1 2 1.1s1.5-.4 2-1.1"
         stroke="currentColor"
         strokeWidth="1.2"
         strokeLinecap="round"
       />
-      <path
-        d="M12.6 2.4v2.1m-1.05-1.05h2.1"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinecap="round"
-      />
+      <path d="M13 2v3M11.5 3.5h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   );
 }
