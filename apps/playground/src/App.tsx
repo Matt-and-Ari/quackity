@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 
 import clsx from "clsx";
 import { Link } from "wouter";
@@ -14,28 +14,110 @@ import {
 } from "./quack-data";
 import { useQuackApp } from "./use-quack-app";
 
+const MAX_INPUT_HEIGHT = 160;
+
 const timeFormatter = new Intl.DateTimeFormat("en-US", {
   hour: "numeric",
   minute: "2-digit",
 });
+
+/* ── Resize hook ── */
+
+function useResizeHandle(props: {
+  defaultWidth: number;
+  minWidth: number;
+  maxWidth: number;
+  side: "right" | "left";
+}) {
+  const [width, setWidth] = useState(props.defaultWidth);
+  const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  useEffect(() => {
+    function onMouseMove(e: MouseEvent) {
+      const drag = dragRef.current;
+
+      if (!drag) {
+        return;
+      }
+
+      const diff = e.clientX - drag.startX;
+      const next = props.side === "right" ? drag.startWidth + diff : drag.startWidth - diff;
+      setWidth(Math.max(props.minWidth, Math.min(props.maxWidth, next)));
+    }
+
+    function onMouseUp() {
+      if (!dragRef.current) {
+        return;
+      }
+
+      dragRef.current = null;
+      document.body.style.removeProperty("cursor");
+      document.body.style.removeProperty("user-select");
+    }
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+
+    return () => {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+    };
+  }, [props.minWidth, props.maxWidth, props.side]);
+
+  function startResize(e: React.MouseEvent) {
+    e.preventDefault();
+    dragRef.current = { startX: e.clientX, startWidth: width };
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  }
+
+  return { width, startResize };
+}
+
+/* ── App ── */
 
 export default function App() {
   const app = useQuackApp();
   const currentUserMember = app.workspaceMembersByUserId.get(app.currentUser.id);
   const hasThread = app.selectedThreadMessage !== null;
 
+  const sidebar = useResizeHandle({
+    defaultWidth: 248,
+    minWidth: 180,
+    maxWidth: 360,
+    side: "right",
+  });
+  const thread = useResizeHandle({ defaultWidth: 336, minWidth: 260, maxWidth: 480, side: "left" });
+
+  const channelInputRef = useRef<HTMLTextAreaElement>(null);
+  const threadInputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    channelInputRef.current?.focus();
+  }, [app.activeChannel.id]);
+
+  const prevThreadRef = useRef(app.selectedThreadMessage);
+
+  useEffect(() => {
+    const wasOpen = prevThreadRef.current !== null;
+    const isOpen = app.selectedThreadMessage !== null;
+    prevThreadRef.current = app.selectedThreadMessage;
+
+    if (isOpen && !wasOpen) {
+      requestAnimationFrame(() => threadInputRef.current?.focus());
+    } else if (!isOpen && wasOpen) {
+      channelInputRef.current?.focus();
+    }
+  }, [app.selectedThreadMessage]);
+
   return (
     <div className="h-screen overflow-hidden p-2 sm:p-3">
-      <div
-        className={clsx(
-          "grid h-full gap-2 sm:gap-3",
-          hasThread
-            ? "grid-cols-[15.5rem_minmax(0,1fr)_21rem]"
-            : "grid-cols-[15.5rem_minmax(0,1fr)]",
-        )}
-      >
+      <div className="flex h-full gap-2 sm:gap-3">
         {/* ── Sidebar ── */}
-        <aside className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-amber-200/60 bg-amber-50/70">
+        <aside
+          style={{ width: sidebar.width, flexShrink: 0 }}
+          className="relative flex min-h-0 flex-col overflow-hidden rounded-2xl border border-amber-200/60 bg-amber-50/70 select-none"
+        >
           <div className="flex items-center gap-3 border-b border-amber-200/50 px-4 py-3.5">
             <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-amber-500 text-base shadow-sm">
               🦆
@@ -96,11 +178,13 @@ export default function App() {
               ))}
             </div>
           </div>
+
+          <ResizeHandle side="right" onMouseDown={sidebar.startResize} />
         </aside>
 
         {/* ── Main channel ── */}
-        <main className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-amber-200/60 bg-white/80">
-          <header className="border-b border-amber-100/70 px-5 py-3.5">
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-amber-200/60 bg-white/80">
+          <header className="select-none border-b border-amber-100/70 px-5 py-3.5">
             <h2 className="text-lg font-semibold tracking-tight text-slate-900">
               #{app.activeChannel.name}
             </h2>
@@ -148,6 +232,7 @@ export default function App() {
                 value={app.channelDraft}
                 onValueChange={app.setChannelDraft}
                 onSubmit={app.sendChannelMessage}
+                textareaRef={channelInputRef}
               />
             </div>
           </footer>
@@ -164,12 +249,36 @@ export default function App() {
             replies={app.selectedThreadReplies}
             rootMessage={app.selectedThreadMessage}
             threadDraft={app.threadDraft}
+            threadWidth={thread.width}
+            startThreadResize={thread.startResize}
             usersById={app.usersById}
             workspaceMembersByUserId={app.workspaceMembersByUserId}
             onThreadDraftChange={app.setThreadDraft}
+            threadInputRef={threadInputRef}
           />
         ) : null}
       </div>
+    </div>
+  );
+}
+
+/* ── Resize handle ── */
+
+interface ResizeHandleProps {
+  side: "right" | "left";
+  onMouseDown: (e: React.MouseEvent) => void;
+}
+
+function ResizeHandle(props: ResizeHandleProps) {
+  return (
+    <div
+      onMouseDown={props.onMouseDown}
+      className={clsx(
+        "group absolute top-0 bottom-0 z-10 flex w-2 cursor-col-resize items-stretch",
+        props.side === "right" ? "-right-1" : "-left-1",
+      )}
+    >
+      <div className="mx-auto w-px bg-transparent transition-colors duration-75 group-hover:bg-amber-400 group-active:bg-amber-500" />
     </div>
   );
 }
@@ -234,7 +343,7 @@ function MessageCard(props: MessageCardProps) {
       )}
     >
       {/* hover toolbar */}
-      <div className="absolute -top-3 right-3 flex items-center gap-0.5 rounded-lg border border-slate-200 bg-white px-1 py-0.5 opacity-0 shadow-sm transition-opacity duration-100 group-hover:opacity-100 group-focus-within:opacity-100">
+      <div className="absolute -top-3 right-3 flex select-none items-center gap-0.5 rounded-lg border border-slate-200 bg-white px-1 py-0.5 opacity-0 shadow-sm transition-opacity duration-100 group-hover:opacity-100 group-focus-within:opacity-100">
         {quickReactionEmoji.map((emoji) => (
           <button
             key={emoji}
@@ -254,7 +363,7 @@ function MessageCard(props: MessageCardProps) {
       <div className="flex gap-3">
         <Avatar user={props.sender} />
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <div className="flex select-none flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <span className="text-sm font-semibold text-slate-900">
               {props.senderMember?.displayName ?? nameFromEmail(props.sender.email)}
             </span>
@@ -274,7 +383,7 @@ function MessageCard(props: MessageCardProps) {
                 rows={3}
                 className="w-full resize-none rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm leading-6 text-slate-700 outline-none focus:border-amber-400"
               />
-              <div className="mt-2 flex gap-2">
+              <div className="mt-2 flex select-none gap-2">
                 <button
                   type="button"
                   onClick={props.onSaveEdit}
@@ -307,7 +416,7 @@ function MessageCard(props: MessageCardProps) {
               {props.attachments.map((att) => (
                 <div
                   key={att.id}
-                  className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-600"
+                  className="inline-flex select-none items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-600"
                 >
                   <span>📎</span>
                   <span>{att.name}</span>
@@ -320,7 +429,7 @@ function MessageCard(props: MessageCardProps) {
           ) : null}
 
           {reactions.length > 0 || props.replyCount > 0 ? (
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <div className="mt-2 flex select-none flex-wrap items-center gap-1.5">
               {reactions.map((r) => (
                 <button
                   key={r.emoji}
@@ -377,13 +486,29 @@ interface MessageInputProps {
   value: string;
   onValueChange: (value: string) => void;
   onSubmit: () => void;
+  textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
 }
 
 function MessageInput(props: MessageInputProps) {
+  const fallbackRef = useRef<HTMLTextAreaElement>(null);
+  const ref = props.textareaRef ?? fallbackRef;
   const hasContent = props.value.trim().length > 0;
 
+  useLayoutEffect(() => {
+    const el = ref.current;
+
+    if (!el) {
+      return;
+    }
+
+    el.style.height = "auto";
+    const next = Math.min(el.scrollHeight, MAX_INPUT_HEIGHT);
+    el.style.height = `${next}px`;
+    el.style.overflowY = el.scrollHeight > MAX_INPUT_HEIGHT ? "auto" : "hidden";
+  }, [props.value, ref]);
+
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+    if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       props.onSubmit();
     }
@@ -392,12 +517,13 @@ function MessageInput(props: MessageInputProps) {
   return (
     <div className="relative">
       <textarea
+        ref={ref}
         value={props.value}
         onChange={(e) => props.onValueChange(e.target.value)}
         onKeyDown={handleKeyDown}
-        rows={2}
+        rows={1}
         placeholder={props.placeholder}
-        className="w-full resize-none rounded-xl border border-amber-200/70 bg-white px-3.5 py-2.5 pr-11 text-sm leading-6 text-slate-700 outline-none placeholder:text-slate-400 focus:border-amber-400 transition-colors duration-100"
+        className="w-full resize-none rounded-xl border border-amber-200/70 bg-white px-4 py-3 pr-12 text-sm leading-6 text-slate-700 outline-none transition-colors duration-100 placeholder:text-slate-400 focus:border-amber-400"
       />
       <button
         type="button"
@@ -405,7 +531,7 @@ function MessageInput(props: MessageInputProps) {
         disabled={!hasContent}
         aria-label="Send message"
         className={clsx(
-          "absolute bottom-2.5 right-2.5 flex size-7 items-center justify-center rounded-lg transition-colors duration-100",
+          "absolute bottom-3 right-3 flex size-7 select-none items-center justify-center rounded-lg transition-colors duration-100",
           hasContent ? "bg-amber-500 text-white hover:bg-amber-600" : "bg-slate-100 text-slate-300",
         )}
       >
@@ -428,9 +554,12 @@ interface ThreadPanelProps {
   replies: MockMessage[];
   rootMessage: MockMessage | null;
   threadDraft: string;
+  threadWidth: number;
+  startThreadResize: (e: React.MouseEvent) => void;
   usersById: Map<string, User>;
   workspaceMembersByUserId: Map<string, MockWorkspaceMember>;
   onThreadDraftChange: (value: string) => void;
+  threadInputRef?: React.RefObject<HTMLTextAreaElement | null>;
 }
 
 function ThreadPanel(props: ThreadPanelProps) {
@@ -439,8 +568,13 @@ function ThreadPanel(props: ThreadPanelProps) {
   }
 
   return (
-    <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-amber-200/60 bg-white/80">
-      <div className="flex items-center justify-between border-b border-amber-100/70 px-4 py-3">
+    <aside
+      style={{ width: props.threadWidth, flexShrink: 0 }}
+      className="relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-amber-200/60 bg-white/80"
+    >
+      <ResizeHandle side="left" onMouseDown={props.startThreadResize} />
+
+      <div className="flex select-none items-center justify-between border-b border-amber-100/70 px-4 py-3">
         <h3 className="text-sm font-semibold text-slate-900">Thread</h3>
         <button
           type="button"
@@ -484,6 +618,7 @@ function ThreadPanel(props: ThreadPanelProps) {
           value={props.threadDraft}
           onValueChange={props.onThreadDraftChange}
           onSubmit={props.onReply}
+          textareaRef={props.threadInputRef}
         />
       </div>
     </aside>
@@ -499,7 +634,7 @@ function ThreadMessage(props: {
 }) {
   return (
     <div>
-      <div className="flex items-baseline gap-2">
+      <div className="flex select-none items-baseline gap-2">
         <span className="text-sm font-semibold text-slate-900">
           {props.senderMember?.displayName ?? nameFromEmail(props.sender.email)}
         </span>
@@ -515,7 +650,7 @@ function ThreadMessage(props: {
           {props.attachments.map((att) => (
             <span
               key={att.id}
-              className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-500"
+              className="inline-flex select-none items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-500"
             >
               📎 {att.name}
             </span>
@@ -532,9 +667,14 @@ function Avatar(props: { user: User }) {
   const name = nameFromEmail(props.user.email);
 
   return (
-    <div className="relative mt-0.5 size-8 shrink-0 overflow-hidden rounded-lg bg-gradient-to-br from-amber-300 to-amber-500">
+    <div className="relative mt-0.5 size-8 shrink-0 select-none overflow-hidden rounded-lg bg-gradient-to-br from-amber-300 to-amber-500">
       {props.user.imageURL ? (
-        <img src={props.user.imageURL} alt={name} className="h-full w-full object-cover" />
+        <img
+          src={props.user.imageURL}
+          alt={name}
+          className="h-full w-full object-cover"
+          draggable={false}
+        />
       ) : (
         <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-white">
           {initials(name)}
