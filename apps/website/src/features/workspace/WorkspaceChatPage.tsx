@@ -122,7 +122,6 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     dismiss: dismissCall,
     error: callError,
     isInCall,
-    join,
     leave,
     meeting,
     openPrejoin,
@@ -799,20 +798,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
         />
       ) : null}
 
-      <CallModal
-        channelName={app.activeChannel?.name ?? "channel"}
-        displayName={app.currentUserMember?.displayName ?? props.user.email ?? "You"}
-        error={callError}
-        meeting={meeting}
-        onDismiss={dismissCall}
-        onJoin={() => {
-          void join();
-        }}
-        onLeave={() => {
-          void leave();
-        }}
-        phase={callPhase}
-      />
+      <CallModal error={callError} meeting={meeting} onDismiss={dismissCall} phase={callPhase} />
 
       {isSettingsOpen ? (
         <div className="fixed inset-0 z-40 flex items-end justify-center bg-slate-950/20 backdrop-blur-sm sm:items-center sm:px-4">
