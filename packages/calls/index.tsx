@@ -1,6 +1,6 @@
 import { RealtimeKitProvider, useRealtimeKitClient } from "@cloudflare/realtimekit-react";
 import { RtkMeeting } from "@cloudflare/realtimekit-react-ui";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState, type CSSProperties } from "react";
 
 export type ChannelCallSession = {
   channelId: string;
@@ -29,6 +29,11 @@ type MeetingLifecycle = {
   leave?: () => Promise<unknown> | unknown;
   leaveRoom?: () => Promise<unknown> | unknown;
 };
+
+const channelCallThemeStyle: CSSProperties = {
+  "--rtk-font-family":
+    'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+} as CSSProperties;
 
 function normalizeServerUrl(serverUrl: string) {
   return serverUrl.endsWith("/") ? serverUrl.slice(0, -1) : serverUrl;
@@ -85,6 +90,36 @@ export function useChannelCall(options: UseChannelCallOptions) {
   const [error, setError] = useState<string | null>(null);
   const [isJoining, setIsJoining] = useState(false);
   const [session, setSession] = useState<ChannelCallSession | null>(null);
+  const cleanupPromiseRef = useRef<Promise<void> | null>(null);
+
+  const cleanupMeeting = useCallback(async (activeMeeting: MeetingLifecycle | null) => {
+    await activeMeeting?.leave?.();
+    await activeMeeting?.leaveRoom?.();
+    await activeMeeting?.destroy?.();
+  }, []);
+
+  const leave = useCallback(async () => {
+    const runningCleanup = cleanupPromiseRef.current;
+
+    if (runningCleanup) {
+      await runningCleanup;
+      return;
+    }
+
+    const activeMeeting = meeting as MeetingLifecycle | null;
+    const cleanupTask = (async () => {
+      try {
+        await cleanupMeeting(activeMeeting);
+      } finally {
+        setSession(null);
+        setError(null);
+        cleanupPromiseRef.current = null;
+      }
+    })();
+
+    cleanupPromiseRef.current = cleanupTask;
+    await cleanupTask;
+  }, [cleanupMeeting, meeting]);
 
   const join = useCallback(async () => {
     if (!options.channelId || !options.refreshToken) {
@@ -96,6 +131,8 @@ export function useChannelCall(options: UseChannelCallOptions) {
     setIsJoining(true);
 
     try {
+      await leave();
+
       const nextSession = await joinChannelCall({
         channelId: options.channelId,
         displayName: options.displayName,
@@ -126,18 +163,8 @@ export function useChannelCall(options: UseChannelCallOptions) {
     options.displayName,
     options.refreshToken,
     options.serverUrl,
+    leave,
   ]);
-
-  const leave = useCallback(async () => {
-    const activeMeeting = meeting as MeetingLifecycle | null;
-
-    await activeMeeting?.leave?.();
-    await activeMeeting?.leaveRoom?.();
-    await activeMeeting?.destroy?.();
-
-    setSession(null);
-    setError(null);
-  }, [meeting]);
 
   return {
     error,
@@ -150,14 +177,23 @@ export function useChannelCall(options: UseChannelCallOptions) {
   };
 }
 
-export function ChannelCallMeeting(props: { meeting: ReturnType<typeof useRealtimeKitClient>[0] }) {
+export function ChannelCallMeeting(props: {
+  meeting: ReturnType<typeof useRealtimeKitClient>[0];
+  showSetupScreen?: boolean;
+}) {
   if (!props.meeting) {
     return null;
   }
 
   return (
-    <RealtimeKitProvider value={props.meeting}>
-      <RtkMeeting meeting={props.meeting} mode="fill" showSetupScreen />
-    </RealtimeKitProvider>
+    <div className="size-full" style={channelCallThemeStyle}>
+      <RealtimeKitProvider value={props.meeting}>
+        <RtkMeeting meeting={props.meeting} mode="fill" showSetupScreen={props.showSetupScreen} />
+      </RealtimeKitProvider>
+    </div>
   );
+}
+
+export function ChannelCallPrejoin(props: { meeting: ReturnType<typeof useRealtimeKitClient>[0] }) {
+  return <ChannelCallMeeting meeting={props.meeting} showSetupScreen />;
 }

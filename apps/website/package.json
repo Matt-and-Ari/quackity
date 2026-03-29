@@ -11,6 +11,7 @@
   "dependencies": {
     "@cloudflare/realtimekit-react": "catalog:",
     "@cloudflare/realtimekit-react-ui": "catalog:",
+    "@cloudflare/realtimekit-ui": "^1.1.1",
     "@elysiajs/eden": "latest",
     "@emoji-mart/data": "catalog:",
     "@instantdb/core": "catalog:",
