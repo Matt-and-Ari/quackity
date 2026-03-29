@@ -9,8 +9,14 @@
     "preview": "vp preview"
   },
   "dependencies": {
+    "@elysiajs/eden": "latest",
+    "@instantdb/react": "catalog:",
+    "@quack/calls": "workspace:*",
+    "@quack/data": "workspace:*",
+    "@quack/schema": "workspace:*",
     "react": "catalog:",
-    "react-dom": "catalog:"
+    "react-dom": "catalog:",
+    "wouter": "latest"
   },
   "devDependencies": {
     "@tailwindcss/vite": "catalog:",

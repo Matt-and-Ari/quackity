@@ -4,6 +4,9 @@ export type WorkspaceRole = (typeof workspaceRoles)[number];
 export const channelVisibilities = ["public", "private"] as const;
 export type ChannelVisibility = (typeof channelVisibilities)[number];
 
+export const channelMeetingStatuses = ["active", "inactive"] as const;
+export type ChannelMeetingStatus = (typeof channelMeetingStatuses)[number];
+
 export const messageTypes = ["message", "thread_reply"] as const;
 export type MessageType = (typeof messageTypes)[number];
 

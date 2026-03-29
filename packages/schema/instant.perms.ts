@@ -2,6 +2,27 @@
 
 import type { InstantRules } from "@instantdb/core";
 
+function buildChannelAccessBinds(input: {
+  channelId: string;
+  visibility: string;
+  workspaceId: string;
+  workspaceOwnerIds: string;
+}) {
+  return {
+    canViewChannel: `isWorkspaceManager || isChannelMember || (${input.visibility} == 'public' && isWorkspaceViewer)`,
+    isChannelMember: `auth.id != null && ${input.channelId} in auth.ref('$user.channelMemberships.channel.id')`,
+    isWorkspaceAdmin: `auth.id != null && ${input.workspaceId} + ':admin' in auth.ref('$user.workspaceMemberships.roleKey')`,
+    isWorkspaceManager: "isWorkspaceOwner || isWorkspaceAdmin",
+    isWorkspaceOwner: `auth.id != null && auth.id in ${input.workspaceOwnerIds}`,
+    isWorkspaceViewer:
+      `auth.id != null && (` +
+      `${input.workspaceId} + ':guest' in auth.ref('$user.workspaceMemberships.roleKey') || ` +
+      `${input.workspaceId} + ':member' in auth.ref('$user.workspaceMemberships.roleKey') || ` +
+      `${input.workspaceId} + ':admin' in auth.ref('$user.workspaceMemberships.roleKey') || ` +
+      `auth.id in ${input.workspaceOwnerIds})`,
+  };
+}
+
 const rules = {
   $default: {
     allow: {
@@ -48,9 +69,14 @@ const rules = {
       create: "isCreator && isOwner",
       delete: "isOwner",
       update: "isOwner",
-      view: "isWorkspaceMember",
+      view: "isWorkspaceMember || hasPendingInvite",
     },
     bind: {
+      hasPendingInvite:
+        "auth.id != null && auth.ref('$user.email')[0] != null && (" +
+        "data.id + ':' + auth.ref('$user.email')[0] + ':admin' in data.ref('invites.inviteKey') || " +
+        "data.id + ':' + auth.ref('$user.email')[0] + ':member' in data.ref('invites.inviteKey') || " +
+        "data.id + ':' + auth.ref('$user.email')[0] + ':guest' in data.ref('invites.inviteKey'))",
       isCreator: "auth.id != null && auth.id in data.ref('createdBy.id')",
       isOwner: "auth.id != null && auth.id in data.ref('owner.id')",
       isWorkspaceAdmin:
@@ -61,7 +87,7 @@ const rules = {
   workspaceMembers: {
     allow: {
       create:
-        "(isInitialOwnerMembership || isWorkspaceOwner || (isWorkspaceAdmin && createsNonAdminMembership)) && validRole",
+        "(isInitialOwnerMembership || isWorkspaceOwner || (isWorkspaceAdmin && createsNonAdminMembership) || isInviteeCreatingMembership) && validRole",
       delete: "isWorkspaceOwner || (isWorkspaceAdmin && !isTargetManagerOrOwner)",
       update:
         "(isWorkspaceOwner && validUpdatedRole) || (isWorkspaceAdmin && !updatesRole && !isTargetManagerOrOwner)",
@@ -71,6 +97,8 @@ const rules = {
       createsNonAdminMembership: "data.role in ['member', 'guest']",
       isInitialOwnerMembership:
         "auth.id != null && auth.id in data.ref('$user.id') && auth.id in data.ref('workspace.owner.id') && data.role == 'admin'",
+      isInviteeCreatingMembership:
+        "auth.id != null && auth.id in data.ref('$user.id') && auth.ref('$user.email')[0] != null && data.acceptedInviteKey == data.ref('workspace.id')[0] + ':' + auth.ref('$user.email')[0] + ':' + data.role && data.acceptedInviteKey in data.ref('workspace.invites.inviteKey')",
       isTargetManagerOrOwner:
         "data.role == 'admin' || data.ref('workspace.owner.id')[0] in data.ref('$user.id')",
       isWorkspaceAdmin:
@@ -84,6 +112,24 @@ const rules = {
         "!('role' in request.modifiedFields) || newData.role in ['admin', 'member', 'guest']",
     },
   },
+  workspaceInvites: {
+    allow: {
+      create: "(isWorkspaceOwner || (isWorkspaceAdmin && createsNonAdminInvite)) && validRole",
+      delete: "isWorkspaceManager || isInvitee",
+      update: "false",
+      view: "isWorkspaceManager || isInvitee",
+    },
+    bind: {
+      createsNonAdminInvite: "data.role in ['member', 'guest']",
+      isInvitee:
+        "auth.id != null && auth.ref('$user.email')[0] != null && auth.ref('$user.email')[0] == data.email",
+      isWorkspaceAdmin:
+        "auth.id != null && data.ref('workspace.id')[0] + ':admin' in auth.ref('$user.workspaceMemberships.roleKey')",
+      isWorkspaceManager: "isWorkspaceOwner || isWorkspaceAdmin",
+      isWorkspaceOwner: "auth.id != null && auth.id in data.ref('workspace.owner.id')",
+      validRole: "data.role in ['admin', 'member', 'guest']",
+    },
+  },
   channels: {
     allow: {
       create: "isCreator && isWorkspaceManager && validVisibility",
@@ -92,17 +138,13 @@ const rules = {
       view: "canViewChannel",
     },
     bind: {
-      canViewChannel:
-        "isWorkspaceManager || isChannelMember || (data.visibility == 'public' && isMemberRole)",
-      isChannelMember:
-        "auth.id != null && data.id in auth.ref('$user.channelMemberships.channel.id')",
+      ...buildChannelAccessBinds({
+        channelId: "data.id",
+        visibility: "data.visibility",
+        workspaceId: "data.ref('workspace.id')[0]",
+        workspaceOwnerIds: "data.ref('workspace.owner.id')",
+      }),
       isCreator: "auth.id != null && auth.id in data.ref('createdBy.id')",
-      isMemberRole:
-        "auth.id != null && (data.ref('workspace.id')[0] + ':member' in auth.ref('$user.workspaceMemberships.roleKey') || data.ref('workspace.id')[0] + ':admin' in auth.ref('$user.workspaceMemberships.roleKey') || auth.id in data.ref('workspace.owner.id'))",
-      isWorkspaceManager: "isWorkspaceOwner || isWorkspaceAdmin",
-      isWorkspaceAdmin:
-        "auth.id != null && data.ref('workspace.id')[0] + ':admin' in auth.ref('$user.workspaceMemberships.roleKey')",
-      isWorkspaceOwner: "auth.id != null && auth.id in data.ref('workspace.owner.id')",
       validUpdatedVisibility:
         "!('visibility' in request.modifiedFields) || newData.visibility in ['public', 'private']",
       validVisibility: "data.visibility in ['public', 'private']",
@@ -116,16 +158,28 @@ const rules = {
       view: "canViewChannel",
     },
     bind: {
-      canViewChannel:
-        "isWorkspaceManager || isChannelMember || (data.ref('channel.visibility')[0] == 'public' && isMemberRole)",
-      isChannelMember:
-        "auth.id != null && data.ref('channel.id')[0] in auth.ref('$user.channelMemberships.channel.id')",
-      isMemberRole:
-        "auth.id != null && (data.ref('channel.workspace.id')[0] + ':member' in auth.ref('$user.workspaceMemberships.roleKey') || data.ref('channel.workspace.id')[0] + ':admin' in auth.ref('$user.workspaceMemberships.roleKey') || auth.id in data.ref('channel.workspace.owner.id'))",
-      isWorkspaceManager: "isWorkspaceOwner || isWorkspaceAdmin",
-      isWorkspaceAdmin:
-        "auth.id != null && data.ref('channel.workspace.id')[0] + ':admin' in auth.ref('$user.workspaceMemberships.roleKey')",
-      isWorkspaceOwner: "auth.id != null && auth.id in data.ref('channel.workspace.owner.id')",
+      ...buildChannelAccessBinds({
+        channelId: "data.ref('channel.id')[0]",
+        visibility: "data.ref('channel.visibility')[0]",
+        workspaceId: "data.ref('channel.workspace.id')[0]",
+        workspaceOwnerIds: "data.ref('channel.workspace.owner.id')",
+      }),
+    },
+  },
+  channelMeetings: {
+    allow: {
+      create: "isWorkspaceManager",
+      delete: "isWorkspaceManager",
+      update: "isWorkspaceManager",
+      view: "canViewChannel",
+    },
+    bind: {
+      ...buildChannelAccessBinds({
+        channelId: "data.ref('channel.id')[0]",
+        visibility: "data.ref('channel.visibility')[0]",
+        workspaceId: "data.ref('channel.workspace.id')[0]",
+        workspaceOwnerIds: "data.ref('channel.workspace.owner.id')",
+      }),
     },
   },
   messages: {
@@ -136,18 +190,14 @@ const rules = {
       view: "canViewChannel",
     },
     bind: {
-      canViewChannel:
-        "isWorkspaceManager || isChannelMember || (data.ref('channel.visibility')[0] == 'public' && isMemberRole)",
-      isChannelMember:
-        "auth.id != null && data.ref('channel.id')[0] in auth.ref('$user.channelMemberships.channel.id')",
-      isMemberRole:
-        "auth.id != null && (data.ref('channel.workspace.id')[0] + ':member' in auth.ref('$user.workspaceMemberships.roleKey') || data.ref('channel.workspace.id')[0] + ':admin' in auth.ref('$user.workspaceMemberships.roleKey') || auth.id in data.ref('channel.workspace.owner.id'))",
+      ...buildChannelAccessBinds({
+        channelId: "data.ref('channel.id')[0]",
+        visibility: "data.ref('channel.visibility')[0]",
+        workspaceId: "data.ref('channel.workspace.id')[0]",
+        workspaceOwnerIds: "data.ref('channel.workspace.owner.id')",
+      }),
       isSender: "auth.id != null && auth.id in data.ref('sender.id')",
       isSenderOrWorkspaceManager: "isSender || isWorkspaceManager",
-      isWorkspaceManager: "isWorkspaceOwner || isWorkspaceAdmin",
-      isWorkspaceAdmin:
-        "auth.id != null && data.ref('channel.workspace.id')[0] + ':admin' in auth.ref('$user.workspaceMemberships.roleKey')",
-      isWorkspaceOwner: "auth.id != null && auth.id in data.ref('channel.workspace.owner.id')",
       onlyEditableFields:
         "request.modifiedFields.all(field, field in ['body', 'updatedAt', 'deletedAt'])",
       topLevelMessage: "data.messageType == 'message' && data.ref('parentMessage.id') == []",
@@ -159,49 +209,39 @@ const rules = {
   },
   messageAttachments: {
     allow: {
-      create: "canViewMessage && isMessageAuthorOrWorkspaceManager && validType",
+      create: "canViewChannel && isMessageAuthorOrWorkspaceManager && validType",
       delete: "isMessageAuthorOrWorkspaceManager",
       update: "false",
-      view: "canViewMessage",
+      view: "canViewChannel",
     },
     bind: {
-      canViewMessage:
-        "isWorkspaceManager || isChannelMember || (data.ref('message.channel.visibility')[0] == 'public' && isMemberRole)",
-      isChannelMember:
-        "auth.id != null && data.ref('message.channel.id')[0] in auth.ref('$user.channelMemberships.channel.id')",
+      ...buildChannelAccessBinds({
+        channelId: "data.ref('message.channel.id')[0]",
+        visibility: "data.ref('message.channel.visibility')[0]",
+        workspaceId: "data.ref('message.channel.workspace.id')[0]",
+        workspaceOwnerIds: "data.ref('message.channel.workspace.owner.id')",
+      }),
       isMessageAuthor: "auth.id != null && auth.id in data.ref('message.sender.id')",
       isMessageAuthorOrWorkspaceManager: "isMessageAuthor || isWorkspaceManager",
-      isMemberRole:
-        "auth.id != null && (data.ref('message.channel.workspace.id')[0] + ':member' in auth.ref('$user.workspaceMemberships.roleKey') || data.ref('message.channel.workspace.id')[0] + ':admin' in auth.ref('$user.workspaceMemberships.roleKey') || auth.id in data.ref('message.channel.workspace.owner.id'))",
-      isWorkspaceManager: "isWorkspaceOwner || isWorkspaceAdmin",
-      isWorkspaceAdmin:
-        "auth.id != null && data.ref('message.channel.workspace.id')[0] + ':admin' in auth.ref('$user.workspaceMemberships.roleKey')",
-      isWorkspaceOwner:
-        "auth.id != null && auth.id in data.ref('message.channel.workspace.owner.id')",
       validType: "data.attachmentType in ['image', 'video', 'file']",
     },
   },
   reactions: {
     allow: {
-      create: "canViewMessage && isActor",
+      create: "canViewChannel && isActor",
       delete: "isActorOrWorkspaceManager",
       update: "false",
-      view: "canViewMessage",
+      view: "canViewChannel",
     },
     bind: {
-      canViewMessage:
-        "isWorkspaceManager || isChannelMember || (data.ref('message.channel.visibility')[0] == 'public' && isMemberRole)",
+      ...buildChannelAccessBinds({
+        channelId: "data.ref('message.channel.id')[0]",
+        visibility: "data.ref('message.channel.visibility')[0]",
+        workspaceId: "data.ref('message.channel.workspace.id')[0]",
+        workspaceOwnerIds: "data.ref('message.channel.workspace.owner.id')",
+      }),
       isActor: "auth.id != null && auth.id in data.ref('$user.id')",
       isActorOrWorkspaceManager: "isActor || isWorkspaceManager",
-      isChannelMember:
-        "auth.id != null && data.ref('message.channel.id')[0] in auth.ref('$user.channelMemberships.channel.id')",
-      isMemberRole:
-        "auth.id != null && (data.ref('message.channel.workspace.id')[0] + ':member' in auth.ref('$user.workspaceMemberships.roleKey') || data.ref('message.channel.workspace.id')[0] + ':admin' in auth.ref('$user.workspaceMemberships.roleKey') || auth.id in data.ref('message.channel.workspace.owner.id'))",
-      isWorkspaceManager: "isWorkspaceOwner || isWorkspaceAdmin",
-      isWorkspaceAdmin:
-        "auth.id != null && data.ref('message.channel.workspace.id')[0] + ':admin' in auth.ref('$user.workspaceMemberships.roleKey')",
-      isWorkspaceOwner:
-        "auth.id != null && auth.id in data.ref('message.channel.workspace.owner.id')",
     },
   },
 } satisfies InstantRules;

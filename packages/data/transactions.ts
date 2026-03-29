@@ -1,10 +1,17 @@
 import { id, tx } from "@instantdb/core";
 
-import { type AttachmentType, type ChannelVisibility, type WorkspaceRole } from "./constants";
+import {
+  type AttachmentType,
+  type ChannelMeetingStatus,
+  type ChannelVisibility,
+  type WorkspaceRole,
+} from "./constants";
 import {
   createChannelMembershipKey,
+  createChannelMeetingKey,
   createChannelScopedSlug,
   createReactionKey,
+  createWorkspaceInviteKey,
   createWorkspaceMemberKey,
   createWorkspaceRoleKey,
 } from "./keys";
@@ -82,6 +89,7 @@ export function deleteWorkspaceTx(workspaceId: string) {
 }
 
 export function createWorkspaceMemberTx(input: {
+  acceptedInviteKey?: string;
   displayName?: string;
   joinedAt?: InstantDate;
   membershipId?: string;
@@ -96,6 +104,7 @@ export function createWorkspaceMemberTx(input: {
     membershipId,
     tx: tx.workspaceMembers[membershipId]
       .create({
+        acceptedInviteKey: input.acceptedInviteKey,
         displayName: input.displayName,
         joinedAt: toInstantDate(input.joinedAt),
         memberKey: createWorkspaceMemberKey(input.workspaceId, input.userId),
@@ -108,6 +117,47 @@ export function createWorkspaceMemberTx(input: {
         $user: input.userId,
       }),
   };
+}
+
+export function createWorkspaceInviteTx(input: {
+  createdAt?: InstantDate;
+  email: string;
+  inviteId?: string;
+  invitedById: string;
+  role: WorkspaceRole;
+  workspaceId: string;
+}) {
+  const inviteId = input.inviteId ?? id();
+  const createdAt = toInstantDate(input.createdAt);
+
+  return {
+    inviteId,
+    tx: tx.workspaceInvites[inviteId]
+      .create({
+        createdAt,
+        email: input.email.trim().toLowerCase(),
+        inviteKey: createWorkspaceInviteKey(input.workspaceId, input.email, input.role),
+        role: input.role,
+      })
+      .link({
+        invitedBy: input.invitedById,
+        workspace: input.workspaceId,
+      }),
+  };
+}
+
+export function deleteWorkspaceInviteTx(inviteId: string) {
+  return tx.workspaceInvites[inviteId].delete();
+}
+
+export function deleteWorkspaceInviteByKeyTx(input: {
+  email: string;
+  role: WorkspaceRole;
+  workspaceId: string;
+}) {
+  return tx.workspaceInvites
+    .lookup("inviteKey", createWorkspaceInviteKey(input.workspaceId, input.email, input.role))
+    .delete();
 }
 
 export function updateWorkspaceMemberTx(
@@ -256,6 +306,58 @@ export function createChannelMemberTx(input: {
 
 export function deleteChannelMemberTx(membershipId: string) {
   return tx.channelMembers[membershipId].delete();
+}
+
+export function createChannelMeetingTx(input: {
+  channelId: string;
+  cloudflareMeetingId: string;
+  createdAt?: InstantDate;
+  creatorId: string;
+  lastJoinedAt?: InstantDate;
+  meetingId?: string;
+  status?: ChannelMeetingStatus;
+}) {
+  const meetingId = input.meetingId ?? id();
+  const createdAt = toInstantDate(input.createdAt);
+
+  return {
+    meetingId,
+    tx: tx.channelMeetings[meetingId]
+      .create({
+        channelMeetingKey: createChannelMeetingKey(input.channelId),
+        cloudflareMeetingId: input.cloudflareMeetingId,
+        createdAt,
+        endedAt: undefined,
+        lastJoinedAt:
+          input.lastJoinedAt === undefined ? undefined : toInstantDate(input.lastJoinedAt),
+        status: input.status ?? "active",
+      })
+      .link({
+        channel: input.channelId,
+        createdBy: input.creatorId,
+      }),
+  };
+}
+
+export function updateChannelMeetingTx(
+  meetingId: string,
+  patch: {
+    cloudflareMeetingId?: string;
+    endedAt?: InstantDate;
+    lastJoinedAt?: InstantDate;
+    status?: ChannelMeetingStatus;
+  },
+) {
+  return tx.channelMeetings[meetingId].update({
+    cloudflareMeetingId: patch.cloudflareMeetingId,
+    endedAt: patch.endedAt === undefined ? undefined : toInstantDate(patch.endedAt),
+    lastJoinedAt: patch.lastJoinedAt === undefined ? undefined : toInstantDate(patch.lastJoinedAt),
+    status: patch.status,
+  });
+}
+
+export function deleteChannelMeetingTx(meetingId: string) {
+  return tx.channelMeetings[meetingId].delete();
 }
 
 export function createMessageTx(input: {

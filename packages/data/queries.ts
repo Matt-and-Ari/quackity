@@ -7,8 +7,23 @@ const workspaceMemberFields = {
   $user: {},
 } as const;
 
+const workspaceInviteFields = {
+  invitedBy: {},
+} as const;
+
 const channelMemberFields = {
   $user: {},
+} as const;
+
+const channelMeetingFields = {
+  channel: {
+    members: channelMemberFields,
+    workspace: {
+      members: workspaceMemberFields,
+      owner: {},
+    },
+  },
+  createdBy: {},
 } as const;
 
 const messageAttachmentFields = {
@@ -37,6 +52,7 @@ export function listWorkspacesQuery() {
         },
       },
       channels: {},
+      invites: workspaceInviteFields,
       members: workspaceMemberFields,
       owner: {},
     },
@@ -58,6 +74,7 @@ export function workspaceByIdQuery(workspaceId: string) {
           },
         },
       },
+      invites: workspaceInviteFields,
       members: workspaceMemberFields,
       owner: {},
     },
@@ -79,6 +96,7 @@ export function workspaceBySlugQuery(slug: string) {
           },
         },
       },
+      invites: workspaceInviteFields,
       members: workspaceMemberFields,
       owner: {},
     },
@@ -97,6 +115,65 @@ export function workspaceMembersQuery(workspaceId: string) {
         },
       },
       $user: {},
+      workspace: {
+        owner: {},
+      },
+    },
+  } satisfies QuackQuery;
+}
+
+export function workspaceMembershipsByUserQuery(userId: string) {
+  return {
+    workspaceMembers: {
+      $: {
+        order: {
+          joinedAt: "asc",
+        },
+        where: {
+          "$user.id": userId,
+        },
+      },
+      $user: {},
+      workspace: {
+        invites: workspaceInviteFields,
+        members: workspaceMemberFields,
+        owner: {},
+      },
+    },
+  } satisfies QuackQuery;
+}
+
+export function workspaceInvitesQuery(workspaceId: string) {
+  return {
+    workspaceInvites: {
+      $: {
+        order: {
+          createdAt: "asc",
+        },
+        where: {
+          "workspace.id": workspaceId,
+        },
+      },
+      ...workspaceInviteFields,
+      workspace: {
+        owner: {},
+      },
+    },
+  } satisfies QuackQuery;
+}
+
+export function workspaceInvitesByEmailQuery(email: string) {
+  return {
+    workspaceInvites: {
+      $: {
+        order: {
+          createdAt: "asc",
+        },
+        where: {
+          email,
+        },
+      },
+      ...workspaceInviteFields,
       workspace: {
         owner: {},
       },
@@ -177,6 +254,32 @@ export function channelMembersQuery(channelId: string) {
           owner: {},
         },
       },
+    },
+  } satisfies QuackQuery;
+}
+
+export function channelMeetingByChannelQuery(channelId: string) {
+  return {
+    channelMeetings: {
+      $: {
+        where: {
+          "channel.id": channelId,
+        },
+      },
+      ...channelMeetingFields,
+    },
+  } satisfies QuackQuery;
+}
+
+export function channelMeetingByCloudflareMeetingIdQuery(cloudflareMeetingId: string) {
+  return {
+    channelMeetings: {
+      $: {
+        where: {
+          cloudflareMeetingId,
+        },
+      },
+      ...channelMeetingFields,
     },
   } satisfies QuackQuery;
 }
