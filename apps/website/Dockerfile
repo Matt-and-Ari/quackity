@@ -22,9 +22,24 @@ ENV NODE_ENV=production
 RUN npm install --global serve
 
 COPY --from=build /app/apps/website/dist ./dist
-COPY apps/website/docker-entrypoint.sh /usr/local/bin/website-entrypoint
-
-RUN chmod +x /usr/local/bin/website-entrypoint
+RUN printf '%s\n' \
+  '#!/bin/sh' \
+  'set -eu' \
+  '' \
+  "node <<'EOF'" \
+  'const fs = require("node:fs");' \
+  '' \
+  'const env = {' \
+  '  VITE_INSTANT_APP_ID: process.env.VITE_INSTANT_APP_ID,' \
+  '  VITE_SERVER_URL: process.env.VITE_SERVER_URL,' \
+  '};' \
+  '' \
+  'fs.writeFileSync("/app/dist/env.js", `window.__ENV__ = ${JSON.stringify(env, null, 2)};\n`);' \
+  'EOF' \
+  '' \
+  'exec serve -s /app/dist -l "${PORT:-3000}"' \
+  > /usr/local/bin/website-entrypoint \
+  && chmod +x /usr/local/bin/website-entrypoint
 
 EXPOSE 3000
 
