@@ -126,6 +126,7 @@ function LoggedInApp(props: { user: AuthenticatedUser }) {
         {(params) =>
           memberships.length ? (
             <WorkspaceChatPage
+              memberships={memberships}
               onSignOut={handleSignOut}
               user={user}
               workspaceId={params.workspaceId}
@@ -141,6 +142,7 @@ function LoggedInApp(props: { user: AuthenticatedUser }) {
           memberships.length ? (
             <WorkspaceChatPage
               channelSlug={params.channelSlug}
+              memberships={memberships}
               onSignOut={handleSignOut}
               user={user}
               workspaceId={params.workspaceId}
@@ -155,6 +157,7 @@ function LoggedInApp(props: { user: AuthenticatedUser }) {
         {(params) =>
           memberships.length ? (
             <WorkspaceChatPage
+              memberships={memberships}
               onSignOut={handleSignOut}
               user={user}
               workspaceId={params.workspaceId}

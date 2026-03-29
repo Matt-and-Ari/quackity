@@ -1,5 +1,7 @@
 import { createWorkspaceInviteTx, type ChannelVisibility, type WorkspaceRole } from "@quack/data";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { useLocation } from "wouter";
 
 import clsx from "clsx";
 
@@ -27,15 +29,21 @@ import { HoverTooltip } from "../../components/ui/HoverTooltip";
 import { anchorFromPoint, type FloatingAnchor } from "../../components/ui/floating";
 import { useResizeHandle } from "../../hooks/useResizeHandle";
 import { useQuackWorkspace } from "../../hooks/useQuackWorkspace";
-import { ChannelCallMeeting, useChannelCall } from "../../lib/channel-calls";
+import { CallModal, useChannelCall } from "../../lib/channel-calls";
 import { instantDB } from "../../lib/instant";
 import { normalizeEmail, parseInviteEmails } from "../../lib/workspaces";
-import type { AuthenticatedUser, ChannelRecord, MessageRecord } from "../../types/quack";
+import type {
+  AuthenticatedUser,
+  ChannelRecord,
+  MessageRecord,
+  WorkspaceMemberRecord,
+} from "../../types/quack";
 
 const serverUrl = import.meta.env.VITE_SERVER_URL ?? "http://localhost:3001";
 
 interface WorkspaceChatPageProps {
   channelSlug?: string;
+  memberships: WorkspaceMemberRecord[];
   onSignOut: () => Promise<void>;
   user: AuthenticatedUser;
   workspaceId: string;
@@ -71,15 +79,16 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
   });
   const [isCreateChannelOpen, setIsCreateChannelOpen] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
-  const [isMeetingPanelOpen, setIsMeetingPanelOpen] = useState(false);
 
   const {
+    dismiss: dismissCall,
     error: callError,
     isInCall,
-    isJoining,
     join,
     leave,
     meeting,
+    openPrejoin,
+    phase: callPhase,
   } = useChannelCall({
     channelId: app.activeChannel?.id ?? "",
     displayName: app.currentUserMember?.displayName ?? props.user.email ?? undefined,
@@ -111,12 +120,6 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
       channelInputRef.current?.focus();
     }
   }, [app.selectedThreadMessage?.id]);
-
-  useEffect(() => {
-    if (meeting) {
-      setIsMeetingPanelOpen(true);
-    }
-  }, [meeting]);
 
   useEffect(() => {
     setContextMenu(null);
@@ -296,12 +299,11 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
             style={{ flexShrink: 0, width: sidebar.width }}
           >
             <div className="flex items-center gap-3 border-b border-amber-200/50 px-4 py-3.5">
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-amber-500 text-base shadow-sm">
-                🦆
-              </div>
-              <h1 className="min-w-0 flex-1 truncate text-[0.95rem] font-semibold tracking-tight text-slate-900">
-                {workspace.name}
-              </h1>
+              <WorkspaceSwitcher
+                currentWorkspaceId={workspace.id}
+                memberships={props.memberships}
+                workspaceName={workspace.name}
+              />
               <SidebarMenuButton
                 onCreateChannel={
                   app.canManageChannels ? () => setIsCreateChannelOpen(true) : undefined
@@ -405,50 +407,24 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
 
                 <div className="flex items-center gap-1">
                   {isInCall ? (
-                    <>
-                      <HoverTooltip
-                        content={isMeetingPanelOpen ? "Hide call" : "Show call"}
-                        side="bottom"
-                      >
-                        <button
-                          className={clsx(
-                            "rounded-lg p-1.5 transition-colors duration-100",
-                            isMeetingPanelOpen
-                              ? "bg-amber-100 text-amber-700"
-                              : "text-slate-500 hover:bg-slate-100",
-                          )}
-                          disabled={!meeting}
-                          onClick={() => setIsMeetingPanelOpen((v) => !v)}
-                          type="button"
-                        >
-                          <CallGlyph />
-                        </button>
-                      </HoverTooltip>
-                      <HoverTooltip content="Leave call" side="bottom">
-                        <button
-                          className="rounded-lg p-1.5 text-rose-500 transition-colors duration-100 hover:bg-rose-50"
-                          onClick={() => {
-                            void leave();
-                          }}
-                          type="button"
-                        >
-                          <HangUpGlyph />
-                        </button>
-                      </HoverTooltip>
-                    </>
-                  ) : (
-                    <HoverTooltip content={isJoining ? "Joining..." : "Start a call"} side="bottom">
+                    <HoverTooltip content="Leave call" side="bottom">
                       <button
-                        className={clsx(
-                          "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors duration-100",
-                          isJoining
-                            ? "cursor-wait text-slate-300"
-                            : "text-slate-500 hover:bg-amber-50 hover:text-amber-700",
-                        )}
-                        disabled={!app.activeChannel?.id || !props.user.refresh_token || isJoining}
+                        className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-rose-500 transition-colors duration-100 hover:bg-rose-50"
                         onClick={() => {
-                          void join();
+                          void leave();
                         }}
+                        type="button"
+                      >
+                        <HangUpGlyph />
+                        <span>Leave</span>
+                      </button>
+                    </HoverTooltip>
+                  ) : (
+                    <HoverTooltip content="Start a call" side="bottom">
+                      <button
+                        className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors duration-100 hover:bg-amber-50 hover:text-amber-700"
+                        disabled={!app.activeChannel?.id || !props.user.refresh_token}
+                        onClick={openPrejoin}
                         type="button"
                       >
                         <CallGlyph />
@@ -475,21 +451,6 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                 </div>
               ) : null}
             </header>
-
-            {meeting && isMeetingPanelOpen ? (
-              <div className="border-b border-amber-100/70 px-4 py-4">
-                <div className="overflow-hidden rounded-2xl border border-amber-200/70 bg-slate-950/90">
-                  <div className="flex items-center justify-between border-b border-white/10 px-4 py-2.5 text-white">
-                    <p className="text-xs font-medium text-slate-300">
-                      Live &middot; #{app.activeChannel?.name}
-                    </p>
-                  </div>
-                  <div className="h-[28rem]">
-                    <ChannelCallMeeting meeting={meeting} />
-                  </div>
-                </div>
-              </div>
-            ) : null}
 
             <section className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
               <div className="mx-auto flex max-w-3xl flex-col gap-1">
@@ -622,7 +583,249 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
           userId={props.user.id}
         />
       ) : null}
+
+      <CallModal
+        channelName={app.activeChannel?.name ?? "channel"}
+        displayName={app.currentUserMember?.displayName ?? props.user.email ?? "You"}
+        error={callError}
+        meeting={meeting}
+        onDismiss={dismissCall}
+        onJoin={() => {
+          void join();
+        }}
+        onLeave={() => {
+          void leave();
+        }}
+        phase={callPhase}
+      />
     </>
+  );
+}
+
+/* ── Workspace switcher ── */
+
+function getWorkspaceInitial(name: string) {
+  return name.trim().charAt(0).toUpperCase() || "W";
+}
+
+const WORKSPACE_GRADIENT_PAIRS = [
+  ["from-amber-400", "to-amber-500"],
+  ["from-orange-400", "to-orange-500"],
+  ["from-yellow-500", "to-amber-600"],
+  ["from-amber-500", "to-orange-600"],
+  ["from-rose-400", "to-rose-500"],
+  ["from-emerald-400", "to-emerald-500"],
+  ["from-teal-400", "to-teal-500"],
+  ["from-sky-400", "to-sky-500"],
+] as const;
+
+function getWorkspaceGradient(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash * 31 + name.charCodeAt(i)) | 0;
+  }
+  const pair = WORKSPACE_GRADIENT_PAIRS[Math.abs(hash) % WORKSPACE_GRADIENT_PAIRS.length];
+  return `${pair[0]} ${pair[1]}`;
+}
+
+interface WorkspaceSwitcherProps {
+  currentWorkspaceId: string;
+  memberships: WorkspaceMemberRecord[];
+  workspaceName: string;
+}
+
+function WorkspaceSwitcher(props: WorkspaceSwitcherProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [, navigate] = useLocation();
+  const [dropdownPos, setDropdownPos] = useState({ left: 0, top: 0 });
+
+  const otherWorkspaces = props.memberships.filter(
+    (m) => m.workspace?.id && m.workspace.id !== props.currentWorkspaceId,
+  );
+  const hasMultiple = otherWorkspaces.length > 0;
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    function updatePosition() {
+      if (!triggerRef.current) return;
+      const rect = triggerRef.current.getBoundingClientRect();
+      setDropdownPos({ left: rect.left, top: rect.bottom + 6 });
+    }
+
+    updatePosition();
+
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        triggerRef.current?.contains(event.target as Node) ||
+        dropdownRef.current?.contains(event.target as Node)
+      ) {
+        return;
+      }
+      setIsOpen(false);
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [isOpen]);
+
+  return (
+    <div className="min-w-0 flex-1" ref={triggerRef}>
+      <button
+        className={clsx(
+          "flex min-w-0 flex-1 items-center gap-3",
+          hasMultiple && "group cursor-pointer",
+        )}
+        disabled={!hasMultiple}
+        onClick={() => {
+          if (hasMultiple) setIsOpen((v) => !v);
+        }}
+        type="button"
+      >
+        <div
+          className={clsx(
+            "flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-sm font-bold text-white shadow-sm",
+            getWorkspaceGradient(props.workspaceName),
+          )}
+        >
+          {getWorkspaceInitial(props.workspaceName)}
+        </div>
+        <h1 className="min-w-0 flex-1 truncate text-left text-[0.95rem] font-semibold tracking-tight text-slate-900">
+          {props.workspaceName}
+        </h1>
+        {hasMultiple ? (
+          <svg
+            className={clsx(
+              "shrink-0 text-slate-400 transition-transform duration-150",
+              isOpen && "rotate-180",
+            )}
+            fill="none"
+            height="14"
+            viewBox="0 0 14 14"
+            width="14"
+          >
+            <path
+              d="M3.5 5.25 7 8.75l3.5-3.5"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="1.5"
+            />
+          </svg>
+        ) : null}
+      </button>
+
+      {isOpen
+        ? createPortal(
+            <div
+              className="fixed z-50 w-64 overflow-hidden rounded-2xl border border-amber-200/80 bg-white/95 p-1.5 shadow-[0_16px_48px_rgba(15,23,42,0.14)] backdrop-blur-xl"
+              ref={dropdownRef}
+              style={{ left: dropdownPos.left, top: dropdownPos.top }}
+            >
+              <div className="px-3 pb-1.5 pt-2">
+                <p className="text-[0.65rem] font-semibold uppercase tracking-widest text-slate-400">
+                  Workspaces
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-0.5">
+                <WorkspaceSwitcherItem
+                  gradient={getWorkspaceGradient(props.workspaceName)}
+                  isActive
+                  label={props.workspaceName}
+                  onClick={() => setIsOpen(false)}
+                />
+
+                {otherWorkspaces.map((membership) => {
+                  const ws = membership.workspace;
+                  if (!ws) return null;
+                  return (
+                    <WorkspaceSwitcherItem
+                      gradient={getWorkspaceGradient(ws.name)}
+                      isActive={false}
+                      key={ws.id}
+                      label={ws.name}
+                      onClick={() => {
+                        setIsOpen(false);
+                        navigate(`/workspaces/${ws.id}`);
+                      }}
+                      role={membership.role}
+                    />
+                  );
+                })}
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+    </div>
+  );
+}
+
+interface WorkspaceSwitcherItemProps {
+  gradient: string;
+  isActive: boolean;
+  label: string;
+  onClick: () => void;
+  role?: string;
+}
+
+function WorkspaceSwitcherItem(props: WorkspaceSwitcherItemProps) {
+  return (
+    <button
+      className={clsx(
+        "flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left transition-colors duration-100",
+        props.isActive ? "bg-amber-100/60" : "hover:bg-amber-50/80",
+      )}
+      onClick={props.onClick}
+      type="button"
+    >
+      <div
+        className={clsx(
+          "flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br text-xs font-bold text-white shadow-sm",
+          props.gradient,
+        )}
+      >
+        {getWorkspaceInitial(props.label)}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-slate-800">{props.label}</p>
+        {props.role ? <p className="text-[0.65rem] text-slate-400">{props.role}</p> : null}
+      </div>
+      {props.isActive ? (
+        <svg
+          className="shrink-0 text-amber-500"
+          fill="none"
+          height="16"
+          viewBox="0 0 16 16"
+          width="16"
+        >
+          <path
+            d="M3.5 8.5 6.5 11.5 12.5 4.5"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="1.8"
+          />
+        </svg>
+      ) : null}
+    </button>
   );
 }
 
