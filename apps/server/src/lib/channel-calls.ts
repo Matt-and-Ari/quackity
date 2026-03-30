@@ -1,12 +1,35 @@
 import {
+  activeChannelMeetingsByWorkspaceQuery,
   channelByIdQuery,
   channelMeetingByChannelQuery,
   createChannelMeetingTx,
   updateChannelMeetingTx,
+  workspaceByIdQuery,
 } from "../../../../packages/data/index.ts";
 
 import { adminDB, type InstantAuthUser } from "../db";
 import { getCloudflareRealtimeClient } from "./cloudflare-realtime";
+
+type ChannelAccessRecord = {
+  archivedAt?: string | number | null;
+  members: Array<{
+    $user?: {
+      id: string;
+    } | null;
+  }>;
+  visibility: string;
+  workspace?: {
+    members: Array<{
+      $user?: {
+        id: string;
+      } | null;
+      role?: string | null;
+    }>;
+    owner?: {
+      id: string;
+    } | null;
+  } | null;
+};
 
 function getAuthDisplayName(authUser: InstantAuthUser, fallbackName?: string) {
   if (fallbackName) {
@@ -20,7 +43,7 @@ function getAuthDisplayName(authUser: InstantAuthUser, fallbackName?: string) {
   return `quack-${authUser.id.slice(0, 8)}`;
 }
 
-function canJoinChannel(channel: Awaited<ReturnType<typeof loadChannel>>, userId: string) {
+function canJoinChannel(channel: ChannelAccessRecord | null | undefined, userId: string) {
   if (!channel?.workspace) {
     return false;
   }
@@ -47,10 +70,43 @@ async function loadChannel(channelId: string) {
   return result.channels[0] ?? null;
 }
 
+async function loadWorkspace(workspaceId: string) {
+  const result = await adminDB.query(workspaceByIdQuery(workspaceId));
+
+  return result.workspaces[0] ?? null;
+}
+
 async function loadChannelMeeting(channelId: string) {
   const result = await adminDB.query(channelMeetingByChannelQuery(channelId));
 
   return result.channelMeetings[0] ?? null;
+}
+
+async function loadActiveWorkspaceMeetings(workspaceId: string) {
+  const result = await adminDB.query(activeChannelMeetingsByWorkspaceQuery(workspaceId));
+
+  return result.channelMeetings;
+}
+
+function canViewWorkspace(workspace: Awaited<ReturnType<typeof loadWorkspace>>, userId: string) {
+  if (!workspace) {
+    return false;
+  }
+
+  if (workspace.owner?.id === userId) {
+    return true;
+  }
+
+  return workspace.members.some((member) => member.$user?.id === userId);
+}
+
+async function markMeetingInactive(meetingId: string) {
+  await adminDB.transact(
+    updateChannelMeetingTx(meetingId, {
+      endedAt: new Date(),
+      status: "inactive",
+    }),
+  );
 }
 
 async function ensureChannelMeeting(
@@ -111,6 +167,69 @@ async function ensureChannelMeeting(
   }
 
   return existingMeeting;
+}
+
+export async function getWorkspaceChannelCallStatus(input: {
+  authUser: InstantAuthUser;
+  workspaceId: string;
+}) {
+  const workspace = await loadWorkspace(input.workspaceId);
+
+  if (!workspace) {
+    return {
+      error: "Workspace not found",
+      status: 404 as const,
+    };
+  }
+
+  if (!canViewWorkspace(workspace, input.authUser.id)) {
+    return {
+      error: "You do not have access to this workspace",
+      status: 403 as const,
+    };
+  }
+
+  const realtimeClient = getCloudflareRealtimeClient();
+  const activeMeetings = await loadActiveWorkspaceMeetings(input.workspaceId);
+  const channelParticipantEntries = await Promise.all(
+    activeMeetings.map(async (meeting) => {
+      if (!canJoinChannel(meeting.channel, input.authUser.id)) {
+        return null;
+      }
+
+      const channel = meeting.channel;
+
+      if (!channel) {
+        await markMeetingInactive(meeting.id);
+        return null;
+      }
+
+      const cloudflareMeeting = await realtimeClient.getMeeting(meeting.cloudflareMeetingId);
+
+      if (!cloudflareMeeting || cloudflareMeeting.status === "INACTIVE") {
+        await markMeetingInactive(meeting.id);
+        return null;
+      }
+
+      const participants = await realtimeClient.listParticipants(meeting.cloudflareMeetingId);
+
+      if (participants.length === 0) {
+        await markMeetingInactive(meeting.id);
+        return null;
+      }
+
+      return [channel.id, participants.length] as const;
+    }),
+  );
+
+  const channels = Object.fromEntries(
+    channelParticipantEntries.filter((entry): entry is readonly [string, number] => entry !== null),
+  );
+
+  return {
+    channels,
+    status: 200 as const,
+  };
 }
 
 export async function issueChannelCallJoinToken(input: {

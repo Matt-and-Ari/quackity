@@ -5,7 +5,7 @@ import {
   type ChannelVisibility,
   type WorkspaceRole,
 } from "@quack/data";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "wouter";
 
@@ -51,6 +51,7 @@ import type {
 
 const serverUrl = import.meta.env.VITE_SERVER_URL ?? "http://localhost:3001";
 const MOBILE_BREAKPOINT = 768;
+const ACTIVE_CALLS_POLL_INTERVAL_MS = 10_000;
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(
@@ -70,6 +71,68 @@ function useIsMobile() {
   }, []);
 
   return isMobile;
+}
+
+interface UseActiveCallChannelsProps {
+  refreshToken?: string;
+  serverUrl: string;
+  workspaceId: string;
+}
+
+function useActiveCallChannels(props: UseActiveCallChannelsProps) {
+  const [activeCallChannelIds, setActiveCallChannelIds] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    if (!props.refreshToken) {
+      setActiveCallChannelIds(new Set());
+      return;
+    }
+
+    let isDisposed = false;
+
+    async function loadActiveCalls() {
+      try {
+        const response = await fetch(
+          `${props.serverUrl}/workspaces/${props.workspaceId}/call/status`,
+          {
+            headers: {
+              Authorization: `Bearer ${props.refreshToken}`,
+            },
+          },
+        );
+
+        const payload = (await response.json().catch(() => null)) as {
+          channels?: Record<string, number>;
+          error?: string;
+        } | null;
+
+        if (!response.ok || payload?.error || !payload?.channels) {
+          return;
+        }
+
+        if (isDisposed) {
+          return;
+        }
+
+        setActiveCallChannelIds(new Set(Object.keys(payload.channels)));
+      } catch {
+        // Preserve the previous poll result if the status request fails.
+      }
+    }
+
+    void loadActiveCalls();
+
+    const intervalId = window.setInterval(() => {
+      void loadActiveCalls();
+    }, ACTIVE_CALLS_POLL_INTERVAL_MS);
+
+    return () => {
+      isDisposed = true;
+      window.clearInterval(intervalId);
+    };
+  }, [props.refreshToken, props.serverUrl, props.workspaceId]);
+
+  return activeCallChannelIds;
 }
 
 interface WorkspaceChatPageProps {
@@ -112,7 +175,9 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     anchor: null,
     messageId: null,
   });
+  const [editingChannelId, setEditingChannelId] = useState<string | null>(null);
   const [isCreateChannelOpen, setIsCreateChannelOpen] = useState(false);
+  const [isDirectoryOpen, setIsDirectoryOpen] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -135,6 +200,11 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
   });
 
   const callChannelId = callSession?.channelId ?? null;
+  const activeCallChannelIds = useActiveCallChannels({
+    refreshToken: props.user.refresh_token,
+    serverUrl,
+    workspaceId: props.workspaceId,
+  });
 
   const closeSidebar = useCallback(() => setIsSidebarOpen(false), []);
 
@@ -189,6 +259,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
 
     requestAnimationFrame(tryFocus);
     if (isMobile) closeSidebar();
+    setIsDirectoryOpen(false);
     channelUpload.clearFiles();
   }, [app.activeChannel?.id, isMobile, closeSidebar]);
 
@@ -297,12 +368,12 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     closeEmojiMenu();
 
     const canRemoveChannel = app.visibleChannels.length > 1;
-    const isPrivateMembership = channel.visibility === "private";
-    const canLeaveChannel =
-      canRemoveChannel &&
-      isPrivateMembership &&
-      Boolean(channel.members?.some((member) => member.$user?.id === props.user.id));
-    const hasCall = channelHasActiveCall(channel, callChannelId);
+    const hasMembership = Boolean(
+      channel.members?.some((member) => member.$user?.id === props.user.id),
+    );
+    const canLeaveChannel = canRemoveChannel && hasMembership;
+
+    const hasCall = channelHasActiveCall(channel, callChannelId, activeCallChannelIds);
     const isInCallOnThisChannel = isInCall && callChannelId === channel.id;
     const isInCallOnDifferentChannel = isInCall && callChannelId !== channel.id;
 
@@ -373,12 +444,12 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
       {
         disabled: !app.canManageChannels,
         hint: app.canManageChannels
-          ? "Update the visible name and slug"
-          : "Only workspace managers can rename channels",
+          ? "Edit name, topic, and visibility"
+          : "Only workspace managers can edit channels",
         icon: <EditGlyph />,
-        id: "rename-channel",
-        label: "Rename channel",
-        onSelect: () => app.startRenamingChannel(channel.id),
+        id: "edit-channel",
+        label: "Edit channel",
+        onSelect: () => setEditingChannelId(channel.id),
       },
       { id: "separator-channel-actions", type: "separator" },
       {
@@ -400,9 +471,9 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
         disabled: !canLeaveChannel,
         hint: !canRemoveChannel
           ? "At least one channel must remain"
-          : channel.visibility === "public"
-            ? "Public channels stay visible to the whole workspace"
-            : "Leave this private channel",
+          : !hasMembership
+            ? "You are not a member of this channel"
+            : "Remove this channel from your sidebar",
         icon: <LeaveGlyph />,
         id: "leave-channel",
         label: "Leave channel",
@@ -502,9 +573,15 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                       />
                       <aside className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col overflow-hidden rounded-r-2xl bg-amber-50/95 shadow-[4px_0_30px_rgba(15,23,42,0.14)] backdrop-blur-xl">
                         <SidebarContent
+                          activeCallChannelIds={activeCallChannelIds}
                           app={app}
                           callChannelId={callChannelId}
                           canManageChannels={app.canManageChannels}
+                          isDirectoryOpen={isDirectoryOpen}
+                          onBrowse={() => {
+                            setIsDirectoryOpen(true);
+                            closeSidebar();
+                          }}
                           onChannelContextMenu={handleChannelContextMenu}
                           onClose={closeSidebar}
                           onCreateChannel={() => setIsCreateChannelOpen(true)}
@@ -532,9 +609,12 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
               style={{ flexShrink: 0, width: sidebar.width }}
             >
               <SidebarContent
+                activeCallChannelIds={activeCallChannelIds}
                 app={app}
                 callChannelId={callChannelId}
                 canManageChannels={app.canManageChannels}
+                isDirectoryOpen={isDirectoryOpen}
+                onBrowse={() => setIsDirectoryOpen(true)}
                 onChannelContextMenu={handleChannelContextMenu}
                 onCreateChannel={() => setIsCreateChannelOpen(true)}
                 onInvite={() => setIsInviteOpen(true)}
@@ -552,136 +632,169 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
             </aside>
           )}
 
-          {/* ── Main channel ── */}
-          <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl md:rounded-[1.45rem] border border-amber-200/60 bg-white/82 shadow-[0_18px_50px_rgba(15,23,42,0.07)]">
-            <header className="select-none border-b border-amber-100/70 px-3 py-2.5 sm:px-5 sm:py-3.5">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex min-w-0 items-center gap-2">
-                  {isMobile ? (
-                    <button
-                      className="flex size-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors duration-100 hover:bg-amber-50 hover:text-slate-700"
-                      onClick={() => setIsSidebarOpen(true)}
-                      type="button"
-                    >
-                      <HamburgerGlyph />
-                    </button>
-                  ) : null}
-                  <div className="min-w-0">
-                    <h2 className="truncate text-base font-semibold tracking-tight text-slate-900 sm:text-lg">
-                      #{app.activeChannel?.name ?? "channel"}
-                    </h2>
-                    {app.activeChannel?.topic && !isMobile ? (
-                      <p className="mt-0.5 truncate text-sm text-slate-500">
-                        {app.activeChannel.topic}
-                      </p>
+          {/* ── Main area ── */}
+          {isDirectoryOpen ? (
+            <DirectoryPanel
+              allChannels={[...app.visibleChannels, ...app.unjoinedChannels]}
+              canManageChannels={app.canManageChannels}
+              currentUserId={props.user.id}
+              members={app.allWorkspaceMembers}
+              onClose={() => setIsDirectoryOpen(false)}
+              onJoinChannel={(channelId) => {
+                void app.joinChannel(channelId);
+              }}
+              onLeaveChannel={(channelId) => {
+                void app.leaveChannel(channelId);
+              }}
+              visibleChannelIds={new Set(app.visibleChannels.map((c) => c.id))}
+              workspaceId={props.workspaceId}
+            />
+          ) : (
+            <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl md:rounded-[1.45rem] border border-amber-200/60 bg-white/82 shadow-[0_18px_50px_rgba(15,23,42,0.07)]">
+              <header className="select-none border-b border-amber-100/70 px-3 py-2.5 sm:px-5 sm:py-3.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    {isMobile ? (
+                      <button
+                        className="flex size-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors duration-100 hover:bg-amber-50 hover:text-slate-700"
+                        onClick={() => setIsSidebarOpen(true)}
+                        type="button"
+                      >
+                        <HamburgerGlyph />
+                      </button>
+                    ) : null}
+                    <div className="min-w-0">
+                      <h2 className="truncate text-base font-semibold tracking-tight text-slate-900 sm:text-lg">
+                        #{app.activeChannel?.name ?? "channel"}
+                      </h2>
+                      {app.activeChannel?.topic && !isMobile ? (
+                        <p className="mt-0.5 truncate text-sm text-slate-500">
+                          {app.activeChannel.topic}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-1">
+                    {isInCall ? (
+                      <HoverTooltip content="Leave call" side="bottom">
+                        <button
+                          className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-rose-500 transition-colors duration-100 hover:bg-rose-50"
+                          onClick={() => {
+                            void leave();
+                          }}
+                          type="button"
+                        >
+                          <HangUpGlyph />
+                          <span className="hidden sm:inline">Leave</span>
+                        </button>
+                      </HoverTooltip>
+                    ) : (
+                      <HoverTooltip content="Start a call" side="bottom">
+                        <button
+                          className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors duration-100 hover:bg-amber-50 hover:text-amber-700"
+                          disabled={!app.activeChannel?.id || !props.user.refresh_token}
+                          onClick={openPrejoin}
+                          type="button"
+                        >
+                          <CallGlyph />
+                          <span className="hidden sm:inline">Call</span>
+                        </button>
+                      </HoverTooltip>
+                    )}
+                    {app.canManageChannels && app.activeChannel ? (
+                      <HoverTooltip content="Channel settings" side="bottom">
+                        <button
+                          className="flex size-8 items-center justify-center rounded-lg text-slate-400 transition-colors duration-100 hover:bg-amber-50 hover:text-slate-600"
+                          onClick={() => setEditingChannelId(app.activeChannel!.id)}
+                          type="button"
+                        >
+                          <KebabGlyph />
+                        </button>
+                      </HoverTooltip>
                     ) : null}
                   </div>
                 </div>
 
-                <div className="flex shrink-0 items-center gap-1">
-                  {isInCall ? (
-                    <HoverTooltip content="Leave call" side="bottom">
-                      <button
-                        className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-rose-500 transition-colors duration-100 hover:bg-rose-50"
-                        onClick={() => {
-                          void leave();
-                        }}
-                        type="button"
-                      >
-                        <HangUpGlyph />
-                        <span className="hidden sm:inline">Leave</span>
-                      </button>
-                    </HoverTooltip>
+                {callError ? (
+                  <div className="mt-2">
+                    <Notice message={callError} tone="error" />
+                  </div>
+                ) : null}
+                {app.notice ? (
+                  <div className="mt-2">
+                    <Notice message={app.notice} tone="error" />
+                  </div>
+                ) : null}
+                {app.errorMessage ? (
+                  <div className="mt-2">
+                    <Notice message={app.errorMessage} tone="error" />
+                  </div>
+                ) : null}
+              </header>
+
+              <section className="min-h-0 flex-1 overflow-y-auto px-2 py-3 sm:px-4 sm:py-4">
+                <div className="mx-auto flex max-w-3xl flex-col gap-1">
+                  {app.isMessagesLoading ? (
+                    <div className="flex flex-1 items-center justify-center py-12">
+                      <div className="h-5 w-5 animate-spin rounded-full border-2 border-amber-300 border-t-amber-500" />
+                    </div>
+                  ) : app.messages.filter((m) => !m.deletedAt).length === 0 ? (
+                    <ChannelEmptyState channelName={app.activeChannel?.name ?? "channel"} />
                   ) : (
-                    <HoverTooltip content="Start a call" side="bottom">
-                      <button
-                        className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors duration-100 hover:bg-amber-50 hover:text-amber-700"
-                        disabled={!app.activeChannel?.id || !props.user.refresh_token}
-                        onClick={openPrejoin}
-                        type="button"
-                      >
-                        <CallGlyph />
-                        <span className="hidden sm:inline">Call</span>
-                      </button>
-                    </HoverTooltip>
+                    app.messages
+                      .filter((m) => !m.deletedAt)
+                      .map((message) => (
+                        <MessageCard
+                          currentUserId={props.user.id}
+                          editingDraft={app.editingDraft}
+                          isActiveThread={message.id === app.selectedThreadMessage?.id}
+                          isEditing={app.editingMessageId === message.id}
+                          isOwnMessage={isOwnMessage(message)}
+                          isSelected={keyboardNav.selectedMessageId === message.id}
+                          key={message.id}
+                          message={message}
+                          onCancelEdit={app.cancelEditingMessage}
+                          onClick={() => keyboardNav.handleMessageClick(message.id)}
+                          onContextMenu={handleMessageContextMenu}
+                          onDelete={() => setPendingDeleteMessageId(message.id)}
+                          onEditDraftChange={app.setEditingDraft}
+                          onOpenReactionMenu={(anchor) => openEmojiMenu(anchor, message.id)}
+                          onReply={() => app.openThread(message.id)}
+                          onSaveEdit={() => {
+                            void app.saveEditingMessage();
+                          }}
+                          onStartEdit={() => app.startEditingMessage(message.id)}
+                          onToggleReaction={(emoji) => {
+                            void app.toggleReaction(message.id, emoji);
+                          }}
+                          usersById={app.usersById}
+                          workspaceMembersByUserId={app.workspaceMembersByUserId}
+                        />
+                      ))
                   )}
                 </div>
-              </div>
+              </section>
 
-              {callError ? (
-                <div className="mt-2">
-                  <Notice message={callError} tone="error" />
+              <footer className="border-t border-amber-100/70 px-2 py-2 sm:px-4 sm:py-3">
+                <div className="mx-auto max-w-3xl">
+                  <MessageInput
+                    onAddFiles={channelUpload.addFiles}
+                    onKeyDown={keyboardNav.handleInputKeyDown}
+                    onRemoveFile={channelUpload.removeFile}
+                    onSubmit={() => {
+                      void handleSendChannelMessage();
+                    }}
+                    onValueChange={app.setChannelDraft}
+                    placeholder={`Message #${app.activeChannel?.name ?? "channel"}`}
+                    stagedFiles={channelUpload.stagedFiles}
+                    textareaRef={channelInputRef}
+                    value={app.channelDraft}
+                  />
                 </div>
-              ) : null}
-              {app.notice ? (
-                <div className="mt-2">
-                  <Notice message={app.notice} tone="error" />
-                </div>
-              ) : null}
-              {app.errorMessage ? (
-                <div className="mt-2">
-                  <Notice message={app.errorMessage} tone="error" />
-                </div>
-              ) : null}
-            </header>
-
-            <section className="min-h-0 flex-1 overflow-y-auto px-2 py-3 sm:px-4 sm:py-4">
-              <div className="mx-auto flex max-w-3xl flex-col gap-1">
-                {app.messages.filter((m) => !m.deletedAt).length === 0 ? (
-                  <ChannelEmptyState channelName={app.activeChannel?.name ?? "channel"} />
-                ) : (
-                  app.messages
-                    .filter((m) => !m.deletedAt)
-                    .map((message) => (
-                      <MessageCard
-                        currentUserId={props.user.id}
-                        editingDraft={app.editingDraft}
-                        isActiveThread={message.id === app.selectedThreadMessage?.id}
-                        isEditing={app.editingMessageId === message.id}
-                        isOwnMessage={isOwnMessage(message)}
-                        isSelected={keyboardNav.selectedMessageId === message.id}
-                        key={message.id}
-                        message={message}
-                        onCancelEdit={app.cancelEditingMessage}
-                        onClick={() => keyboardNav.handleMessageClick(message.id)}
-                        onContextMenu={handleMessageContextMenu}
-                        onDelete={() => setPendingDeleteMessageId(message.id)}
-                        onEditDraftChange={app.setEditingDraft}
-                        onOpenReactionMenu={(anchor) => openEmojiMenu(anchor, message.id)}
-                        onReply={() => app.openThread(message.id)}
-                        onSaveEdit={() => {
-                          void app.saveEditingMessage();
-                        }}
-                        onStartEdit={() => app.startEditingMessage(message.id)}
-                        onToggleReaction={(emoji) => {
-                          void app.toggleReaction(message.id, emoji);
-                        }}
-                        usersById={app.usersById}
-                        workspaceMembersByUserId={app.workspaceMembersByUserId}
-                      />
-                    ))
-                )}
-              </div>
-            </section>
-
-            <footer className="border-t border-amber-100/70 px-2 py-2 sm:px-4 sm:py-3">
-              <div className="mx-auto max-w-3xl">
-                <MessageInput
-                  onAddFiles={channelUpload.addFiles}
-                  onKeyDown={keyboardNav.handleInputKeyDown}
-                  onRemoveFile={channelUpload.removeFile}
-                  onSubmit={() => {
-                    void handleSendChannelMessage();
-                  }}
-                  onValueChange={app.setChannelDraft}
-                  placeholder={`Message #${app.activeChannel?.name ?? "channel"}`}
-                  stagedFiles={channelUpload.stagedFiles}
-                  textareaRef={channelInputRef}
-                  value={app.channelDraft}
-                />
-              </div>
-            </footer>
-          </main>
+              </footer>
+            </main>
+          )}
 
           {/* ── Thread panel ── */}
           {app.selectedThreadMessage ? (
@@ -804,6 +917,17 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
           canManageChannels={app.canManageChannels}
           onClose={() => setIsCreateChannelOpen(false)}
           onCreateChannel={app.createChannel}
+        />
+      ) : null}
+
+      {editingChannelId ? (
+        <EditChannelModal
+          channel={app.visibleChannels.find((c) => c.id === editingChannelId) ?? null}
+          onClose={() => setEditingChannelId(null)}
+          onSave={async (input) => {
+            await app.updateChannel(editingChannelId, input);
+            setEditingChannelId(null);
+          }}
         />
       ) : null}
 
@@ -944,20 +1068,25 @@ function WorkspaceSwitcher(props: WorkspaceSwitcherProps) {
   const triggerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [, navigate] = useLocation();
-  const [dropdownPos, setDropdownPos] = useState({ left: 0, top: 0 });
+  const [dropdownPos, setDropdownPos] = useState<{ left: number; top: number } | null>(null);
 
   const otherWorkspaces = props.memberships.filter(
     (m) => m.workspace?.id && m.workspace.id !== props.currentWorkspaceId,
   );
   const hasMultiple = otherWorkspaces.length > 0;
 
-  useEffect(() => {
+  function computePosition() {
+    if (!triggerRef.current) return null;
+    const rect = triggerRef.current.getBoundingClientRect();
+    return { left: rect.left, top: rect.bottom + 6 };
+  }
+
+  useLayoutEffect(() => {
     if (!isOpen) return;
 
     function updatePosition() {
-      if (!triggerRef.current) return;
-      const rect = triggerRef.current.getBoundingClientRect();
-      setDropdownPos({ left: rect.left, top: rect.bottom + 6 });
+      const pos = computePosition();
+      if (pos) setDropdownPos(pos);
     }
 
     updatePosition();
@@ -999,7 +1128,11 @@ function WorkspaceSwitcher(props: WorkspaceSwitcherProps) {
         )}
         disabled={!hasMultiple}
         onClick={() => {
-          if (hasMultiple) setIsOpen((v) => !v);
+          if (!hasMultiple) return;
+          setIsOpen((v) => {
+            if (!v) setDropdownPos(computePosition());
+            return !v;
+          });
         }}
         type="button"
       >
@@ -1034,7 +1167,7 @@ function WorkspaceSwitcher(props: WorkspaceSwitcherProps) {
         ) : null}
       </button>
 
-      {isOpen
+      {isOpen && dropdownPos
         ? createPortal(
             <div
               className="fixed z-50 w-64 overflow-hidden rounded-2xl border border-amber-200/80 bg-white/95 p-1.5 shadow-[0_16px_48px_rgba(15,23,42,0.14)] backdrop-blur-xl"
@@ -1136,10 +1269,13 @@ function WorkspaceSwitcherItem(props: WorkspaceSwitcherItemProps) {
 /* ── Sidebar content (shared between mobile overlay and desktop panel) ── */
 
 interface SidebarContentProps {
+  activeCallChannelIds: ReadonlySet<string>;
   app: ReturnType<typeof useQuackWorkspace>;
   callChannelId: string | null;
   canManageChannels: boolean;
+  isDirectoryOpen: boolean;
   memberships: WorkspaceMemberRecord[];
+  onBrowse: () => void;
   onChannelContextMenu: (event: React.MouseEvent, channel: ChannelRecord) => void;
   onClose?: () => void;
   onCreateChannel: () => void;
@@ -1186,14 +1322,20 @@ function SidebarContent(props: SidebarContentProps) {
         ) : null}
       </div>
 
-      <div className="flex items-center gap-2.5 border-b border-amber-200/50 px-4 py-3">
-        <span className="size-2 shrink-0 rounded-full bg-emerald-500" />
-        <span className="truncate text-sm font-medium text-slate-700">
-          {props.app.currentUserMember?.displayName ?? props.user.email ?? "You"}
-        </span>
-        <span className="ml-auto truncate text-xs text-slate-400">
-          {props.app.currentUserMember?.role ?? "owner"}
-        </span>
+      <div className="border-b border-amber-200/50 px-2 py-2">
+        <button
+          className={clsx(
+            "flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-sm font-medium transition-colors duration-100",
+            props.isDirectoryOpen
+              ? "bg-amber-100/70 text-amber-700"
+              : "text-slate-500 hover:bg-amber-50/80 hover:text-slate-700",
+          )}
+          onClick={props.onBrowse}
+          type="button"
+        >
+          <BrowseGlyph />
+          <span>Browse</span>
+        </button>
       </div>
 
       <nav
@@ -1224,9 +1366,13 @@ function SidebarContent(props: SidebarContentProps) {
         {props.app.visibleChannels.map((channel) => (
           <ChannelLink
             channel={channel}
-            hasActiveCall={channelHasActiveCall(channel, props.callChannelId)}
+            hasActiveCall={channelHasActiveCall(
+              channel,
+              props.callChannelId,
+              props.activeCallChannelIds,
+            )}
             href={`/workspaces/${props.workspaceId}/channels/${channel.slug}`}
-            isActive={channel.id === props.app.activeChannel?.id}
+            isActive={channel.id === props.app.activeChannel?.id && !props.isDirectoryOpen}
             isRenaming={channel.id === props.app.renamingChannelId}
             key={channel.id}
             onCancelRename={props.app.cancelRenamingChannel}
@@ -1255,30 +1401,227 @@ function SidebarContent(props: SidebarContentProps) {
           </div>
         </div>
       ) : null}
-
-      <div className="border-t border-amber-200/50 px-3 py-3">
-        <p className="mb-2 px-1 text-[0.65rem] font-semibold uppercase tracking-widest text-slate-400">
-          Members
-        </p>
-        <div className="flex flex-col gap-1">
-          {props.app.onlineMembers.map((member) => (
-            <div
-              className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-600"
-              key={member.id}
-            >
-              <UserAvatar
-                imageUrl={member.$user?.avatar?.url ?? member.$user?.imageURL}
-                name={member.displayName ?? member.$user?.email ?? "?"}
-                size="xs"
-              />
-              <span className="truncate">
-                {member.displayName ?? member.$user?.email ?? member.id}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
     </>
+  );
+}
+
+/* ── Directory panel ── */
+
+type DirectoryTab = "channels" | "members";
+
+interface DirectoryPanelProps {
+  allChannels: ChannelRecord[];
+  canManageChannels: boolean;
+  currentUserId: string;
+  members: WorkspaceMemberRecord[];
+  onClose: () => void;
+  onJoinChannel: (channelId: string) => void;
+  onLeaveChannel: (channelId: string) => void;
+  visibleChannelIds: Set<string>;
+  workspaceId: string;
+}
+
+function DirectoryPanel(props: DirectoryPanelProps) {
+  const [tab, setTab] = useState<DirectoryTab>("channels");
+  const [search, setSearch] = useState("");
+  const [, navigate] = useLocation();
+
+  const query = search.toLowerCase().trim();
+
+  const filteredChannels = props.allChannels.filter((channel) => {
+    if (channel.archivedAt) return false;
+    if (query && !channel.name.toLowerCase().includes(query)) return false;
+    return true;
+  });
+
+  const filteredMembers = props.members.filter((member) => {
+    if (!member.$user?.id) return false;
+    if (!query) return true;
+    const name = (member.displayName ?? member.$user?.email ?? "").toLowerCase();
+    return name.includes(query);
+  });
+
+  return (
+    <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl md:rounded-[1.45rem] border border-amber-200/60 bg-white/82 shadow-[0_18px_50px_rgba(15,23,42,0.07)]">
+      <header className="select-none border-b border-amber-100/70 px-4 py-3 sm:px-5 sm:py-3.5">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-base font-semibold tracking-tight text-slate-900 sm:text-lg">
+            Browse
+          </h2>
+          <button
+            className="flex size-7 items-center justify-center rounded-lg text-slate-400 transition-colors duration-100 hover:bg-slate-100 hover:text-slate-600"
+            onClick={props.onClose}
+            type="button"
+          >
+            <svg fill="none" height="14" viewBox="0 0 14 14" width="14">
+              <path
+                d="M3 3l8 8M11 3l-8 8"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeWidth="1.5"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <div className="mt-3 flex gap-1">
+          <DirectoryTabButton
+            isActive={tab === "channels"}
+            label="Channels"
+            onClick={() => {
+              setTab("channels");
+              setSearch("");
+            }}
+          />
+          <DirectoryTabButton
+            isActive={tab === "members"}
+            label="Members"
+            onClick={() => {
+              setTab("members");
+              setSearch("");
+            }}
+          />
+        </div>
+
+        <div className="mt-3">
+          <input
+            className="w-full rounded-xl border border-amber-200/70 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-colors duration-100 placeholder:text-slate-400 focus:border-amber-400"
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder={tab === "channels" ? "Search channels..." : "Search members..."}
+            value={search}
+          />
+        </div>
+      </header>
+
+      <section className="min-h-0 flex-1 overflow-y-auto">
+        {tab === "channels" ? (
+          <div className="flex flex-col py-1">
+            {filteredChannels.length === 0 ? (
+              <p className="px-5 py-8 text-center text-sm text-slate-400">No channels found</p>
+            ) : (
+              filteredChannels.map((channel) => {
+                const isJoined = props.visibleChannelIds.has(channel.id);
+                return (
+                  <div
+                    className="flex items-center gap-3 px-4 py-2.5 transition-colors duration-75 hover:bg-amber-50/50 sm:px-5"
+                    key={channel.id}
+                  >
+                    <span className="shrink-0 text-sm text-slate-400">
+                      {channel.visibility === "private" ? "🔒" : "#"}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <button
+                        className="truncate text-sm font-medium text-slate-800 hover:underline"
+                        onClick={() => {
+                          if (isJoined) {
+                            navigate(`/workspaces/${props.workspaceId}/channels/${channel.slug}`);
+                          }
+                        }}
+                        type="button"
+                      >
+                        {channel.name}
+                      </button>
+                      {channel.topic ? (
+                        <p className="mt-0.5 truncate text-xs text-slate-400">{channel.topic}</p>
+                      ) : null}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="text-xs text-slate-400">
+                        {channel.members?.length ?? 0}{" "}
+                        {(channel.members?.length ?? 0) === 1 ? "member" : "members"}
+                      </span>
+                      {isJoined ? (
+                        <button
+                          className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-500 transition-colors duration-100 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
+                          onClick={() => props.onLeaveChannel(channel.id)}
+                          type="button"
+                        >
+                          Leave
+                        </button>
+                      ) : (
+                        <button
+                          className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 transition-colors duration-100 hover:bg-amber-100"
+                          onClick={() => props.onJoinChannel(channel.id)}
+                          type="button"
+                        >
+                          Join
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-col py-1">
+            {filteredMembers.length === 0 ? (
+              <p className="px-5 py-8 text-center text-sm text-slate-400">No members found</p>
+            ) : (
+              filteredMembers.map((member) => (
+                <div
+                  className="flex items-center gap-3 px-4 py-2.5 transition-colors duration-75 hover:bg-amber-50/50 sm:px-5"
+                  key={member.id}
+                >
+                  <UserAvatar
+                    imageUrl={member.$user?.avatar?.url ?? member.$user?.imageURL}
+                    name={member.displayName ?? member.$user?.email ?? "?"}
+                    size="sm"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-slate-800">
+                      {member.displayName ?? member.$user?.email ?? member.id}
+                    </p>
+                    {member.$user?.email ? (
+                      <p className="truncate text-xs text-slate-400">{member.$user.email}</p>
+                    ) : null}
+                  </div>
+                  <span className="shrink-0 rounded-md bg-amber-50 px-2 py-0.5 text-[0.65rem] font-medium text-amber-700">
+                    {member.role ?? "member"}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </section>
+    </main>
+  );
+}
+
+function DirectoryTabButton(props: { isActive: boolean; label: string; onClick: () => void }) {
+  return (
+    <button
+      className={clsx(
+        "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors duration-100",
+        props.isActive
+          ? "bg-amber-100/80 text-amber-800"
+          : "text-slate-500 hover:bg-slate-100 hover:text-slate-700",
+      )}
+      onClick={props.onClick}
+      type="button"
+    >
+      {props.label}
+    </button>
+  );
+}
+
+function BrowseGlyph() {
+  return (
+    <svg fill="none" height="16" viewBox="0 0 16 16" width="16">
+      <path
+        d="M6.5 2H3.5C2.67 2 2 2.67 2 3.5v9C2 13.33 2.67 14 3.5 14h9c.83 0 1.5-.67 1.5-1.5V9.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.3"
+      />
+      <path
+        d="M6 10l1.5-4.5L12 4l-1.5 4.5L6 10Z"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.3"
+      />
+    </svg>
   );
 }
 
@@ -1517,6 +1860,73 @@ function CreateChannelModal(props: {
   );
 }
 
+function EditChannelModal(props: {
+  channel: ChannelRecord | null;
+  onClose: () => void;
+  onSave: (input: { name: string; topic?: string; visibility: ChannelVisibility }) => Promise<void>;
+}) {
+  const [name, setName] = useState(props.channel?.name ?? "");
+  const [topic, setTopic] = useState(props.channel?.topic ?? "");
+  const [visibility, setVisibility] = useState<ChannelVisibility>(
+    (props.channel?.visibility as ChannelVisibility) ?? "public",
+  );
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  if (!props.channel) return null;
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!name.trim()) return;
+    setIsSubmitting(true);
+    try {
+      await props.onSave({ name, topic, visibility });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <ActionModal onClose={props.onClose} title="Edit channel">
+      <form className="space-y-4" onSubmit={handleSubmit}>
+        <InputField label="Name" onChange={setName} placeholder="general" value={name} />
+        <InputField
+          label="Topic"
+          onChange={setTopic}
+          placeholder="What's this channel about?"
+          value={topic}
+        />
+        <label className="block space-y-1.5">
+          <span className="text-sm font-medium text-slate-600">Visibility</span>
+          <select
+            className="w-full rounded-xl border border-amber-200/80 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors duration-100 focus:border-amber-400"
+            onChange={(event) => setVisibility(event.target.value as ChannelVisibility)}
+            value={visibility}
+          >
+            <option value="public">Public</option>
+            <option value="private">Private</option>
+          </select>
+        </label>
+        <div className="flex gap-2 pt-1">
+          <button
+            className="rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-medium text-white transition-colors duration-100 hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={isSubmitting || !name.trim()}
+            type="submit"
+          >
+            {isSubmitting ? "Saving..." : "Save"}
+          </button>
+          <button
+            className="rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors duration-100 hover:bg-slate-100"
+            onClick={props.onClose}
+            type="button"
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
+    </ActionModal>
+  );
+}
+
 function InviteModal(props: {
   isOwner: boolean;
   memberEmails: Set<string>;
@@ -1726,6 +2136,16 @@ function HamburgerGlyph() {
   );
 }
 
+function KebabGlyph() {
+  return (
+    <svg fill="currentColor" height="16" viewBox="0 0 16 16" width="16">
+      <circle cx="8" cy="3" r="1.25" />
+      <circle cx="8" cy="8" r="1.25" />
+      <circle cx="8" cy="13" r="1.25" />
+    </svg>
+  );
+}
+
 function ChannelEmptyState(props: { channelName: string }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center py-20 select-none">
@@ -1764,11 +2184,10 @@ function coerceWorkspaceRole(value: string): WorkspaceRole {
   return "member";
 }
 
-function channelHasActiveCall(channel: ChannelRecord, callChannelId: string | null): boolean {
-  if (callChannelId === channel.id) {
-    return true;
-  }
-
-  const meeting = channel.meeting;
-  return meeting !== null && meeting !== undefined && meeting.status === "active";
+function channelHasActiveCall(
+  channel: ChannelRecord,
+  callChannelId: string | null,
+  activeCallChannelIds: ReadonlySet<string>,
+): boolean {
+  return callChannelId === channel.id || activeCallChannelIds.has(channel.id);
 }

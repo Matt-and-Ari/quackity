@@ -289,6 +289,20 @@ export function channelMeetingByCloudflareMeetingIdQuery(cloudflareMeetingId: st
   } satisfies QuackQuery;
 }
 
+export function activeChannelMeetingsByWorkspaceQuery(workspaceId: string) {
+  return {
+    channelMeetings: {
+      $: {
+        where: {
+          "channel.workspace.id": workspaceId,
+          status: "active",
+        },
+      },
+      ...channelMeetingFields,
+    },
+  } satisfies QuackQuery;
+}
+
 export function messagesByChannelQuery(
   channelId: string,
   options?: {

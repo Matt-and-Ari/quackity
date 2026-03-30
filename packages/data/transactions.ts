@@ -200,7 +200,7 @@ export function createChannelTx(input: {
   const channelId = input.channelId ?? id();
   const createdAt = toInstantDate(input.createdAt);
   const creatorChannelMembershipId = input.creatorChannelMembershipId ?? id();
-  const shouldAddCreatorMembership = input.addCreatorMembership ?? input.visibility === "private";
+  const shouldAddCreatorMembership = input.addCreatorMembership !== false;
 
   const transactions = [
     tx.channels[channelId]

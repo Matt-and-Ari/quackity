@@ -152,8 +152,8 @@ const rules = {
   },
   channelMembers: {
     allow: {
-      create: "isWorkspaceManager",
-      delete: "isWorkspaceManager",
+      create: "isWorkspaceManager || (isSelf && isPublicChannel && isWorkspaceViewer)",
+      delete: "isWorkspaceManager || isSelf",
       update: "false",
       view: "canViewChannel",
     },
@@ -164,6 +164,8 @@ const rules = {
         workspaceId: "data.ref('channel.workspace.id')[0]",
         workspaceOwnerIds: "data.ref('channel.workspace.owner.id')",
       }),
+      isPublicChannel: "data.ref('channel.visibility')[0] == 'public'",
+      isSelf: "auth.id != null && auth.id in data.ref('$user.id')",
     },
   },
   channelMeetings: {

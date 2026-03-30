@@ -129,43 +129,11 @@ function LoggedInApp(props: { user: AuthenticatedUser }) {
         )}
       </Route>
 
-      <Route path="/workspaces/:workspaceId/setup">
+      <Route path="/workspaces/:workspaceId/*?">
         {(params) =>
           memberships.length ? (
             <WorkspaceChatPage
-              memberships={memberships}
-              onSignOut={handleSignOut}
-              pendingInvites={pendingInvites}
-              user={user}
-              workspaceId={params.workspaceId}
-            />
-          ) : (
-            <Navigate to="/onboarding" />
-          )
-        }
-      </Route>
-
-      <Route path="/workspaces/:workspaceId/channels/:channelSlug">
-        {(params) =>
-          memberships.length ? (
-            <WorkspaceChatPage
-              channelSlug={params.channelSlug}
-              memberships={memberships}
-              onSignOut={handleSignOut}
-              pendingInvites={pendingInvites}
-              user={user}
-              workspaceId={params.workspaceId}
-            />
-          ) : (
-            <Navigate to="/onboarding" />
-          )
-        }
-      </Route>
-
-      <Route path="/workspaces/:workspaceId">
-        {(params) =>
-          memberships.length ? (
-            <WorkspaceChatPage
+              channelSlug={extractChannelSlug(params["*"])}
               memberships={memberships}
               onSignOut={handleSignOut}
               pendingInvites={pendingInvites}
@@ -333,6 +301,12 @@ async function acceptWorkspaceInvite(invite: WorkspaceInviteRecord, user: Authen
   );
 
   return `/workspaces/${invite.workspace.id}`;
+}
+
+function extractChannelSlug(rest: string | undefined): string | undefined {
+  if (!rest) return undefined;
+  const match = rest.match(/^channels\/([^/]+)/);
+  return match?.[1];
 }
 
 function coerceWorkspaceRole(value: string): WorkspaceRole {

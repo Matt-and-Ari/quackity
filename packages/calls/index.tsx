@@ -107,6 +107,7 @@ export function useChannelCall(options: UseChannelCallOptions) {
     }
 
     const activeMeeting = meeting as MeetingLifecycle | null;
+
     const cleanupTask = (async () => {
       try {
         await cleanupMeeting(activeMeeting);

@@ -1,6 +1,7 @@
 import {
   archiveChannelTx,
   channelsByWorkspaceQuery,
+  createChannelMemberTx,
   createChannelTx,
   createMessageAttachmentTx,
   createMessageTx,
@@ -13,7 +14,7 @@ import {
   workspaceByIdQuery,
   type ChannelVisibility,
 } from "@quack/data";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 
 import { instantDB } from "../lib/instant";
@@ -59,7 +60,10 @@ export interface UseQuackWorkspaceResult {
   editingMessageId: string | null;
   errorMessage?: string;
   invites: WorkspaceInviteRecord[];
+  allWorkspaceMembers: WorkspaceMemberRecord[];
   isLoading: boolean;
+  isMessagesLoading: boolean;
+  joinChannel: (channelId: string) => Promise<void>;
   leaveChannel: (channelId: string) => Promise<void>;
   messages: MessageRecord[];
   notice: string | null;
@@ -81,6 +85,11 @@ export interface UseQuackWorkspaceResult {
   startRenamingChannel: (channelId: string) => void;
   threadDraft: string;
   toggleReaction: (messageId: string, emoji: string) => Promise<void>;
+  updateChannel: (
+    channelId: string,
+    input: { name: string; topic?: string; visibility?: ChannelVisibility },
+  ) => Promise<void>;
+  unjoinedChannels: ChannelRecord[];
   usersById: Map<string, InstantUserWithAvatar>;
   visibleChannels: ChannelRecord[];
   workspace: WorkspaceSummary | null;
@@ -112,21 +121,23 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
 
   const visibleChannels = useMemo(() => {
     return allChannels.filter((channel) => {
-      if (channel.archivedAt) {
-        return false;
-      }
-
-      if (channel.visibility === "public") {
-        return currentUserMember !== undefined || isOwner;
-      }
-
-      if (canManageChannels) {
-        return true;
-      }
-
+      if (channel.archivedAt) return false;
       return asArray(channel.members).some((member) => member.$user?.id === props.user.id);
     });
-  }, [allChannels, canManageChannels, currentUserMember, isOwner, props.user.id]);
+  }, [allChannels, props.user.id]);
+
+  const unjoinedChannels = useMemo(() => {
+    return allChannels.filter((channel) => {
+      if (channel.archivedAt) return false;
+      const isMember = asArray(channel.members).some(
+        (member) => member.$user?.id === props.user.id,
+      );
+      if (isMember) return false;
+      if (channel.visibility === "public") return true;
+      if (canManageChannels) return true;
+      return false;
+    });
+  }, [allChannels, canManageChannels, props.user.id]);
 
   const activeChannel = useMemo(() => {
     const defaultChannel = visibleChannels[0] ?? null;
@@ -154,10 +165,32 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
     }
   }, [activeChannel, navigate, props.channelSlug, props.workspaceId]);
 
+  const autoJoinRanForRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (autoJoinRanForRef.current === props.workspaceId) return;
+    if (!workspace || channelsState.isLoading) return;
+    if (!(currentUserMember || isOwner)) return;
+
+    autoJoinRanForRef.current = props.workspaceId;
+
+    const publicChannelsToJoin = allChannels.filter((channel) => {
+      if (channel.archivedAt || channel.visibility !== "public") return false;
+      return !asArray(channel.members).some((member) => member.$user?.id === props.user.id);
+    });
+
+    if (publicChannelsToJoin.length === 0) return;
+
+    const txs = publicChannelsToJoin.map(
+      (channel) => createChannelMemberTx({ channelId: channel.id, userId: props.user.id }).tx,
+    );
+    void instantDB.transact(txs);
+  });
+
   const hasActiveChannel = activeChannel !== null;
   const messagesState = instantDB.useQuery(
     messagesByChannelQuery(activeChannel?.id ?? EMPTY_CHANNEL_ID),
   );
+
   const rootMessages = useMemo(() => {
     if (!hasActiveChannel) {
       return [];
@@ -308,6 +341,40 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
   function cancelRenamingChannel() {
     setChannelRenameDraft("");
     setRenamingChannelId(null);
+  }
+
+  async function updateChannel(
+    channelId: string,
+    input: { name: string; topic?: string; visibility?: ChannelVisibility },
+  ) {
+    if (!workspace) return;
+
+    const trimmedName = input.name.trim();
+    if (!trimmedName) return;
+
+    const nextSlug = createUniqueChannelSlug({
+      channels: allChannels,
+      currentChannelId: channelId,
+      name: trimmedName,
+    });
+
+    try {
+      await instantDB.transact(
+        updateChannelTx(channelId, {
+          name: trimmedName,
+          slug: nextSlug,
+          topic: input.topic?.trim() ?? "",
+          visibility: input.visibility,
+          workspaceId: workspace.id,
+        }),
+      );
+
+      if (activeChannel?.id === channelId) {
+        navigate(`/workspaces/${workspace.id}/channels/${nextSlug}`);
+      }
+    } catch (error) {
+      setNotice(toErrorMessage(error, "Could not update the channel."));
+    }
   }
 
   function startEditingMessage(messageId: string) {
@@ -533,24 +600,14 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
     }
 
     const channel = allChannels.find((item) => item.id === channelId);
-
-    if (!channel) {
-      return;
-    }
-
-    if (channel.visibility === "public") {
-      setNotice(
-        "Public channels are visible to the whole workspace and cannot be left individually.",
-      );
-      return;
-    }
+    if (!channel) return;
 
     const membership = asArray(channel.members).find(
       (member) => member.$user?.id === props.user.id,
     );
 
     if (!membership) {
-      setNotice("You are not a direct member of this private channel.");
+      setNotice("You are not a member of this channel.");
       return;
     }
 
@@ -558,6 +615,31 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
       await instantDB.transact(deleteChannelMemberTx(membership.id));
     } catch (error) {
       setNotice(toErrorMessage(error, "Could not leave the channel."));
+    }
+  }
+
+  async function joinChannel(channelId: string) {
+    const channel = allChannels.find((item) => item.id === channelId);
+    if (!channel) return;
+
+    const alreadyMember = asArray(channel.members).some(
+      (member) => member.$user?.id === props.user.id,
+    );
+    if (alreadyMember) return;
+
+    if (channel.visibility === "private" && !canManageChannels) {
+      setNotice("You cannot join a private channel without an invitation.");
+      return;
+    }
+
+    try {
+      const result = createChannelMemberTx({
+        channelId,
+        userId: props.user.id,
+      });
+      await instantDB.transact(result.tx);
+    } catch (error) {
+      setNotice(toErrorMessage(error, "Could not join the channel."));
     }
   }
 
@@ -570,6 +652,7 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
     channelRenameDraft,
     closeThread,
     createChannel,
+    allWorkspaceMembers: members,
     currentUserMember,
     deleteChannel,
     deleteMessage,
@@ -578,10 +661,9 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
     errorMessage:
       workspaceState.error?.message ?? channelsState.error?.message ?? messagesState.error?.message,
     invites,
-    isLoading:
-      workspaceState.isLoading ||
-      channelsState.isLoading ||
-      (hasActiveChannel && messagesState.isLoading),
+    isLoading: workspaceState.isLoading || channelsState.isLoading,
+    isMessagesLoading: hasActiveChannel && messagesState.isLoading,
+    joinChannel,
     leaveChannel,
     messages: rootMessages,
     notice,
@@ -603,6 +685,8 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
     startRenamingChannel,
     threadDraft,
     toggleReaction,
+    unjoinedChannels,
+    updateChannel,
     usersById,
     visibleChannels,
     workspace,
