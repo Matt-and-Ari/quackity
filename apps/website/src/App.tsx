@@ -14,6 +14,7 @@ import { LoadingCard } from "./components/layout/LoadingCard";
 import { Navigate } from "./components/layout/Navigate";
 import { Notice } from "./components/ui/FormFields";
 import { LoggedOutPage, OnboardingPage } from "./features/auth/AuthScreens";
+import { LandingPage } from "./features/landing/LandingPage";
 import { WorkspaceChatPage } from "./features/workspace/WorkspaceChatPage";
 import { instantDB } from "./lib/instant";
 import { asArray, toErrorMessage } from "./lib/ui";
@@ -38,21 +39,27 @@ export default function App() {
 
   if (!user) {
     return (
-      <AppFrame statusLabel="Sign in">
-        <Switch>
-          <Route path="/login">
-            <LoggedOutPage />
-          </Route>
+      <Switch>
+        <Route path="/">
+          <LandingPage />
+        </Route>
 
-          <Route path="/join/:workspaceId">
+        <Route path="/login">
+          <AppFrame statusLabel="Sign in">
             <LoggedOutPage />
-          </Route>
+          </AppFrame>
+        </Route>
 
-          <Route>
-            <Navigate to="/login" />
-          </Route>
-        </Switch>
-      </AppFrame>
+        <Route path="/join/:workspaceId">
+          <AppFrame statusLabel="Sign in">
+            <LoggedOutPage />
+          </AppFrame>
+        </Route>
+
+        <Route>
+          <Navigate to="/" />
+        </Route>
+      </Switch>
     );
   }
 

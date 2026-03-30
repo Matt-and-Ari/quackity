@@ -69,54 +69,124 @@ export function LoggedOutPage() {
 
   return (
     <section className="flex flex-1 items-center justify-center px-4 py-8">
-      <div className="w-full max-w-sm rounded-[1.45rem] border border-amber-200/60 bg-white/82 p-5 shadow-[0_18px_50px_rgba(217,119,6,0.08)] sm:p-6">
-        <form className="space-y-5" onSubmit={handleSubmit}>
-          <div>
-            <p className="text-lg font-semibold text-slate-900">Sign in to Quack</p>
-            <p className="mt-1 text-sm text-slate-500">
-              {step === "email"
-                ? "Enter your email to receive a magic code."
-                : "Enter the code we just sent."}
+      <div className="relative w-full max-w-sm">
+        {/* Decorative glow */}
+        <div className="absolute -inset-3 rounded-[2rem] bg-gradient-to-b from-amber-200/30 to-amber-100/10 blur-2xl" />
+
+        <div className="relative rounded-[1.45rem] border border-amber-200/60 bg-white/85 p-6 shadow-[0_24px_80px_rgba(217,119,6,0.1)] backdrop-blur-xl sm:p-8">
+          {/* Logo + heading */}
+          <div className="mb-6 text-center">
+            <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-100 to-amber-50 shadow-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" className="size-10">
+                <circle cx="32" cy="32" r="30" fill="#FCD34D" />
+                <ellipse cx="32" cy="38" rx="18" ry="16" fill="#FBBF24" />
+                <circle cx="32" cy="24" r="14" fill="#FCD34D" />
+                <circle cx="26" cy="21" r="2.5" fill="#1E293B" />
+                <circle cx="38" cy="21" r="2.5" fill="#1E293B" />
+                <circle cx="27" cy="20" r="0.8" fill="#FFF" />
+                <circle cx="39" cy="20" r="0.8" fill="#FFF" />
+                <ellipse cx="32" cy="27" rx="6" ry="3.5" fill="#F97316" />
+                <ellipse cx="32" cy="26.5" rx="4" ry="2" fill="#FB923C" />
+                <ellipse
+                  cx="20"
+                  cy="40"
+                  rx="8"
+                  ry="5"
+                  fill="#FBBF24"
+                  transform="rotate(-15 20 40)"
+                />
+                <ellipse
+                  cx="44"
+                  cy="40"
+                  rx="8"
+                  ry="5"
+                  fill="#FBBF24"
+                  transform="rotate(15 44 40)"
+                />
+              </svg>
+            </div>
+            <h1 className="text-xl font-bold tracking-tight text-slate-900">
+              {step === "email" ? "Welcome back" : "Check your inbox"}
+            </h1>
+            <p className="mt-1.5 text-sm leading-relaxed text-slate-500">
+              {step === "email" ? (
+                "Sign in with a magic code — no password needed."
+              ) : (
+                <>
+                  We sent a 6-digit code to{" "}
+                  <span className="font-medium text-slate-700">{email}</span>
+                </>
+              )}
             </p>
           </div>
 
-          <InputField
-            disabled={isSubmitting || step === "code"}
-            label="Email"
-            onChange={setEmail}
-            placeholder="you@quack.chat"
-            type="email"
-            value={email}
-          />
+          <form className="space-y-4" onSubmit={handleSubmit}>
+            {step === "email" ? (
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-slate-600">
+                  Email address
+                </span>
+                <input
+                  autoComplete="email"
+                  className="w-full rounded-xl border border-amber-200/70 bg-white px-4 py-3 text-sm text-slate-900 outline-none ring-amber-400/40 transition-shadow duration-200 placeholder:text-slate-400 focus:border-amber-400 focus:ring-4"
+                  disabled={isSubmitting}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="you@quack.chat"
+                  type="email"
+                  value={email}
+                />
+              </label>
+            ) : (
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-slate-600">Magic code</span>
+                <input
+                  autoComplete="one-time-code"
+                  className="w-full rounded-xl border border-amber-200/70 bg-white px-4 py-3 text-center font-mono text-lg tracking-[0.3em] text-slate-900 outline-none ring-amber-400/40 transition-shadow duration-200 placeholder:text-slate-400 placeholder:tracking-normal placeholder:font-sans placeholder:text-sm focus:border-amber-400 focus:ring-4"
+                  disabled={isSubmitting}
+                  maxLength={6}
+                  onChange={(event) => setCode(event.target.value)}
+                  placeholder="Enter 6-digit code"
+                  value={code}
+                />
+              </label>
+            )}
 
-          {step === "code" ? (
-            <InputField
-              disabled={isSubmitting}
-              label="Magic code"
-              onChange={setCode}
-              placeholder="123456"
-              value={code}
-            />
-          ) : null}
+            {notice ? <Notice message={notice} /> : null}
 
-          {notice ? <Notice message={notice} /> : null}
-
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <button
-              className="w-full rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-medium text-white transition-colors duration-100 hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+              className="w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/10 transition-all duration-200 hover:bg-slate-800 hover:shadow-xl hover:shadow-slate-900/15 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
               disabled={isSubmitting || !email || (step === "code" && !code)}
               type="submit"
             >
-              {isSubmitting
-                ? "Working..."
-                : step === "email"
-                  ? "Send magic code"
-                  : "Verify and sign in"}
+              {isSubmitting ? (
+                <span className="inline-flex items-center gap-2">
+                  <svg className="size-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                  Working...
+                </span>
+              ) : step === "email" ? (
+                "Continue with email"
+              ) : (
+                "Verify and sign in"
+              )}
             </button>
 
             {step === "code" ? (
               <button
-                className="rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors duration-100 hover:bg-slate-100"
+                className="w-full rounded-xl px-4 py-2.5 text-sm font-medium text-slate-500 transition-colors duration-200 hover:bg-slate-50 hover:text-slate-700"
                 disabled={isSubmitting}
                 onClick={() => {
                   setCode("");
@@ -125,11 +195,18 @@ export function LoggedOutPage() {
                 }}
                 type="button"
               >
-                Edit email
+                Use a different email
               </button>
             ) : null}
+          </form>
+
+          {/* Footer */}
+          <div className="mt-6 border-t border-amber-100/60 pt-5 text-center">
+            <p className="text-xs leading-relaxed text-slate-400">
+              By continuing, you agree to Quack&rsquo;s terms of service and privacy policy.
+            </p>
           </div>
-        </form>
+        </div>
       </div>
     </section>
   );
