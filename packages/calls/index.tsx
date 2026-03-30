@@ -143,8 +143,9 @@ export function useChannelCall(options: UseChannelCallOptions) {
       await initMeeting({
         authToken: nextSession.token,
         defaults: {
-          audio: true,
-          video: true,
+          // Let the setup screen own device opt-in; eager media startup is flaky on mobile web.
+          audio: false,
+          video: false,
         },
       });
 
