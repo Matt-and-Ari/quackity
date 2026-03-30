@@ -1285,8 +1285,9 @@ function SidebarInviteCard(props: SidebarInviteCardProps) {
         workspaceId: props.invite.workspace.id,
       });
 
+      await instantDB.transact([membership.tx]);
+
       await instantDB.transact([
-        membership.tx,
         deleteWorkspaceInviteByKeyTx({
           email: props.invite.email,
           role,
