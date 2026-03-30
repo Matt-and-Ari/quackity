@@ -68,7 +68,7 @@ export function LoggedOutPage() {
   }
 
   return (
-    <section className="flex flex-1 items-center justify-center px-4 py-8">
+    <section className="flex min-h-0 flex-1 items-center justify-center px-4 py-16 sm:py-20">
       <div className="relative w-full max-w-sm">
         {/* Decorative glow */}
         <div className="absolute -inset-3 rounded-[2rem] bg-gradient-to-b from-amber-200/30 to-amber-100/10 blur-2xl" />

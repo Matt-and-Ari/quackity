@@ -1,16 +1,17 @@
 import type { ReactNode } from "react";
+import { Link } from "wouter";
 
 interface AppFrameProps {
   children: ReactNode;
-  statusLabel: string;
+  statusLabel?: string;
 }
 
 export function AppFrame(props: AppFrameProps) {
   return (
-    <div className="flex h-[100dvh] flex-col overflow-hidden p-1.5 sm:p-2 md:p-3">
-      <header className="mb-2 flex shrink-0 items-center justify-between rounded-xl border border-amber-200/60 bg-white/75 px-3 py-2.5 shadow-[0_18px_50px_rgba(217,119,6,0.08)] backdrop-blur-xl select-none sm:mb-3 sm:rounded-2xl sm:px-5 sm:py-3">
-        <div className="flex items-center gap-2 sm:gap-3">
-          <div className="flex size-7 items-center justify-center rounded-lg shadow-sm sm:size-8">
+    <div className="flex h-[100dvh] flex-col overflow-hidden">
+      <header className="sticky top-0 z-50 flex shrink-0 items-center justify-between border-b border-amber-200/40 bg-[#fffdf3]/80 px-5 py-3 backdrop-blur-xl select-none sm:px-8">
+        <Link className="flex items-center gap-2.5" href="/">
+          <div className="flex size-8 items-center justify-center">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" className="size-full">
               <circle cx="32" cy="32" r="30" fill="#FCD34D" />
               <ellipse cx="32" cy="38" rx="18" ry="16" fill="#FBBF24" />
@@ -25,9 +26,8 @@ export function AppFrame(props: AppFrameProps) {
               <ellipse cx="44" cy="40" rx="8" ry="5" fill="#FBBF24" transform="rotate(15 44 40)" />
             </svg>
           </div>
-          <span className="text-sm font-semibold tracking-tight text-slate-900">Quack</span>
-        </div>
-        <span className="text-xs text-slate-500">{props.statusLabel}</span>
+          <span className="text-base font-bold tracking-tight text-slate-900">Quack</span>
+        </Link>
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto">{props.children}</div>
