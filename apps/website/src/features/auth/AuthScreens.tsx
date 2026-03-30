@@ -110,7 +110,7 @@ export function LoggedOutPage() {
             </h1>
             <p className="mt-1.5 text-sm leading-relaxed text-slate-500">
               {step === "email" ? (
-                "Sign in with a magic code — no password needed."
+                "Enter your email below and we'll send you a magic code to sign in."
               ) : (
                 <>
                   We sent a 6-digit code to{" "}
