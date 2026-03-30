@@ -131,7 +131,7 @@ export function LoggedOutPage() {
                   className="w-full rounded-xl border border-amber-200/70 bg-white px-4 py-3 text-sm text-slate-900 outline-none ring-amber-400/40 transition-shadow duration-200 placeholder:text-slate-400 focus:border-amber-400 focus:ring-4"
                   disabled={isSubmitting}
                   onChange={(event) => setEmail(event.target.value)}
-                  placeholder="you@quack.chat"
+                  placeholder="you@quackity.chat"
                   type="email"
                   value={email}
                 />
@@ -203,7 +203,7 @@ export function LoggedOutPage() {
           {/* Footer */}
           <div className="mt-6 border-t border-amber-100/60 pt-5 text-center">
             <p className="text-xs leading-relaxed text-slate-400">
-              By continuing, you agree to Quack&rsquo;s terms of service and privacy policy.
+              By continuing, you agree to Quackity&rsquo;s terms of service and privacy policy.
             </p>
           </div>
         </div>
@@ -310,7 +310,7 @@ export function OnboardingPage(props: OnboardingPageProps) {
                 setWorkspaceSlug(slugifyWorkspaceName(value));
               }
             }}
-            placeholder="Quack HQ"
+            placeholder="Quackity HQ"
             value={workspaceName}
           />
 
@@ -320,7 +320,7 @@ export function OnboardingPage(props: OnboardingPageProps) {
               setSlugEdited(true);
               setWorkspaceSlug(value);
             }}
-            placeholder="quack-hq"
+            placeholder="quackity-hq"
             value={workspaceSlug}
           />
 
@@ -334,7 +334,7 @@ export function OnboardingPage(props: OnboardingPageProps) {
           <TextareaField
             label="Invite teammates"
             onChange={setInviteEmails}
-            placeholder={"sam@quack.chat\npat@quack.chat"}
+            placeholder={"sam@quackity.chat\npat@quackity.chat"}
             value={inviteEmails}
           />
 

@@ -234,7 +234,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
 
   useEffect(() => {
     const channelName = app.activeChannel?.name;
-    document.title = channelName ? `${channelName} | Quack` : "Quack";
+    document.title = channelName ? `${channelName} | Quackity` : "Quackity";
   }, [app.activeChannel?.name]);
 
   useEffect(() => {
@@ -665,7 +665,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                     ) : null}
                     <div className="min-w-0">
                       <h2 className="truncate text-base font-semibold tracking-tight text-slate-900 sm:text-lg">
-                        #{app.activeChannel?.name ?? "channel"}
+                        {app.activeChannel?.name ?? "channel"}
                       </h2>
                       {app.activeChannel?.topic && !isMobile ? (
                         <p className="mt-0.5 truncate text-sm text-slate-500">
@@ -958,7 +958,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
             if (event.target === event.currentTarget) setIsSettingsOpen(false);
           }}
         >
-          <div className="flex h-[min(92dvh,780px)] w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl border border-amber-200/80 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.14)] sm:rounded-2xl">
+          <div className="flex h-[min(92dvh,780px)] w-full max-w-5xl flex-col overflow-hidden rounded-t-2xl border border-amber-200/80 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.14)] sm:rounded-2xl">
             <SettingsPage
               currentUserMember={app.currentUserMember}
               invites={app.invites}
@@ -1981,7 +1981,7 @@ function InviteModal(props: {
         <TextareaField
           label="Emails"
           onChange={setEmails}
-          placeholder={"sam@quack.chat\npat@quack.chat"}
+          placeholder={"sam@quackity.chat\npat@quackity.chat"}
           value={emails}
         />
         <label className="block space-y-2">

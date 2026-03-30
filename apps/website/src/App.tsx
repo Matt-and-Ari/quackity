@@ -93,7 +93,7 @@ function LoggedInApp(props: { user: AuthenticatedUser }) {
       <AppFrame statusLabel="Loading your workspace graph">
         <LoadingCard
           description="Fetching your memberships and pending invites."
-          title="Preparing Quack"
+          title="Preparing Quackity"
         />
       </AppFrame>
     );
@@ -217,7 +217,7 @@ function WorkspaceInviteAcceptPage(props: {
               className="mt-4 inline-block rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-medium text-white transition-colors duration-100 hover:bg-amber-600"
               href="/"
             >
-              Back to Quack
+              Back to Quackity
             </Link>
           </div>
         </section>
@@ -267,7 +267,7 @@ function WorkspaceInviteAcceptPage(props: {
               className="rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors duration-100 hover:bg-slate-100"
               href="/"
             >
-              Back to Quack
+              Back to Quackity
             </Link>
           </div>
         </div>

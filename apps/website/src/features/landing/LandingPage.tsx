@@ -119,9 +119,17 @@ export function LandingPage() {
         <div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-3 sm:px-8">
           <div className="flex items-center gap-2.5">
             <QuackLogo className="size-8" />
-            <span className="text-base font-bold tracking-tight text-slate-900">Quack</span>
+            <span className="text-base font-bold tracking-tight text-slate-900">Quackity</span>
           </div>
           <div className="flex items-center gap-3">
+            <a
+              className="rounded-xl px-4 py-2 text-sm font-medium text-slate-600 transition-colors duration-200 hover:text-slate-900"
+              href="https://github.com/Matt-and-Ari/quackity"
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              GitHub
+            </a>
             <Link
               className="rounded-xl px-4 py-2 text-sm font-medium text-slate-600 transition-colors duration-200 hover:text-slate-900"
               href="/login"
@@ -209,8 +217,8 @@ export function LandingPage() {
               Built for how teams work today
             </h2>
             <p className="mt-4 text-base leading-relaxed text-slate-500">
-              No more juggling five apps. Quack brings messaging, threads, and calls into one fast,
-              beautiful workspace.
+              No more juggling five apps. Quackity brings messaging, threads, and calls into one
+              fast, beautiful workspace.
             </p>
           </div>
 
@@ -392,19 +400,29 @@ export function LandingPage() {
         <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 sm:flex-row">
           <div className="flex items-center gap-2">
             <QuackLogo className="size-6" />
-            <span className="text-sm font-semibold text-slate-900">Quack</span>
+            <span className="text-sm font-semibold text-slate-900">Quackity</span>
           </div>
-          <p className="text-xs text-slate-400">
-            Built by{" "}
+          <div className="flex items-center gap-4 text-xs text-slate-400">
+            <p>
+              Built by{" "}
+              <a
+                className="text-slate-500 transition-colors duration-200 hover:text-slate-700"
+                href="https://www.youtube.com/@matt-ari"
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                Matt and Ari
+              </a>
+            </p>
             <a
               className="text-slate-500 transition-colors duration-200 hover:text-slate-700"
-              href="https://www.youtube.com/@matt-ari"
+              href="https://github.com/Matt-and-Ari/quackity"
               rel="noopener noreferrer"
               target="_blank"
             >
-              Matt and Ari
+              View source
             </a>
-          </p>
+          </div>
         </div>
       </footer>
     </div>

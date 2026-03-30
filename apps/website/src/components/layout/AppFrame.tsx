@@ -26,7 +26,7 @@ export function AppFrame(props: AppFrameProps) {
               <ellipse cx="44" cy="40" rx="8" ry="5" fill="#FBBF24" transform="rotate(15 44 40)" />
             </svg>
           </div>
-          <span className="text-base font-bold tracking-tight text-slate-900">Quack</span>
+          <span className="text-base font-bold tracking-tight text-slate-900">Quackity</span>
         </Link>
       </header>
 
