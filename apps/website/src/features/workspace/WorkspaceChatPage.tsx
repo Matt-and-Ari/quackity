@@ -801,7 +801,12 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
       <CallModal error={callError} meeting={meeting} onDismiss={dismissCall} phase={callPhase} />
 
       {isSettingsOpen ? (
-        <div className="fixed inset-0 z-40 flex items-end justify-center bg-slate-950/20 backdrop-blur-sm sm:items-center sm:px-4">
+        <div
+          className="fixed inset-0 z-40 flex items-end justify-center bg-slate-950/20 backdrop-blur-sm sm:items-center sm:px-4"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setIsSettingsOpen(false);
+          }}
+        >
           <div className="flex h-[min(92dvh,780px)] w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl border border-amber-200/80 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.14)] sm:rounded-2xl">
             <SettingsPage
               currentUserMember={app.currentUserMember}
@@ -843,9 +848,67 @@ function getWorkspaceGradient(name: string): string {
   return `${pair[0]} ${pair[1]}`;
 }
 
+function WorkspaceIcon(props: {
+  gradient: string;
+  imageUrl?: string | null;
+  label: string;
+  size: "sm" | "lg";
+}) {
+  const sizeClass = props.size === "lg" ? "size-9 rounded-xl text-sm" : "size-8 rounded-lg text-xs";
+
+  if (props.imageUrl) {
+    return (
+      <img
+        alt={props.label}
+        className={clsx("shrink-0 object-cover shadow-sm", sizeClass)}
+        src={props.imageUrl}
+      />
+    );
+  }
+
+  return (
+    <div
+      className={clsx(
+        "flex shrink-0 items-center justify-center bg-gradient-to-br font-bold text-white shadow-sm",
+        sizeClass,
+        props.gradient,
+      )}
+    >
+      {getWorkspaceInitial(props.label)}
+    </div>
+  );
+}
+
+function UserAvatar(props: { imageUrl?: string | null; name: string; size: "xs" | "sm" }) {
+  const sizeClass = props.size === "xs" ? "size-5 text-[0.5rem]" : "size-8 text-xs";
+  const initial = props.name.trim().charAt(0).toUpperCase() || "?";
+
+  if (props.imageUrl) {
+    return (
+      <img
+        alt={props.name}
+        className={clsx("shrink-0 rounded-full object-cover", sizeClass)}
+        src={props.imageUrl}
+      />
+    );
+  }
+
+  return (
+    <div
+      className={clsx(
+        "flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 to-amber-500 font-semibold text-white",
+        sizeClass,
+      )}
+    >
+      {initial}
+    </div>
+  );
+}
+
 interface WorkspaceSwitcherProps {
   currentWorkspaceId: string;
   memberships: WorkspaceMemberRecord[];
+  workspaceImageUrl?: string | null;
   workspaceName: string;
 }
 
@@ -913,14 +976,12 @@ function WorkspaceSwitcher(props: WorkspaceSwitcherProps) {
         }}
         type="button"
       >
-        <div
-          className={clsx(
-            "flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-sm font-bold text-white shadow-sm",
-            getWorkspaceGradient(props.workspaceName),
-          )}
-        >
-          {getWorkspaceInitial(props.workspaceName)}
-        </div>
+        <WorkspaceIcon
+          gradient={getWorkspaceGradient(props.workspaceName)}
+          imageUrl={props.workspaceImageUrl}
+          label={props.workspaceName}
+          size="lg"
+        />
         <h1 className="min-w-0 flex-1 truncate text-left text-[0.95rem] font-semibold tracking-tight text-slate-900">
           {props.workspaceName}
         </h1>
@@ -962,6 +1023,7 @@ function WorkspaceSwitcher(props: WorkspaceSwitcherProps) {
               <div className="flex flex-col gap-0.5">
                 <WorkspaceSwitcherItem
                   gradient={getWorkspaceGradient(props.workspaceName)}
+                  imageUrl={props.workspaceImageUrl}
                   isActive
                   label={props.workspaceName}
                   onClick={() => setIsOpen(false)}
@@ -973,6 +1035,7 @@ function WorkspaceSwitcher(props: WorkspaceSwitcherProps) {
                   return (
                     <WorkspaceSwitcherItem
                       gradient={getWorkspaceGradient(ws.name)}
+                      imageUrl={ws.imageUrl}
                       isActive={false}
                       key={ws.id}
                       label={ws.name}
@@ -995,6 +1058,7 @@ function WorkspaceSwitcher(props: WorkspaceSwitcherProps) {
 
 interface WorkspaceSwitcherItemProps {
   gradient: string;
+  imageUrl?: string | null;
   isActive: boolean;
   label: string;
   onClick: () => void;
@@ -1011,14 +1075,12 @@ function WorkspaceSwitcherItem(props: WorkspaceSwitcherItemProps) {
       onClick={props.onClick}
       type="button"
     >
-      <div
-        className={clsx(
-          "flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br text-xs font-bold text-white shadow-sm",
-          props.gradient,
-        )}
-      >
-        {getWorkspaceInitial(props.label)}
-      </div>
+      <WorkspaceIcon
+        gradient={props.gradient}
+        imageUrl={props.imageUrl}
+        label={props.label}
+        size="sm"
+      />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-slate-800">{props.label}</p>
         {props.role ? <p className="text-[0.65rem] text-slate-400">{props.role}</p> : null}
@@ -1070,6 +1132,7 @@ function SidebarContent(props: SidebarContentProps) {
         <WorkspaceSwitcher
           currentWorkspaceId={props.workspaceId}
           memberships={props.memberships}
+          workspaceImageUrl={props.workspace.imageUrl}
           workspaceName={props.workspace.name}
         />
         <SidebarMenuButton
@@ -1176,7 +1239,11 @@ function SidebarContent(props: SidebarContentProps) {
               className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-600"
               key={member.id}
             >
-              <span className="size-1.5 shrink-0 rounded-full bg-emerald-500" />
+              <UserAvatar
+                imageUrl={member.$user?.avatar?.url ?? member.$user?.imageURL}
+                name={member.displayName ?? member.$user?.email ?? "?"}
+                size="xs"
+              />
               <span className="truncate">
                 {member.displayName ?? member.$user?.email ?? member.id}
               </span>
@@ -1236,9 +1303,12 @@ function SidebarInviteCard(props: SidebarInviteCardProps) {
   return (
     <div className="rounded-xl border border-amber-200/40 bg-amber-50/50 px-3 py-2.5">
       <div className="flex items-center gap-2">
-        <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 to-amber-500 text-[0.6rem] font-bold text-white shadow-sm">
-          {(props.invite.workspace?.name ?? "W").charAt(0).toUpperCase()}
-        </div>
+        <WorkspaceIcon
+          gradient="from-amber-400 to-amber-500"
+          imageUrl={props.invite.workspace?.imageUrl}
+          label={props.invite.workspace?.name ?? "W"}
+          size="sm"
+        />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-slate-800">
             {props.invite.workspace?.name ?? "Workspace"}
@@ -1512,7 +1582,12 @@ function InviteModal(props: {
 
 function ActionModal(props: { children: ReactNode; onClose: () => void; title: string }) {
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-slate-950/20 px-0 backdrop-blur-sm sm:items-center sm:px-4">
+    <div
+      className="fixed inset-0 z-40 flex items-end justify-center bg-slate-950/20 px-0 backdrop-blur-sm sm:items-center sm:px-4"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) props.onClose();
+      }}
+    >
       <div className="w-full max-w-md rounded-t-2xl border border-amber-200/80 bg-white p-5 shadow-[0_30px_80px_rgba(15,23,42,0.14)] sm:rounded-2xl">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-base font-semibold text-slate-900">{props.title}</h3>

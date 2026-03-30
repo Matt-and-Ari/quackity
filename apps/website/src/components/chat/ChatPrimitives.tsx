@@ -8,6 +8,7 @@ import { QUICK_REACTION_EMOJI, formatBytes, initials, nameFromEmail } from "../.
 import type {
   ChannelRecord,
   InstantUserEntity,
+  InstantUserWithAvatar,
   MessageAttachmentRecord,
   MessageRecord,
   ReactionRecord,
@@ -59,7 +60,7 @@ interface MessageCardProps {
   onSaveEdit: () => void;
   onStartEdit: () => void;
   onToggleReaction: (emoji: string) => void;
-  usersById: Map<string, InstantUserEntity>;
+  usersById: Map<string, InstantUserWithAvatar>;
   workspaceMembersByUserId: Map<string, WorkspaceMemberRecord>;
 }
 
@@ -100,7 +101,7 @@ interface ThreadPanelProps {
   threadDraft: string;
   threadInputRef?: React.RefObject<HTMLTextAreaElement | null>;
   threadWidth: number;
-  usersById: Map<string, InstantUserEntity>;
+  usersById: Map<string, InstantUserWithAvatar>;
   workspaceMembersByUserId: Map<string, WorkspaceMemberRecord>;
 }
 
@@ -703,7 +704,7 @@ interface ThreadMessageProps {
   onStartEdit: () => void;
   onToggleReaction: (emoji: string) => void;
   sender: InstantUserEntity;
-  usersById: Map<string, InstantUserEntity>;
+  usersById: Map<string, InstantUserWithAvatar>;
   workspaceMembersByUserId: Map<string, WorkspaceMemberRecord>;
 }
 
@@ -863,18 +864,14 @@ function ReactionPills(props: ReactionPillsProps) {
   );
 }
 
-function Avatar(props: { user?: InstantUserEntity | null }) {
+function Avatar(props: { user?: InstantUserWithAvatar | null }) {
   const name = nameFromEmail(props.user?.email);
+  const avatarUrl = props.user?.avatar?.url ?? props.user?.imageURL;
 
   return (
     <div className="relative mt-0.5 size-8 shrink-0 select-none overflow-hidden rounded-lg bg-gradient-to-br from-amber-300 to-amber-500">
-      {props.user?.imageURL ? (
-        <img
-          alt={name}
-          className="h-full w-full object-cover"
-          draggable={false}
-          src={props.user.imageURL}
-        />
+      {avatarUrl ? (
+        <img alt={name} className="h-full w-full object-cover" draggable={false} src={avatarUrl} />
       ) : (
         <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-white">
           {initials(name)}
@@ -887,7 +884,7 @@ function Avatar(props: { user?: InstantUserEntity | null }) {
 function summarizeReactions(props: {
   currentUserId: string;
   reactionRecords: ReactionRecord[];
-  usersById: Map<string, InstantUserEntity>;
+  usersById: Map<string, InstantUserWithAvatar>;
   workspaceMembersByUserId: Map<string, WorkspaceMemberRecord>;
 }) {
   const summaryMap = new Map<string, ReactionSummary>();
@@ -928,7 +925,7 @@ function summarizeReactions(props: {
 
 function messageParticipantName(props: {
   userId?: string;
-  usersById: Map<string, InstantUserEntity>;
+  usersById: Map<string, InstantUserWithAvatar>;
   workspaceMembersByUserId: Map<string, WorkspaceMemberRecord>;
 }) {
   if (!props.userId) {

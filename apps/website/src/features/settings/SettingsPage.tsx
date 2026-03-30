@@ -127,6 +127,17 @@ function ProfileSettings(props: ProfileSettingsProps) {
   });
   const avatarUrl = avatarQuery.data?.$users[0]?.avatar?.url ?? props.user.imageURL ?? null;
 
+  if (import.meta.env.DEV) {
+    const u = avatarQuery.data?.$users[0];
+    console.log("[ProfileSettings] avatar debug:", {
+      userId: props.user.id,
+      "props.user.imageURL": props.user.imageURL,
+      "avatarQuery user keys": u ? Object.keys(u) : [],
+      "avatar link": u?.avatar,
+      avatarUrl,
+    });
+  }
+
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -508,7 +519,7 @@ function MembersSettings(props: MembersSettingsProps) {
             >
               <MemberAvatar
                 name={member.displayName ?? user?.email ?? "?"}
-                imageUrl={user?.imageURL}
+                imageUrl={user?.avatar?.url ?? user?.imageURL}
               />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-slate-800">

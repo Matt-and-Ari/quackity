@@ -5,6 +5,7 @@ import type { AppSchema } from "@quack/schema";
 export type AuthenticatedUser = AuthUser;
 
 export type InstantUserEntity = InstaQLEntity<AppSchema, "$users">;
+export type InstantUserWithAvatar = InstaQLEntity<AppSchema, "$users", { avatar: {} }>;
 export type WorkspaceEntity = InstaQLEntity<AppSchema, "workspaces">;
 export type WorkspaceMemberEntity = InstaQLEntity<AppSchema, "workspaceMembers">;
 export type WorkspaceInviteEntity = InstaQLEntity<AppSchema, "workspaceInvites">;
@@ -28,7 +29,7 @@ export interface WorkspaceInviteRecord extends WorkspaceInviteEntity {
 }
 
 export interface WorkspaceMemberRecord extends WorkspaceMemberEntity {
-  $user?: InstantUserEntity | null;
+  $user?: InstantUserWithAvatar | null;
   workspace?: WorkspaceSummary | null;
 }
 
@@ -40,7 +41,7 @@ export interface ChannelRecord extends ChannelEntity {
 }
 
 export interface ChannelMemberRecord extends ChannelMemberEntity {
-  $user?: InstantUserEntity | null;
+  $user?: InstantUserWithAvatar | null;
   channel?: ChannelRecord | null;
 }
 
@@ -53,7 +54,7 @@ export interface MessageAttachmentRecord extends MessageAttachmentEntity {
 }
 
 export interface ReactionRecord extends ReactionEntity {
-  $user?: InstantUserEntity | null;
+  $user?: InstantUserWithAvatar | null;
 }
 
 export interface MessageRecord extends MessageEntity {
@@ -61,6 +62,6 @@ export interface MessageRecord extends MessageEntity {
   channel?: ChannelRecord | null;
   parentMessage?: MessageRecord | null;
   reactions?: ReactionRecord[] | null;
-  sender?: InstantUserEntity | null;
+  sender?: InstantUserWithAvatar | null;
   threadReplies?: MessageRecord[] | null;
 }

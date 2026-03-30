@@ -22,7 +22,7 @@ import type { UploadedFile } from "./useFileUpload";
 import type {
   AuthenticatedUser,
   ChannelRecord,
-  InstantUserEntity,
+  InstantUserWithAvatar,
   MessageRecord,
   WorkspaceInviteRecord,
   WorkspaceMemberRecord,
@@ -81,7 +81,7 @@ export interface UseQuackWorkspaceResult {
   startRenamingChannel: (channelId: string) => void;
   threadDraft: string;
   toggleReaction: (messageId: string, emoji: string) => Promise<void>;
-  usersById: Map<string, InstantUserEntity>;
+  usersById: Map<string, InstantUserWithAvatar>;
   visibleChannels: ChannelRecord[];
   workspace: WorkspaceSummary | null;
   workspaceMembersByUserId: Map<string, WorkspaceMemberRecord>;
@@ -197,7 +197,7 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
   }, [selectedThreadMessage]);
 
   const usersById = useMemo(() => {
-    const nextUsers = new Map<string, InstantUserEntity>();
+    const nextUsers = new Map<string, InstantUserWithAvatar>();
 
     for (const member of members) {
       if (member.$user?.id) {
@@ -215,7 +215,7 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
   const workspaceMembersByUserId = useMemo(() => {
     return new Map(
       members
-        .filter((member): member is WorkspaceMemberRecord & { $user: InstantUserEntity } =>
+        .filter((member): member is WorkspaceMemberRecord & { $user: InstantUserWithAvatar } =>
           Boolean(member.$user?.id),
         )
         .map((member) => [member.$user.id, member] as const),
@@ -610,7 +610,10 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
   };
 }
 
-function collectMessageUsers(usersById: Map<string, InstantUserEntity>, message: MessageRecord) {
+function collectMessageUsers(
+  usersById: Map<string, InstantUserWithAvatar>,
+  message: MessageRecord,
+) {
   if (message.sender?.id) {
     usersById.set(message.sender.id, message.sender);
   }

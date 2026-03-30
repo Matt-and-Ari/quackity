@@ -3,8 +3,12 @@ import type { AppSchema } from "@quack/schema";
 
 export type QuackQuery = InstaQLParams<AppSchema>;
 
+const userWithAvatar = {
+  avatar: {},
+} as const;
+
 const workspaceMemberFields = {
-  $user: {},
+  $user: userWithAvatar,
 } as const;
 
 const workspaceInviteFields = {
@@ -12,7 +16,7 @@ const workspaceInviteFields = {
 } as const;
 
 const channelMemberFields = {
-  $user: {},
+  $user: userWithAvatar,
 } as const;
 
 const channelMeetingFields = {
@@ -31,16 +35,16 @@ const messageAttachmentFields = {
 } as const;
 
 const reactionFields = {
-  $user: {},
+  $user: userWithAvatar,
 } as const;
 
 const messageFields = {
   attachments: messageAttachmentFields,
   parentMessage: {
-    sender: {},
+    sender: userWithAvatar,
   },
   reactions: reactionFields,
-  sender: {},
+  sender: userWithAvatar,
 } as const;
 
 export function listWorkspacesQuery() {
@@ -114,7 +118,7 @@ export function workspaceMembersQuery(workspaceId: string) {
           "workspace.id": workspaceId,
         },
       },
-      $user: {},
+      $user: userWithAvatar,
       workspace: {
         owner: {},
       },
@@ -133,7 +137,7 @@ export function workspaceMembershipsByUserQuery(userId: string) {
           "$user.id": userId,
         },
       },
-      $user: {},
+      $user: userWithAvatar,
       workspace: {
         invites: workspaceInviteFields,
         members: workspaceMemberFields,
@@ -249,7 +253,7 @@ export function channelMembersQuery(channelId: string) {
           "channel.id": channelId,
         },
       },
-      $user: {},
+      $user: userWithAvatar,
       channel: {
         workspace: {
           owner: {},
@@ -317,7 +321,7 @@ export function messagesByChannelQuery(
         },
         attachments: messageAttachmentFields,
         reactions: reactionFields,
-        sender: {},
+        sender: userWithAvatar,
       },
     },
   } satisfies QuackQuery;
@@ -345,7 +349,7 @@ export function messageByIdQuery(messageId: string) {
         },
         attachments: messageAttachmentFields,
         reactions: reactionFields,
-        sender: {},
+        sender: userWithAvatar,
       },
     },
   } satisfies QuackQuery;
@@ -392,7 +396,7 @@ export function messageAttachmentsByMessageQuery(messageId: string) {
       },
       $file: {},
       message: {
-        sender: {},
+        sender: userWithAvatar,
       },
     },
   } satisfies QuackQuery;
@@ -409,9 +413,9 @@ export function reactionsByMessageQuery(messageId: string) {
           "message.id": messageId,
         },
       },
-      $user: {},
+      $user: userWithAvatar,
       message: {
-        sender: {},
+        sender: userWithAvatar,
       },
     },
   } satisfies QuackQuery;
