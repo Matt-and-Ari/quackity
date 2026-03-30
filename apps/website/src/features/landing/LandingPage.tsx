@@ -395,7 +395,15 @@ export function LandingPage() {
             <span className="text-sm font-semibold text-slate-900">Quack</span>
           </div>
           <p className="text-xs text-slate-400">
-            &copy; {new Date().getFullYear()} Quack. All rights reserved.
+            Built by{" "}
+            <a
+              className="text-slate-500 transition-colors duration-200 hover:text-slate-700"
+              href="https://www.youtube.com/@matt-ari"
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              Matt and Ari
+            </a>
           </p>
         </div>
       </footer>
