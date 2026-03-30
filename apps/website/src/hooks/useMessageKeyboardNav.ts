@@ -100,9 +100,11 @@ export function useMessageKeyboardNav(
 
       const selectedMessage = msgs[selectedIndex];
       const p = propsRef.current;
+      const hasModifier = event.metaKey || event.ctrlKey || event.altKey;
 
       switch (event.key) {
         case "ArrowUp": {
+          if (hasModifier) break;
           event.preventDefault();
           if (selectedIndex > 0) {
             selectMessage(msgs[selectedIndex - 1].id);
@@ -110,6 +112,7 @@ export function useMessageKeyboardNav(
           break;
         }
         case "ArrowDown": {
+          if (hasModifier) break;
           event.preventDefault();
           if (selectedIndex < msgs.length - 1) {
             selectMessage(msgs[selectedIndex + 1].id);
@@ -126,6 +129,7 @@ export function useMessageKeyboardNav(
           break;
         }
         case "e": {
+          if (hasModifier) break;
           if (!selectedMessage || selectedMessage.deletedAt) break;
           if (!p.canEditOrDelete(selectedMessage)) break;
           event.preventDefault();
@@ -134,12 +138,14 @@ export function useMessageKeyboardNav(
           break;
         }
         case "r": {
+          if (hasModifier) break;
           if (!selectedMessage || selectedMessage.deletedAt) break;
           event.preventDefault();
           p.onOpenReactionMenu(selectedMessage.id);
           break;
         }
         case "t": {
+          if (hasModifier) break;
           if (!selectedMessage) break;
           event.preventDefault();
           p.onReply(selectedMessage.id);
@@ -148,6 +154,7 @@ export function useMessageKeyboardNav(
         }
         case "Backspace":
         case "Delete": {
+          if (hasModifier) break;
           if (!selectedMessage || selectedMessage.deletedAt) break;
           if (!p.canEditOrDelete(selectedMessage)) break;
           event.preventDefault();

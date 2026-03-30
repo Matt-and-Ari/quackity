@@ -209,6 +209,33 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
   }, [app.selectedThreadMessage?.id]);
 
   useEffect(() => {
+    if (!app.selectedThreadMessage) return;
+
+    function handleEscapeForThread(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+
+      const isThreadInputFocused = document.activeElement === threadInputRef.current;
+
+      if (isThreadInputFocused) {
+        threadInputRef.current?.blur();
+        event.preventDefault();
+        return;
+      }
+
+      const target = event.target as HTMLElement;
+      const isInInput =
+        target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
+      if (isInInput) return;
+
+      event.preventDefault();
+      app.closeThread();
+    }
+
+    document.addEventListener("keydown", handleEscapeForThread);
+    return () => document.removeEventListener("keydown", handleEscapeForThread);
+  }, [app.selectedThreadMessage, app.closeThread]);
+
+  useEffect(() => {
     setContextMenu(null);
   }, [
     app.activeChannel?.id,
