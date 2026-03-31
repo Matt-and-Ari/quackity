@@ -1,5 +1,4 @@
 import type { Editor } from "@tiptap/react";
-import clsx from "clsx";
 
 import type { StagedFile } from "../../hooks/useFileUpload";
 import type {
@@ -12,7 +11,7 @@ import type { FloatingAnchor } from "../ui/floating";
 import { MessageCard } from "./MessageCard";
 import type { MentionSuggestionItem } from "./MentionList";
 import { MessageInput } from "./MessageInput";
-import { ResizeHandle } from "./ResizeHandle";
+import { RightPanel } from "./RightPanel";
 
 interface ThreadPanelProps {
   alsoSendToChannel: boolean;
@@ -39,6 +38,7 @@ interface ThreadPanelProps {
   onStartEdit: (messageId: string) => void;
   onToggleReaction: (messageId: string, emoji: string) => void;
   onThreadDraftChange: (value: string) => void;
+  onUserClick?: (userId: string) => void;
   replies: MessageRecord[];
   rootMessage: MessageRecord | null;
   selectedReplyId?: string | null;
@@ -81,56 +81,20 @@ export function ThreadPanel(props: ThreadPanelProps) {
       onSaveEdit: () => props.onSaveEdit(),
       onStartEdit: () => props.onStartEdit(message.id),
       onToggleReaction: (emoji: string) => props.onToggleReaction(message.id, emoji),
+      onUserClick: props.onUserClick,
       usersById: props.usersById,
       workspaceMembersByUserId: props.workspaceMembersByUserId,
     };
   }
 
   return (
-    <aside
-      className={clsx(
-        "relative flex min-h-0 min-w-0 flex-col overflow-hidden",
-        props.isMobile
-          ? "h-full w-full"
-          : "rounded-[1.45rem] border border-amber-200/60 bg-white/82 shadow-[0_18px_50px_rgba(15,23,42,0.07)]",
-      )}
-      style={props.isMobile ? undefined : { flexShrink: 0, width: props.threadWidth }}
+    <RightPanel
+      isMobile={props.isMobile}
+      onClose={props.onClose}
+      startResize={props.startThreadResize}
+      title="Thread"
+      width={props.threadWidth}
     >
-      {!props.isMobile ? <ResizeHandle onMouseDown={props.startThreadResize} side="left" /> : null}
-
-      <div className="flex select-none items-center justify-between border-b border-amber-100/70 px-4 py-3">
-        {props.isMobile ? (
-          <button
-            className="flex items-center gap-2 rounded-lg px-2 py-1 text-sm text-slate-500 transition-colors duration-100 hover:bg-amber-50"
-            onClick={props.onClose}
-            type="button"
-          >
-            <svg fill="none" height="14" viewBox="0 0 14 14" width="14">
-              <path
-                d="M9 2.5 4.5 7 9 11.5"
-                stroke="currentColor"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="1.5"
-              />
-            </svg>
-            Back
-          </button>
-        ) : null}
-        <h3 className="text-sm font-semibold text-slate-900">Thread</h3>
-        {!props.isMobile ? (
-          <button
-            className="rounded-md px-2 py-1 text-xs text-slate-500 transition-colors duration-100 hover:bg-amber-50"
-            onClick={props.onClose}
-            type="button"
-          >
-            Close
-          </button>
-        ) : (
-          <div />
-        )}
-      </div>
-
       <div
         className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2 pt-3 pb-1 sm:px-3"
         ref={props.threadScrollRef}
@@ -178,6 +142,6 @@ export function ThreadPanel(props: ThreadPanelProps) {
           value={props.threadDraft}
         />
       </div>
-    </aside>
+    </RightPanel>
   );
 }

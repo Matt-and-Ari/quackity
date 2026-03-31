@@ -17,6 +17,8 @@ export {
   isEditorEmpty,
 } from "./RichTextEditor";
 export { ThreadPanel } from "./ThreadPanel";
+export { TypingIndicator } from "./TypingIndicator";
+export { FormattingToolbar } from "./FormattingToolbar";
 
 export { DateHeading, dateDayKey } from "./chat-date-utils";
 

@@ -5,6 +5,7 @@ import { useLocation } from "wouter";
 import type { Editor } from "@tiptap/react";
 import { tx } from "@instantdb/core";
 
+import { ProfilePanel } from "../../components/chat/ProfilePanel";
 import { ResizeHandle } from "../../components/chat/ResizeHandle";
 import { ThreadPanel } from "../../components/chat/ThreadPanel";
 import { Navigate } from "../../components/layout/Navigate";
@@ -17,11 +18,13 @@ import { instantDB } from "../../lib/instant";
 import { useChannelDrafts } from "../../hooks/useChannelDrafts";
 import { useFileUpload } from "../../hooks/useFileUpload";
 import { useMentionCounts } from "../../hooks/useMentionCounts";
+import { useMentionNotifications } from "../../hooks/useMentionNotifications";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { useMessageKeyboardNav } from "../../hooks/useMessageKeyboardNav";
 import { useResizeHandle } from "../../hooks/useResizeHandle";
 import { useQuackWorkspace } from "../../hooks/useQuackWorkspace";
 import { useSearchMessages, type SearchResult } from "../../hooks/useSearchMessages";
+import { useTypingIndicator } from "../../hooks/useTypingIndicator";
 import { CallModal, useChannelCall } from "../../lib/channel-calls";
 import { normalizeEmail } from "../../lib/workspaces";
 import { ChannelFooter } from "./components/ChannelFooter";
@@ -100,6 +103,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
   const [pendingDeleteMessageId, setPendingDeleteMessageId] = useState<string | null>(null);
   const [pendingScrollToMessageId, setPendingScrollToMessageId] = useState<string | null>(null);
   const [pendingThreadReplyId, setPendingThreadReplyId] = useState<string | null>(null);
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
 
   const {
     dismiss: dismissCall,
@@ -173,6 +177,25 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
 
   const mentionCounts = useMentionCounts({ userId: props.user.id });
 
+  const channelNamesById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const channel of app.visibleChannels) {
+      map.set(channel.id, channel.name);
+    }
+    return map;
+  }, [app.visibleChannels]);
+
+  useMentionNotifications({
+    channelNamesById,
+    userId: props.user.id,
+  });
+
+  const channelTyping = useTypingIndicator({
+    channelId: app.activeChannel?.id ?? null,
+    displayName: app.currentUserMember?.displayName ?? props.user.email ?? "Someone",
+    userId: props.user.id,
+  });
+
   const workspaceId = app.workspace?.id ?? "";
   channelDrafts.updateWorkspaceId(workspaceId);
   const threadUpload = useFileUpload({ workspaceId });
@@ -198,6 +221,12 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     const channelName = app.activeChannel?.name;
     document.title = channelName ? `${channelName} | Quackity` : "Quackity";
   }, [app.activeChannel?.name]);
+
+  useEffect(() => {
+    if (app.selectedThreadMessage) {
+      setProfileUserId(null);
+    }
+  }, [app.selectedThreadMessage]);
 
   useEffect(() => {
     const channelId = app.activeChannel?.id;
@@ -422,6 +451,15 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     requestAnimationFrame(() => threadInputRef.current?.commands.focus());
   }
 
+  function handleOpenProfile(userId: string) {
+    app.closeThread();
+    setProfileUserId(userId);
+  }
+
+  function handleCloseProfile() {
+    setProfileUserId(null);
+  }
+
   const sidebarContentProps = {
     app,
     canManageChannels: app.canManageChannels,
@@ -484,6 +522,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     onToggleReaction: (messageId: string, emoji: string) => {
       app.toggleReaction(messageId, emoji);
     },
+    onUserClick: handleOpenProfile,
     replies: app.selectedThreadReplies,
     rootMessage: app.selectedThreadMessage,
     selectedReplyId: pendingThreadReplyId,
@@ -636,6 +675,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                 onToggleReaction={(messageId, emoji) => {
                   app.toggleReaction(messageId, emoji);
                 }}
+                onUserClick={handleOpenProfile}
                 ref={channelScrollRef}
                 selectedMessageId={keyboardNav.selectedMessageId}
                 usersById={app.usersById}
@@ -643,6 +683,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
               />
 
               <ChannelFooter
+                activeTypers={channelTyping.activeTypers}
                 channelName={app.activeChannel.name}
                 draft={app.channelDraft}
                 editorRef={channelInputRef}
@@ -657,6 +698,8 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                 onSubmit={() => {
                   void handleSendChannelMessage();
                 }}
+                onTypingBlur={channelTyping.handleBlur}
+                onTypingKeyDown={channelTyping.handleKeyDown}
                 onValueChange={app.setChannelDraft}
                 stagedFiles={channelDrafts.getStagedFiles(app.activeChannel.id)}
               />
@@ -673,6 +716,36 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
               )
             ) : (
               <ThreadPanel {...threadPanelProps} />
+            )
+          ) : profileUserId && app.usersById.get(profileUserId) ? (
+            isMobile ? (
+              createPortal(
+                <div className="fixed inset-0 z-30 flex flex-col bg-white">
+                  <ProfilePanel
+                    channels={app.visibleChannels.filter((ch) =>
+                      ch.members?.some((m) => m.$user?.id === profileUserId),
+                    )}
+                    isMobile
+                    onClose={handleCloseProfile}
+                    startResize={thread.startResize}
+                    user={app.usersById.get(profileUserId)!}
+                    width={thread.width}
+                    workspaceMember={app.workspaceMembersByUserId.get(profileUserId)}
+                  />
+                </div>,
+                document.body,
+              )
+            ) : (
+              <ProfilePanel
+                channels={app.visibleChannels.filter((ch) =>
+                  ch.members?.some((m) => m.$user?.id === profileUserId),
+                )}
+                onClose={handleCloseProfile}
+                startResize={thread.startResize}
+                user={app.usersById.get(profileUserId)!}
+                width={thread.width}
+                workspaceMember={app.workspaceMembersByUserId.get(profileUserId)}
+              />
             )
           ) : null}
         </div>

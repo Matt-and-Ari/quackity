@@ -29,6 +29,7 @@ interface ChannelMessageListProps {
   onSaveEdit: () => void;
   onStartEdit: (messageId: string) => void;
   onToggleReaction: (messageId: string, emoji: string) => void;
+  onUserClick?: (userId: string) => void;
   selectedMessageId: string | null;
   usersById: Map<string, InstantUserWithAvatar>;
   workspaceMembersByUserId: Map<string, WorkspaceMemberRecord>;
@@ -78,6 +79,7 @@ export const ChannelMessageList = forwardRef<HTMLElement, ChannelMessageListProp
                     onSaveEdit={props.onSaveEdit}
                     onStartEdit={() => props.onStartEdit(message.id)}
                     onToggleReaction={(emoji) => props.onToggleReaction(message.id, emoji)}
+                    onUserClick={props.onUserClick}
                     usersById={props.usersById}
                     workspaceMembersByUserId={props.workspaceMembersByUserId}
                   />

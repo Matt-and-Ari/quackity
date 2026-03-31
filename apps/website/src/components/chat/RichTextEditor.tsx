@@ -18,6 +18,7 @@ interface RichTextEditorProps {
   className?: string;
   editorRef?: React.RefObject<Editor | null>;
   members?: MentionSuggestionItem[];
+  onEditorReady?: (editor: Editor) => void;
   onKeyDown?: (event: KeyboardEvent) => boolean | void;
   onPaste?: (event: ClipboardEvent) => void;
   onSubmit?: () => void;
@@ -104,6 +105,9 @@ export function RichTextEditor(props: RichTextEditorProps) {
   useEffect(() => {
     if (props.editorRef && editor) {
       (props.editorRef as React.MutableRefObject<Editor | null>).current = editor;
+    }
+    if (editor) {
+      propsRef.current.onEditorReady?.(editor);
     }
   }, [editor, props.editorRef]);
 

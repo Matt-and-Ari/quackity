@@ -467,7 +467,14 @@ const _schema = i.schema({
       },
     },
   },
-  rooms: {},
+  rooms: {
+    channel: {
+      presence: i.entity({
+        displayName: i.string(),
+        userId: i.string(),
+      }),
+    },
+  },
 });
 
 // This helps TypeScript display nicer intellisense

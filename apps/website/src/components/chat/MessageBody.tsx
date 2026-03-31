@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 
 import clsx from "clsx";
 
@@ -6,6 +6,7 @@ interface MessageBodyProps {
   body: string;
   className?: string;
   currentUserId?: string;
+  onMentionClick?: (userId: string) => void;
 }
 
 export function MessageBody(props: MessageBodyProps) {
@@ -14,10 +15,27 @@ export function MessageBody(props: MessageBodyProps) {
     [props.body, props.currentUserId],
   );
 
+  const handleClick = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (!props.onMentionClick) return;
+      const target = event.target as HTMLElement;
+      const mention = target.closest<HTMLElement>(".mention");
+      if (mention) {
+        const userId = mention.dataset.userId;
+        if (userId) {
+          event.stopPropagation();
+          props.onMentionClick(userId);
+        }
+      }
+    },
+    [props.onMentionClick],
+  );
+
   return (
     <div
       className={clsx("tiptap-prose", props.className)}
       dangerouslySetInnerHTML={{ __html: html }}
+      onClick={handleClick}
     />
   );
 }

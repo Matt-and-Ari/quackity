@@ -39,6 +39,7 @@ interface MessageCardProps {
   onSaveEdit: () => void;
   onStartEdit: () => void;
   onToggleReaction: (emoji: string) => void;
+  onUserClick?: (userId: string) => void;
   usersById: Map<string, InstantUserWithAvatar>;
   workspaceMembersByUserId: Map<string, WorkspaceMemberRecord>;
 }
@@ -137,7 +138,13 @@ export function MessageCard(props: MessageCardProps) {
       </div>
 
       <div className="flex gap-3">
-        <Avatar user={sender} />
+        <button
+          className="mt-0.5 shrink-0 cursor-pointer"
+          onClick={() => sender?.id && props.onUserClick?.(sender.id)}
+          type="button"
+        >
+          <Avatar user={sender} />
+        </button>
         <div className="min-w-0 flex-1">
           {props.message.channelPost ? (
             <button
@@ -177,9 +184,13 @@ export function MessageCard(props: MessageCardProps) {
           ) : null}
 
           <div className="flex select-none flex-wrap items-baseline gap-x-2 gap-y-0.5">
-            <span className="text-sm font-semibold text-slate-900">
+            <button
+              className="text-sm font-semibold text-slate-900 hover:underline"
+              onClick={() => sender?.id && props.onUserClick?.(sender.id)}
+              type="button"
+            >
               {senderMember?.displayName ?? nameFromEmail(sender?.email)}
-            </span>
+            </button>
             <time className="text-xs text-slate-400">
               {timeFormatter.format(new Date(props.message.createdAt))}
             </time>
@@ -206,6 +217,7 @@ export function MessageCard(props: MessageCardProps) {
               body={props.message.body ?? ""}
               className="mt-1"
               currentUserId={props.currentUserId}
+              onMentionClick={props.onUserClick}
             />
           )}
 
