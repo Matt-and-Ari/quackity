@@ -15,6 +15,7 @@ interface UseMessageKeyboardNavProps {
 
 export interface UseMessageKeyboardNavResult {
   clearSelection: () => void;
+  handleInputFocus: () => void;
   handleInputKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   handleMessageClick: (messageId: string) => void;
   selectedMessageId: string | null;
@@ -82,6 +83,24 @@ export function useMessageKeyboardNav(
 
   function handleMessageClick(messageId: string) {
     selectMessage(messageId);
+  }
+
+  useEffect(() => {
+    function handleMouseDown(event: MouseEvent) {
+      if (!selectedMessageIdRef.current) return;
+      const target = event.target as HTMLElement;
+      if (target.closest("[data-message-id]")) return;
+      setSelectedMessageId(null);
+    }
+
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => document.removeEventListener("mousedown", handleMouseDown);
+  }, []);
+
+  function handleInputFocus() {
+    if (selectedMessageId) {
+      setSelectedMessageId(null);
+    }
   }
 
   useEffect(() => {
@@ -170,6 +189,7 @@ export function useMessageKeyboardNav(
 
   return {
     clearSelection,
+    handleInputFocus,
     handleInputKeyDown,
     handleMessageClick,
     selectedMessageId,

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useLocation } from "wouter";
 
 import {
+  CopyGlyph,
   DateHeading,
   DeleteGlyph,
   EditGlyph,
@@ -410,6 +411,18 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
           });
         },
       },
+      {
+        disabled: isDeleted || !message.body,
+        hint: isDeleted ? "Unavailable for deleted messages" : "Copy the message text",
+        icon: <CopyGlyph />,
+        id: "copy-text",
+        label: "Copy text",
+        onSelect: () => {
+          if (message.body) {
+            void navigator.clipboard.writeText(message.body);
+          }
+        },
+      },
     ];
 
     if (isOwn) {
@@ -707,6 +720,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                 <div>
                   <MessageInput
                     onAddFiles={channelUpload.addFiles}
+                    onFocus={keyboardNav.handleInputFocus}
                     onKeyDown={keyboardNav.handleInputKeyDown}
                     onRemoveFile={channelUpload.removeFile}
                     onSubmit={() => {

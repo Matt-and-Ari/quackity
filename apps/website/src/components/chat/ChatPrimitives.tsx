@@ -117,6 +117,7 @@ interface MessageCardProps {
 
 interface MessageInputProps {
   onAddFiles?: (files: FileList) => void;
+  onFocus?: () => void;
   onKeyDown?: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
   onRemoveFile?: (fileId: string) => void;
   onSubmit: () => void;
@@ -303,13 +304,13 @@ export function MessageCard(props: MessageCardProps) {
             </button>
           </HoverTooltip>
         ))}
-        <span className="mx-0.5 h-5 w-px bg-amber-100" />
         <ToolbarBtn
           disabled={isDeleted}
           icon={<ReactionGlyph />}
           label="Add reaction"
           onClick={handleOpenReactionMenu}
         />
+        <span className="mx-0.5 h-5 w-px bg-amber-100" />
         <ToolbarBtn icon={<ReplyGlyph />} label="Reply in thread" onClick={() => props.onReply()} />
         {props.isOwnMessage ? (
           <>
@@ -555,6 +556,7 @@ export function MessageInput(props: MessageInputProps) {
             !props.onAddFiles && "pl-4",
           )}
           onChange={(event) => props.onValueChange(event.target.value)}
+          onFocus={props.onFocus}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           placeholder={props.placeholder}
@@ -1236,6 +1238,31 @@ export function ReactionGlyph(props: { className?: string }) {
         strokeWidth="1.2"
       />
       <path d="M13 2v3M11.5 3.5h3" stroke="currentColor" strokeLinecap="round" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+export function CopyGlyph(props: { className?: string }) {
+  return (
+    <svg className={clsx("size-4", props.className)} fill="none" viewBox="0 0 16 16">
+      <rect
+        height="8"
+        rx="1.25"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.2"
+        width="8"
+        x="5.5"
+        y="5.5"
+      />
+      <path
+        d="M10.5 5.5V4.25A1.25 1.25 0 0 0 9.25 3h-5A1.25 1.25 0 0 0 3 4.25v5a1.25 1.25 0 0 0 1.25 1.25H5.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.2"
+      />
     </svg>
   );
 }
