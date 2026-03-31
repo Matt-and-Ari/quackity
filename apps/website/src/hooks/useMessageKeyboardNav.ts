@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import type { Editor } from "@tiptap/react";
+
 import type { MessageRecord } from "../types/quack";
 
 interface UseMessageKeyboardNavProps {
   activeChannelId: string | null;
   canEditOrDelete: (message: MessageRecord) => boolean;
-  channelInputRef: React.RefObject<HTMLTextAreaElement | null>;
+  channelInputRef: React.RefObject<Editor | null>;
   messages: MessageRecord[];
   onDelete: (messageId: string) => void;
   onOpenReactionMenu: (messageId: string) => void;
@@ -15,7 +17,8 @@ interface UseMessageKeyboardNavProps {
 
 export interface UseMessageKeyboardNavResult {
   clearSelection: () => void;
-  handleInputKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  handleInputFocus: () => void;
+  handleInputKeyDown: (event: KeyboardEvent) => boolean | void;
   handleMessageClick: (messageId: string) => void;
   selectedMessageId: string | null;
 }
@@ -55,22 +58,26 @@ export function useMessageKeyboardNav(
 
   useEffect(() => {
     if (selectedMessageId) {
-      props.channelInputRef.current?.blur();
+      props.channelInputRef.current?.commands.blur();
     }
   }, [selectedMessageId, props.channelInputRef]);
 
   function selectMessage(messageId: string | null) {
     setSelectedMessageId(messageId);
     if (messageId) {
-      propsRef.current.channelInputRef.current?.blur();
+      propsRef.current.channelInputRef.current?.commands.blur();
     }
   }
 
-  function handleInputKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+  function handleInputKeyDown(event: KeyboardEvent): boolean | void {
     if (event.key !== "ArrowUp") return;
 
-    const textarea = event.currentTarget;
-    if (textarea.selectionStart !== 0 || textarea.selectionEnd !== 0) return;
+    const editor = propsRef.current.channelInputRef.current;
+    if (!editor) return;
+
+    const { from, to } = editor.state.selection;
+    const isAtDocStart = from <= 1 && to <= 1;
+    if (!isAtDocStart) return;
 
     const msgs = visibleMessagesRef.current;
     const lastMessage = msgs[msgs.length - 1];
@@ -78,10 +85,29 @@ export function useMessageKeyboardNav(
 
     event.preventDefault();
     selectMessage(lastMessage.id);
+    return true;
   }
 
   function handleMessageClick(messageId: string) {
     selectMessage(messageId);
+  }
+
+  useEffect(() => {
+    function handleMouseDown(event: MouseEvent) {
+      if (!selectedMessageIdRef.current) return;
+      const target = event.target as HTMLElement;
+      if (target.closest("[data-message-id]")) return;
+      setSelectedMessageId(null);
+    }
+
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => document.removeEventListener("mousedown", handleMouseDown);
+  }, []);
+
+  function handleInputFocus() {
+    if (selectedMessageId) {
+      setSelectedMessageId(null);
+    }
   }
 
   useEffect(() => {
@@ -100,9 +126,11 @@ export function useMessageKeyboardNav(
 
       const selectedMessage = msgs[selectedIndex];
       const p = propsRef.current;
+      const hasModifier = event.metaKey || event.ctrlKey || event.altKey;
 
       switch (event.key) {
         case "ArrowUp": {
+          if (hasModifier) break;
           event.preventDefault();
           if (selectedIndex > 0) {
             selectMessage(msgs[selectedIndex - 1].id);
@@ -110,22 +138,24 @@ export function useMessageKeyboardNav(
           break;
         }
         case "ArrowDown": {
+          if (hasModifier) break;
           event.preventDefault();
           if (selectedIndex < msgs.length - 1) {
             selectMessage(msgs[selectedIndex + 1].id);
           } else {
             setSelectedMessageId(null);
-            p.channelInputRef.current?.focus();
+            p.channelInputRef.current?.commands.focus();
           }
           break;
         }
         case "Escape": {
           event.preventDefault();
           setSelectedMessageId(null);
-          p.channelInputRef.current?.focus();
+          p.channelInputRef.current?.commands.focus();
           break;
         }
         case "e": {
+          if (hasModifier) break;
           if (!selectedMessage || selectedMessage.deletedAt) break;
           if (!p.canEditOrDelete(selectedMessage)) break;
           event.preventDefault();
@@ -134,12 +164,14 @@ export function useMessageKeyboardNav(
           break;
         }
         case "r": {
+          if (hasModifier) break;
           if (!selectedMessage || selectedMessage.deletedAt) break;
           event.preventDefault();
           p.onOpenReactionMenu(selectedMessage.id);
           break;
         }
         case "t": {
+          if (hasModifier) break;
           if (!selectedMessage) break;
           event.preventDefault();
           p.onReply(selectedMessage.id);
@@ -148,6 +180,7 @@ export function useMessageKeyboardNav(
         }
         case "Backspace":
         case "Delete": {
+          if (hasModifier) break;
           if (!selectedMessage || selectedMessage.deletedAt) break;
           if (!p.canEditOrDelete(selectedMessage)) break;
           event.preventDefault();
@@ -163,6 +196,7 @@ export function useMessageKeyboardNav(
 
   return {
     clearSelection,
+    handleInputFocus,
     handleInputKeyDown,
     handleMessageClick,
     selectedMessageId,

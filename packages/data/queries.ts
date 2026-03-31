@@ -47,6 +47,10 @@ const messageFields = {
   sender: userWithAvatar,
 } as const;
 
+const threadReplyChannelPostFields = {
+  channel: {},
+} as const;
+
 export function listWorkspacesQuery() {
   return {
     workspaces: {
@@ -289,6 +293,34 @@ export function channelMeetingByCloudflareMeetingIdQuery(cloudflareMeetingId: st
   } satisfies QuackQuery;
 }
 
+export function activeChannelMeetingsByWorkspaceQuery(workspaceId: string) {
+  return {
+    channelMeetings: {
+      $: {
+        where: {
+          "channel.workspace.id": workspaceId,
+          status: "active",
+        },
+      },
+      ...channelMeetingFields,
+    },
+  } satisfies QuackQuery;
+}
+
+export function channelDraftsByUserQuery(userId: string) {
+  return {
+    channelDrafts: {
+      $: {
+        where: {
+          "$user.id": userId,
+        },
+      },
+      attachments: {},
+      channel: {},
+    },
+  } satisfies QuackQuery;
+}
+
 export function messagesByChannelQuery(
   channelId: string,
   options?: {
@@ -320,7 +352,12 @@ export function messagesByChannelQuery(
           },
         },
         attachments: messageAttachmentFields,
+        channelPost: threadReplyChannelPostFields,
         reactions: reactionFields,
+        sender: userWithAvatar,
+      },
+      threadSource: {
+        parentMessage: {},
         sender: userWithAvatar,
       },
     },
@@ -348,7 +385,12 @@ export function messageByIdQuery(messageId: string) {
           },
         },
         attachments: messageAttachmentFields,
+        channelPost: threadReplyChannelPostFields,
         reactions: reactionFields,
+        sender: userWithAvatar,
+      },
+      threadSource: {
+        parentMessage: {},
         sender: userWithAvatar,
       },
     },

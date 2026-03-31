@@ -1,7 +1,10 @@
 import {
   archiveChannelTx,
   channelsByWorkspaceQuery,
+  createChannelMemberTx,
   createChannelTx,
+  createDmChannelTx,
+  createDmChannelKey,
   createMessageAttachmentTx,
   createMessageTx,
   createReactionTx,
@@ -10,12 +13,14 @@ import {
   messagesByChannelQuery,
   updateChannelTx,
   updateMessageTx,
-  workspaceByIdQuery,
+  workspaceBySlugQuery,
   type ChannelVisibility,
 } from "@quack/data";
-import { useEffect, useMemo, useState } from "react";
+import { id, tx } from "@instantdb/core";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 
+import { extractMentionUserIds } from "../components/chat/RichTextEditor";
 import { instantDB } from "../lib/instant";
 import { asArray, slugifyChannelName, toErrorMessage } from "../lib/ui";
 import type { UploadedFile } from "./useFileUpload";
@@ -35,12 +40,23 @@ interface CreateChannelInput {
   visibility: ChannelVisibility;
 }
 
-const EMPTY_CHANNEL_ID = "00000000-0000-0000-0000-000000000000";
+const EMPTY_UUID = "00000000-0000-0000-0000-000000000000";
 
 interface UseQuackWorkspaceProps {
   channelSlug?: string;
+  clearChannelDraft?: (channelId: string) => void;
+  getChannelDraft?: (channelId: string) => string;
+  setChannelDraftExternal?: (channelId: string, value: string) => void;
   user: AuthenticatedUser;
-  workspaceId: string;
+  workspaceSlug: string;
+}
+
+export interface PendingDmInfo {
+  displayName: string;
+  imageUrl?: string;
+  isSelf: boolean;
+  role?: string;
+  slug: string;
 }
 
 export interface UseQuackWorkspaceResult {
@@ -50,28 +66,35 @@ export interface UseQuackWorkspaceResult {
   cancelRenamingChannel: () => void;
   channelDraft: string;
   channelRenameDraft: string;
+  clearChannelDraft: () => void;
   closeThread: () => void;
   createChannel: (input: CreateChannelInput) => Promise<void>;
   currentUserMember?: WorkspaceMemberRecord;
   deleteChannel: (channelId: string) => Promise<void>;
-  deleteMessage: (messageId: string) => Promise<void>;
+  deleteMessage: (messageId: string) => void;
+  dmChannels: ChannelRecord[];
   editingDraft: string;
   editingMessageId: string | null;
   errorMessage?: string;
   invites: WorkspaceInviteRecord[];
+  allWorkspaceMembers: WorkspaceMemberRecord[];
   isLoading: boolean;
+  isMessagesLoading: boolean;
+  joinChannel: (channelId: string) => Promise<void>;
   leaveChannel: (channelId: string) => Promise<void>;
   messages: MessageRecord[];
   notice: string | null;
   onlineMembers: WorkspaceMemberRecord[];
+  openOrCreateDm: (targetUserId: string) => Promise<void>;
+  pendingDmInfo: PendingDmInfo | null;
   openThread: (messageId: string) => void;
   renamingChannelId: string | null;
-  saveEditingMessage: () => Promise<void>;
+  saveEditingMessage: () => void;
   saveRenamingChannel: () => Promise<void>;
   selectedThreadMessage: MessageRecord | null;
   selectedThreadReplies: MessageRecord[];
-  sendChannelMessage: (files?: UploadedFile[]) => Promise<void>;
-  sendThreadReply: (files?: UploadedFile[]) => Promise<void>;
+  sendChannelMessage: (files?: UploadedFile[]) => void;
+  sendThreadReply: (files?: UploadedFile[], alsoSendToChannel?: boolean) => void;
   setChannelDraft: (value: string) => void;
   setChannelRenameDraft: (value: string) => void;
   setEditingDraft: (value: string) => void;
@@ -80,7 +103,12 @@ export interface UseQuackWorkspaceResult {
   startEditingMessage: (messageId: string) => void;
   startRenamingChannel: (channelId: string) => void;
   threadDraft: string;
-  toggleReaction: (messageId: string, emoji: string) => Promise<void>;
+  toggleReaction: (messageId: string, emoji: string) => void;
+  updateChannel: (
+    channelId: string,
+    input: { name: string; topic?: string; visibility?: ChannelVisibility },
+  ) => Promise<void>;
+  unjoinedChannels: ChannelRecord[];
   usersById: Map<string, InstantUserWithAvatar>;
   visibleChannels: ChannelRecord[];
   workspace: WorkspaceSummary | null;
@@ -89,19 +117,24 @@ export interface UseQuackWorkspaceResult {
 
 export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorkspaceResult {
   const [, navigate] = useLocation();
-  const [channelDraft, setChannelDraft] = useState("");
+  const [fallbackDraft, setFallbackDraft] = useState("");
   const [channelRenameDraft, setChannelRenameDraft] = useState("");
   const [editingDraft, setEditingDraft] = useState("");
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [optimisticMessages, setOptimisticMessages] = useState<MessageRecord[]>([]);
   const [renamingChannelId, setRenamingChannelId] = useState<string | null>(null);
+  const [pendingDmInfo, setPendingDmInfo] = useState<PendingDmInfo | null>(null);
   const [selectedThreadMessageId, setSelectedThreadMessageId] = useState<string | null>(null);
   const [threadDraft, setThreadDraft] = useState("");
 
-  const workspaceState = instantDB.useQuery(workspaceByIdQuery(props.workspaceId));
-  const channelsState = instantDB.useQuery(channelsByWorkspaceQuery(props.workspaceId));
+  const workspaceState = instantDB.useQuery(workspaceBySlugQuery(props.workspaceSlug));
 
   const workspace = asArray<WorkspaceSummary>(workspaceState.data?.workspaces)[0] ?? null;
+  const resolvedWorkspaceId = workspace?.id ?? EMPTY_UUID;
+
+  const channelsState = instantDB.useQuery(channelsByWorkspaceQuery(resolvedWorkspaceId));
+
   const members = asArray<WorkspaceMemberRecord>(workspace?.members);
   const invites = asArray<WorkspaceInviteRecord>(workspace?.invites);
   const allChannels = asArray<ChannelRecord>(channelsState.data?.channels);
@@ -112,59 +145,162 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
 
   const visibleChannels = useMemo(() => {
     return allChannels.filter((channel) => {
-      if (channel.archivedAt) {
-        return false;
-      }
-
-      if (channel.visibility === "public") {
-        return currentUserMember !== undefined || isOwner;
-      }
-
-      if (canManageChannels) {
-        return true;
-      }
-
+      if (channel.archivedAt) return false;
+      if (channel.visibility === "dm") return false;
       return asArray(channel.members).some((member) => member.$user?.id === props.user.id);
     });
-  }, [allChannels, canManageChannels, currentUserMember, isOwner, props.user.id]);
+  }, [allChannels, props.user.id]);
+
+  const dmChannels = useMemo(() => {
+    return allChannels.filter((channel) => {
+      if (channel.archivedAt) return false;
+      if (channel.visibility !== "dm") return false;
+      return asArray(channel.members).some((member) => member.$user?.id === props.user.id);
+    });
+  }, [allChannels, props.user.id]);
+
+  const unjoinedChannels = useMemo(() => {
+    return allChannels.filter((channel) => {
+      if (channel.archivedAt) return false;
+      const isMember = asArray(channel.members).some(
+        (member) => member.$user?.id === props.user.id,
+      );
+      if (isMember) return false;
+      if (channel.visibility === "public") return true;
+      if (canManageChannels) return true;
+      return false;
+    });
+  }, [allChannels, canManageChannels, props.user.id]);
 
   const activeChannel = useMemo(() => {
     const defaultChannel = visibleChannels[0] ?? null;
 
-    if (!defaultChannel) {
-      return null;
-    }
-
     if (!props.channelSlug) {
-      return defaultChannel;
+      return defaultChannel ?? null;
     }
 
-    return visibleChannels.find((channel) => channel.slug === props.channelSlug) ?? defaultChannel;
-  }, [props.channelSlug, visibleChannels]);
+    const allUserChannels = [...visibleChannels, ...dmChannels];
+    const found = allUserChannels.find((channel) => channel.slug === props.channelSlug);
+    if (found) return found;
+
+    // DM slug not yet in the subscription — don't fall back to a regular channel
+    if (props.channelSlug.startsWith("dm-")) return null;
+
+    return defaultChannel;
+  }, [props.channelSlug, visibleChannels, dmChannels]);
+
+  useEffect(() => {
+    if (
+      pendingDmInfo &&
+      activeChannel?.visibility === "dm" &&
+      activeChannel.slug === pendingDmInfo.slug
+    ) {
+      setPendingDmInfo(null);
+    }
+  }, [activeChannel, pendingDmInfo]);
+
+  const activeChannelId = activeChannel?.id ?? null;
+
+  const channelDraft =
+    activeChannelId && props.getChannelDraft
+      ? props.getChannelDraft(activeChannelId)
+      : fallbackDraft;
+
+  function setChannelDraft(value: string) {
+    if (activeChannelId && props.setChannelDraftExternal) {
+      props.setChannelDraftExternal(activeChannelId, value);
+    } else {
+      setFallbackDraft(value);
+    }
+  }
+
+  function clearChannelDraft() {
+    if (activeChannelId && props.clearChannelDraft) {
+      props.clearChannelDraft(activeChannelId);
+    } else {
+      setFallbackDraft("");
+    }
+  }
 
   useEffect(() => {
     if (!activeChannel) {
       return;
     }
 
+    const isDm = activeChannel.visibility === "dm";
+    const prefix = isDm ? "dms" : "channels";
+
     if (!props.channelSlug || props.channelSlug !== activeChannel.slug) {
-      navigate(`/workspaces/${props.workspaceId}/channels/${activeChannel.slug}`, {
+      navigate(`/workspaces/${props.workspaceSlug}/${prefix}/${activeChannel.slug}`, {
         replace: true,
       });
     }
-  }, [activeChannel, navigate, props.channelSlug, props.workspaceId]);
+  }, [activeChannel, navigate, props.channelSlug, props.workspaceSlug]);
+
+  const autoJoinRanForRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (autoJoinRanForRef.current === resolvedWorkspaceId) return;
+    if (!workspace || channelsState.isLoading) return;
+    if (!(currentUserMember || isOwner)) return;
+    if (allChannels.length === 0) return;
+
+    autoJoinRanForRef.current = resolvedWorkspaceId;
+
+    const publicChannelsToJoin = allChannels.filter((channel) => {
+      if (channel.archivedAt || channel.visibility !== "public") return false;
+      return !asArray(channel.members).some((member) => member.$user?.id === props.user.id);
+    });
+
+    if (publicChannelsToJoin.length === 0) return;
+
+    const txs = publicChannelsToJoin.map(
+      (channel) => createChannelMemberTx({ channelId: channel.id, userId: props.user.id }).tx,
+    );
+    void instantDB.transact(txs);
+  });
+
+  const prevChannelIdRef = useRef(activeChannelId);
+  useEffect(() => {
+    if (prevChannelIdRef.current !== activeChannelId) {
+      prevChannelIdRef.current = activeChannelId;
+      setOptimisticMessages([]);
+    }
+  }, [activeChannelId]);
 
   const hasActiveChannel = activeChannel !== null;
-  const messagesState = instantDB.useQuery(
-    messagesByChannelQuery(activeChannel?.id ?? EMPTY_CHANNEL_ID),
-  );
-  const rootMessages = useMemo(() => {
+  const messagesState = instantDB.useQuery(messagesByChannelQuery(activeChannel?.id ?? EMPTY_UUID));
+
+  const serverMessages = useMemo(() => {
     if (!hasActiveChannel) {
       return [];
     }
-
     return asArray<MessageRecord>(messagesState.data?.messages);
   }, [hasActiveChannel, messagesState.data]);
+
+  useEffect(() => {
+    if (optimisticMessages.length === 0) return;
+    const serverIds = new Set<string>();
+    for (const msg of serverMessages) {
+      serverIds.add(msg.id);
+      for (const reply of asArray(msg.threadReplies)) {
+        serverIds.add(reply.id);
+      }
+    }
+    const remaining = optimisticMessages.filter((m) => !serverIds.has(m.id));
+    if (remaining.length !== optimisticMessages.length) {
+      setOptimisticMessages(remaining);
+    }
+  }, [serverMessages, optimisticMessages]);
+
+  const rootMessages = useMemo(() => {
+    const pendingRoot = optimisticMessages.filter((m) => m.messageType === "message");
+    if (pendingRoot.length === 0) return serverMessages;
+    const serverIds = new Set(serverMessages.map((m) => m.id));
+    const deduped = pendingRoot.filter((m) => !serverIds.has(m.id));
+    if (deduped.length === 0) return serverMessages;
+    return [...serverMessages, ...deduped];
+  }, [serverMessages, optimisticMessages]);
 
   useEffect(() => {
     if (!selectedThreadMessageId) {
@@ -193,8 +329,17 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
   }, [rootMessages, selectedThreadMessageId]);
 
   const selectedThreadReplies = useMemo(() => {
-    return asArray(selectedThreadMessage?.threadReplies);
-  }, [selectedThreadMessage]);
+    const serverReplies = asArray(selectedThreadMessage?.threadReplies);
+    if (!selectedThreadMessageId || optimisticMessages.length === 0) return serverReplies;
+    const pendingReplies = optimisticMessages.filter(
+      (m) => m.messageType === "thread_reply" && m.parentMessage?.id === selectedThreadMessageId,
+    );
+    if (pendingReplies.length === 0) return serverReplies;
+    const replyIds = new Set(serverReplies.map((r) => r.id));
+    const dedupedReplies = pendingReplies.filter((m) => !replyIds.has(m.id));
+    if (dedupedReplies.length === 0) return serverReplies;
+    return [...serverReplies, ...dedupedReplies];
+  }, [selectedThreadMessage, selectedThreadMessageId, optimisticMessages]);
 
   const usersById = useMemo(() => {
     const nextUsers = new Map<string, InstantUserWithAvatar>();
@@ -295,7 +440,7 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
       );
 
       if (activeChannel?.id === renamingChannelId) {
-        navigate(`/workspaces/${workspace.id}/channels/${nextSlug}`);
+        navigate(`/workspaces/${props.workspaceSlug}/channels/${nextSlug}`);
       }
     } catch (error) {
       setNotice(toErrorMessage(error, "Could not rename the channel."));
@@ -308,6 +453,40 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
   function cancelRenamingChannel() {
     setChannelRenameDraft("");
     setRenamingChannelId(null);
+  }
+
+  async function updateChannel(
+    channelId: string,
+    input: { name: string; topic?: string; visibility?: ChannelVisibility },
+  ) {
+    if (!workspace) return;
+
+    const trimmedName = input.name.trim();
+    if (!trimmedName) return;
+
+    const nextSlug = createUniqueChannelSlug({
+      channels: allChannels,
+      currentChannelId: channelId,
+      name: trimmedName,
+    });
+
+    try {
+      await instantDB.transact(
+        updateChannelTx(channelId, {
+          name: trimmedName,
+          slug: nextSlug,
+          topic: input.topic?.trim() ?? "",
+          visibility: input.visibility,
+          workspaceId: workspace.id,
+        }),
+      );
+
+      if (activeChannel?.id === channelId) {
+        navigate(`/workspaces/${props.workspaceSlug}/channels/${nextSlug}`);
+      }
+    } catch (error) {
+      setNotice(toErrorMessage(error, "Could not update the channel."));
+    }
   }
 
   function startEditingMessage(messageId: string) {
@@ -328,7 +507,7 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
     setEditingMessageId(null);
   }
 
-  async function saveEditingMessage() {
+  function saveEditingMessage() {
     if (!editingMessageId) {
       return;
     }
@@ -339,20 +518,27 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
       return;
     }
 
-    try {
-      await instantDB.transact(
+    instantDB
+      .transact(
         updateMessageTx(editingMessageId, {
           body: trimmedBody,
           updatedAt: new Date(),
         }),
-      );
-      cancelEditingMessage();
-    } catch (error) {
-      setNotice(toErrorMessage(error, "Could not update the message."));
-    }
+      )
+      .catch((error) => {
+        setNotice(toErrorMessage(error, "Could not update the message."));
+      });
+    cancelEditingMessage();
   }
 
-  async function sendChannelMessage(files?: UploadedFile[]) {
+  function getDmRecipientUserId(): string | undefined {
+    if (activeChannel?.visibility !== "dm") return undefined;
+    const members = asArray(activeChannel.members);
+    const other = members.find((m) => m.$user?.id !== props.user.id);
+    return other?.$user?.id ?? undefined;
+  }
+
+  function sendChannelMessage(files?: UploadedFile[]) {
     if (!activeChannel) {
       return;
     }
@@ -364,33 +550,54 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
       return;
     }
 
-    try {
-      const nextMessage = createMessageTx({
-        body: trimmedBody || undefined,
-        channelId: activeChannel.id,
-        senderId: props.user.id,
-      });
+    const nextMessage = createMessageTx({
+      body: trimmedBody || undefined,
+      channelId: activeChannel.id,
+      senderId: props.user.id,
+    });
 
-      const attachmentTxs = (files ?? []).map(
-        (file) =>
-          createMessageAttachmentTx({
-            attachmentType: file.attachmentType,
-            contentType: file.contentType,
-            fileId: file.fileId,
-            messageId: nextMessage.messageId,
-            name: file.name,
-            sizeBytes: file.sizeBytes,
-          }).tx,
-      );
+    const attachmentTxs = (files ?? []).map(
+      (file) =>
+        createMessageAttachmentTx({
+          attachmentType: file.attachmentType,
+          contentType: file.contentType,
+          fileId: file.fileId,
+          messageId: nextMessage.messageId,
+          name: file.name,
+          sizeBytes: file.sizeBytes,
+        }).tx,
+    );
 
-      await instantDB.transact([nextMessage.tx, ...attachmentTxs]);
-      setChannelDraft("");
-    } catch (error) {
+    const currentUserData = currentUserMember?.$user;
+    const optimistic: MessageRecord = {
+      id: nextMessage.messageId,
+      body: trimmedBody || undefined,
+      createdAt: new Date().toISOString(),
+      messageType: "message",
+      sender: currentUserData ?? { id: props.user.id, email: props.user.email ?? "" },
+      reactions: [],
+      threadReplies: [],
+      attachments: [],
+    } as MessageRecord;
+
+    setOptimisticMessages((prev) => [...prev, optimistic]);
+
+    const mentionTxs = buildMentionTxs({
+      body: trimmedBody,
+      channelId: activeChannel.id,
+      dmRecipientUserId: getDmRecipientUserId(),
+      messageId: nextMessage.messageId,
+      senderId: props.user.id,
+    });
+
+    clearChannelDraft();
+    instantDB.transact([nextMessage.tx, ...attachmentTxs, ...mentionTxs]).catch((error) => {
+      setOptimisticMessages((prev) => prev.filter((m) => m.id !== nextMessage.messageId));
       setNotice(toErrorMessage(error, "Could not send the message."));
-    }
+    });
   }
 
-  async function sendThreadReply(files?: UploadedFile[]) {
+  function sendThreadReply(files?: UploadedFile[], alsoSendToChannel?: boolean) {
     if (!activeChannel || !selectedThreadMessage) {
       return;
     }
@@ -402,52 +609,109 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
       return;
     }
 
-    try {
-      const reply = createMessageTx({
+    const reply = createMessageTx({
+      body: trimmedBody || undefined,
+      channelId: activeChannel.id,
+      parentMessageId: selectedThreadMessage.id,
+      senderId: props.user.id,
+    });
+
+    const attachmentTxs = (files ?? []).map(
+      (file) =>
+        createMessageAttachmentTx({
+          attachmentType: file.attachmentType,
+          contentType: file.contentType,
+          fileId: file.fileId,
+          messageId: reply.messageId,
+          name: file.name,
+          sizeBytes: file.sizeBytes,
+        }).tx,
+    );
+
+    const allTxs = [reply.tx, ...attachmentTxs];
+
+    const mentionTxs = buildMentionTxs({
+      body: trimmedBody,
+      channelId: activeChannel.id,
+      dmRecipientUserId: getDmRecipientUserId(),
+      messageId: reply.messageId,
+      senderId: props.user.id,
+    });
+    allTxs.push(...mentionTxs);
+
+    let optimisticChannelMessageId: string | undefined;
+
+    if (alsoSendToChannel) {
+      const channelMessage = createMessageTx({
         body: trimmedBody || undefined,
         channelId: activeChannel.id,
-        parentMessageId: selectedThreadMessage.id,
         senderId: props.user.id,
       });
-
-      const attachmentTxs = (files ?? []).map(
-        (file) =>
-          createMessageAttachmentTx({
-            attachmentType: file.attachmentType,
-            contentType: file.contentType,
-            fileId: file.fileId,
-            messageId: reply.messageId,
-            name: file.name,
-            sizeBytes: file.sizeBytes,
-          }).tx,
-      );
-
-      await instantDB.transact([reply.tx, ...attachmentTxs]);
-      setThreadDraft("");
-    } catch (error) {
-      setNotice(toErrorMessage(error, "Could not send the thread reply."));
+      optimisticChannelMessageId = channelMessage.messageId;
+      allTxs.push(channelMessage.tx);
+      allTxs.push(tx.messages[reply.messageId].link({ channelPost: channelMessage.messageId }));
     }
+
+    const currentUserData = currentUserMember?.$user;
+    const senderData = currentUserData ?? { id: props.user.id, email: props.user.email ?? "" };
+
+    const optimisticReply: MessageRecord = {
+      id: reply.messageId,
+      body: trimmedBody || undefined,
+      createdAt: new Date().toISOString(),
+      messageType: "thread_reply",
+      parentMessage: { id: selectedThreadMessage.id } as MessageRecord,
+      sender: senderData,
+      reactions: [],
+      threadReplies: [],
+      attachments: [],
+    } as MessageRecord;
+
+    setOptimisticMessages((prev) => {
+      const next = [...prev, optimisticReply];
+      if (optimisticChannelMessageId) {
+        next.push({
+          id: optimisticChannelMessageId,
+          body: trimmedBody || undefined,
+          createdAt: new Date().toISOString(),
+          messageType: "message",
+          sender: senderData,
+          reactions: [],
+          threadReplies: [],
+          attachments: [],
+        } as MessageRecord);
+      }
+      return next;
+    });
+
+    setThreadDraft("");
+    instantDB.transact(allTxs).catch((error) => {
+      setOptimisticMessages((prev) =>
+        prev.filter((m) => m.id !== reply.messageId && m.id !== optimisticChannelMessageId),
+      );
+      setNotice(toErrorMessage(error, "Could not send the thread reply."));
+    });
   }
 
-  async function deleteMessage(messageId: string) {
-    try {
-      await instantDB.transact(
+  function deleteMessage(messageId: string) {
+    if (editingMessageId === messageId) {
+      cancelEditingMessage();
+    }
+
+    instantDB
+      .transact(
         updateMessageTx(messageId, {
           body: undefined,
           deletedAt: new Date(),
           updatedAt: new Date(),
         }),
-      );
-
-      if (editingMessageId === messageId) {
-        cancelEditingMessage();
-      }
-    } catch (error) {
-      setNotice(toErrorMessage(error, "Could not delete the message."));
-    }
+      )
+      .catch((error) => {
+        setNotice(toErrorMessage(error, "Could not delete the message."));
+      });
   }
 
-  async function toggleReaction(messageId: string, emoji: string) {
+  function toggleReaction(messageId: string, emoji: string) {
     const targetMessage = rootMessages
       .flatMap((message) => [message, ...asArray(message.threadReplies)])
       .find((message) => message.id === messageId);
@@ -460,8 +724,8 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
       (reaction) => reaction.$user?.id === props.user.id && reaction.emoji === emoji,
     );
 
-    try {
-      await instantDB.transact(
+    instantDB
+      .transact(
         existingReaction
           ? deleteReactionByKeyTx({
               emoji,
@@ -473,10 +737,10 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
               messageId,
               userId: props.user.id,
             }).tx,
-      );
-    } catch (error) {
-      setNotice(toErrorMessage(error, "Could not update the reaction."));
-    }
+      )
+      .catch((error) => {
+        setNotice(toErrorMessage(error, "Could not update the reaction."));
+      });
   }
 
   async function createChannel(input: CreateChannelInput) {
@@ -507,7 +771,7 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
         workspaceId: workspace.id,
       });
       await instantDB.transact(nextChannel.tx);
-      navigate(`/workspaces/${workspace.id}/channels/${slug}`);
+      navigate(`/workspaces/${props.workspaceSlug}/channels/${slug}`);
     } catch (error) {
       setNotice(toErrorMessage(error, "Could not create the channel."));
     }
@@ -533,24 +797,14 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
     }
 
     const channel = allChannels.find((item) => item.id === channelId);
-
-    if (!channel) {
-      return;
-    }
-
-    if (channel.visibility === "public") {
-      setNotice(
-        "Public channels are visible to the whole workspace and cannot be left individually.",
-      );
-      return;
-    }
+    if (!channel) return;
 
     const membership = asArray(channel.members).find(
       (member) => member.$user?.id === props.user.id,
     );
 
     if (!membership) {
-      setNotice("You are not a direct member of this private channel.");
+      setNotice("You are not a member of this channel.");
       return;
     }
 
@@ -561,6 +815,77 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
     }
   }
 
+  async function joinChannel(channelId: string) {
+    const channel = allChannels.find((item) => item.id === channelId);
+    if (!channel) return;
+
+    const alreadyMember = asArray(channel.members).some(
+      (member) => member.$user?.id === props.user.id,
+    );
+    if (alreadyMember) return;
+
+    if (channel.visibility === "private" && !canManageChannels) {
+      setNotice("You cannot join a private channel without an invitation.");
+      return;
+    }
+
+    try {
+      const result = createChannelMemberTx({
+        channelId,
+        userId: props.user.id,
+      });
+      await instantDB.transact(result.tx);
+    } catch (error) {
+      setNotice(toErrorMessage(error, "Could not join the channel."));
+    }
+  }
+
+  async function openOrCreateDm(targetUserId: string) {
+    if (!workspace) return;
+
+    const dmKey = createDmChannelKey(workspace.id, props.user.id, targetUserId);
+    const existingDm = allChannels.find((ch) => ch.dmKey === dmKey);
+
+    if (existingDm) {
+      navigate(`/workspaces/${props.workspaceSlug}/dms/${existingDm.slug}`);
+      return;
+    }
+
+    const targetMember = members.find((m) => m.$user?.id === targetUserId);
+    const targetName = targetMember?.displayName ?? targetMember?.$user?.email ?? "Unknown";
+    const currentName = currentUserMember?.displayName ?? props.user.email ?? "Me";
+    const isSelf = targetUserId === props.user.id;
+    const channelName = isSelf ? currentName : targetName;
+    const targetUser = targetMember?.$user;
+    const imageUrl = targetUser?.avatar?.url ?? targetUser?.imageURL ?? undefined;
+
+    const slug = `dm-${Date.now().toString(36)}`;
+
+    setPendingDmInfo({
+      displayName: channelName,
+      imageUrl,
+      isSelf,
+      role: targetMember?.role,
+      slug,
+    });
+
+    navigate(`/workspaces/${props.workspaceSlug}/dms/${slug}`);
+
+    try {
+      const result = createDmChannelTx({
+        creatorId: props.user.id,
+        name: channelName,
+        otherUserId: targetUserId,
+        slug,
+        workspaceId: workspace.id,
+      });
+      await instantDB.transact(result.tx);
+    } catch (error) {
+      setPendingDmInfo(null);
+      setNotice(toErrorMessage(error, "Could not open direct message."));
+    }
+  }
+
   return {
     activeChannel,
     canManageChannels,
@@ -568,25 +893,29 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
     cancelRenamingChannel,
     channelDraft,
     channelRenameDraft,
+    clearChannelDraft,
     closeThread,
     createChannel,
+    allWorkspaceMembers: members,
     currentUserMember,
     deleteChannel,
     deleteMessage,
+    dmChannels,
     editingDraft,
     editingMessageId,
     errorMessage:
       workspaceState.error?.message ?? channelsState.error?.message ?? messagesState.error?.message,
     invites,
-    isLoading:
-      workspaceState.isLoading ||
-      channelsState.isLoading ||
-      (hasActiveChannel && messagesState.isLoading),
+    isLoading: workspaceState.isLoading || channelsState.isLoading,
+    isMessagesLoading: hasActiveChannel && messagesState.isLoading,
+    joinChannel,
     leaveChannel,
     messages: rootMessages,
     notice,
     onlineMembers,
+    openOrCreateDm,
     openThread,
+    pendingDmInfo,
     renamingChannelId,
     saveEditingMessage,
     saveRenamingChannel,
@@ -603,6 +932,8 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
     startRenamingChannel,
     threadDraft,
     toggleReaction,
+    unjoinedChannels,
+    updateChannel,
     usersById,
     visibleChannels,
     workspace,
@@ -639,6 +970,39 @@ function collectMessageUsers(
       }
     }
   }
+}
+
+function buildMentionTxs(input: {
+  body: string;
+  channelId: string;
+  dmRecipientUserId?: string;
+  messageId: string;
+  senderId: string;
+}) {
+  const mentionedUserIds = extractMentionUserIds(input.body).filter(
+    (uid) => uid !== input.senderId,
+  );
+
+  if (input.dmRecipientUserId && !mentionedUserIds.includes(input.dmRecipientUserId)) {
+    mentionedUserIds.push(input.dmRecipientUserId);
+  }
+
+  return mentionedUserIds.map((userId) => {
+    const mentionId = id();
+    const mentionKey = `${input.messageId}:${userId}`;
+    return tx.mentions[mentionId]
+      .update({
+        channelId: input.channelId,
+        createdAt: new Date().toISOString(),
+        mentionKey,
+        read: false,
+      })
+      .link({
+        $user: userId,
+        message: input.messageId,
+        sender: input.senderId,
+      });
+  });
 }
 
 function createUniqueChannelSlug(props: {

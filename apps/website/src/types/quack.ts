@@ -60,8 +60,10 @@ export interface ReactionRecord extends ReactionEntity {
 export interface MessageRecord extends MessageEntity {
   attachments?: MessageAttachmentRecord[] | null;
   channel?: ChannelRecord | null;
+  channelPost?: MessageRecord | null;
   parentMessage?: MessageRecord | null;
   reactions?: ReactionRecord[] | null;
   sender?: InstantUserWithAvatar | null;
   threadReplies?: MessageRecord[] | null;
+  threadSource?: MessageRecord | null;
 }

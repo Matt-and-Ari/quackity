@@ -1,5 +1,101 @@
 @import "tailwindcss";
 
+@theme {
+  --animate-fade-in: fade-in 0.6s ease-out both;
+  --animate-fade-in-up: fade-in-up 0.7s ease-out both;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-pulse-soft: pulse-soft 3s ease-in-out infinite;
+  --animate-slide-in-left: slide-in-left 0.7s ease-out both;
+  --animate-slide-in-right: slide-in-right 0.7s ease-out both;
+  --animate-scale-in: scale-in 0.6s ease-out both;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes typing-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
 @layer base {
   :root {
     color-scheme: light;
@@ -25,7 +121,7 @@
   html,
   body {
     height: 100dvh;
-    @apply overflow-hidden;
+    overscroll-behavior: none;
   }
 
   body {
@@ -56,6 +152,203 @@
 
   #app {
     height: 100dvh;
-    @apply overflow-hidden;
   }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(217, 119, 6, 0.18) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: rgba(217, 119, 6, 0.18);
+    border-radius: 9999px;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: rgba(217, 119, 6, 0.35);
+  }
+
+  *::-webkit-scrollbar-thumb:active {
+    background: rgba(217, 119, 6, 0.45);
+  }
+}
+
+/* ── Tiptap editor (input) ── */
+
+.tiptap-wrapper .ProseMirror {
+  @apply text-sm leading-relaxed text-slate-700;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.tiptap-wrapper .ProseMirror p.is-editor-empty:first-child::before {
+  @apply pointer-events-none float-left h-0 text-slate-400;
+  content: attr(data-placeholder);
+}
+
+.tiptap-wrapper .ProseMirror p {
+  margin: 0;
+}
+
+.tiptap-wrapper .ProseMirror > * + * {
+  margin-top: 0.25rem;
+}
+
+.tiptap-wrapper .ProseMirror strong {
+  font-weight: 600;
+}
+
+.tiptap-wrapper .ProseMirror em {
+  font-style: italic;
+}
+
+.tiptap-wrapper .ProseMirror s {
+  text-decoration: line-through;
+}
+
+.tiptap-wrapper .ProseMirror u {
+  text-decoration: underline;
+}
+
+.tiptap-wrapper .ProseMirror code {
+  @apply rounded bg-amber-100/60 px-1 py-0.5 text-[0.8125rem] text-amber-900;
+}
+
+.tiptap-wrapper .ProseMirror pre {
+  @apply my-1 rounded-lg bg-slate-800 px-3 py-2 text-[0.8125rem] text-slate-100;
+}
+
+.tiptap-wrapper .ProseMirror pre code {
+  @apply bg-transparent p-0 text-inherit;
+}
+
+.tiptap-wrapper .ProseMirror blockquote {
+  @apply my-1 border-l-2 border-amber-300 pl-3 text-slate-500;
+}
+
+.tiptap-wrapper .ProseMirror ul {
+  @apply my-1 list-disc pl-5;
+}
+
+.tiptap-wrapper .ProseMirror ol {
+  @apply my-1 list-decimal pl-5;
+}
+
+.tiptap-wrapper .ProseMirror li {
+  @apply my-0.5;
+}
+
+.tiptap-wrapper .ProseMirror h1 {
+  @apply text-base font-bold;
+}
+
+.tiptap-wrapper .ProseMirror h2 {
+  @apply text-sm font-bold;
+}
+
+.tiptap-wrapper .ProseMirror h3 {
+  @apply text-sm font-semibold;
+}
+
+.tiptap-wrapper .ProseMirror a {
+  @apply text-cyan-600 underline decoration-cyan-300 underline-offset-2;
+}
+
+.tiptap-wrapper .ProseMirror .mention {
+  @apply rounded-md bg-amber-100/70 px-1 py-0.5 text-amber-800 font-medium;
+}
+
+/* ── Tiptap prose (rendered message body) ── */
+
+.tiptap-prose {
+  @apply text-sm leading-relaxed text-slate-700;
+}
+
+.tiptap-prose p {
+  @apply my-0;
+}
+
+.tiptap-prose > * + * {
+  @apply mt-1;
+}
+
+.tiptap-prose strong {
+  @apply font-semibold;
+}
+
+.tiptap-prose em {
+  @apply italic;
+}
+
+.tiptap-prose s {
+  @apply line-through;
+}
+
+.tiptap-prose u {
+  @apply underline;
+}
+
+.tiptap-prose code {
+  @apply rounded bg-amber-100/60 px-1 py-0.5 text-[0.8125rem] text-amber-900;
+}
+
+.tiptap-prose pre {
+  @apply my-1 overflow-x-auto rounded-lg bg-slate-800 px-3 py-2 text-[0.8125rem] text-slate-100;
+}
+
+.tiptap-prose pre code {
+  @apply bg-transparent p-0 text-inherit;
+}
+
+.tiptap-prose blockquote {
+  @apply my-1 border-l-2 border-amber-300 pl-3 text-slate-500;
+}
+
+.tiptap-prose ul {
+  @apply my-1 list-disc pl-5;
+}
+
+.tiptap-prose ol {
+  @apply my-1 list-decimal pl-5;
+}
+
+.tiptap-prose li {
+  @apply my-0.5;
+}
+
+.tiptap-prose h1 {
+  @apply text-base font-bold;
+}
+
+.tiptap-prose h2 {
+  @apply text-sm font-bold;
+}
+
+.tiptap-prose h3 {
+  @apply text-sm font-semibold;
+}
+
+.tiptap-prose a {
+  @apply text-cyan-600 underline decoration-cyan-300 underline-offset-2;
+}
+
+.tiptap-prose .mention {
+  @apply rounded-md bg-amber-100/70 px-1 py-0.5 text-amber-800 font-medium cursor-pointer;
+}
+
+.tiptap-prose .mention:hover {
+  @apply bg-amber-200/70;
+}
+
+.tiptap-prose .mention-self {
+  @apply bg-amber-200/80 text-amber-900;
 }

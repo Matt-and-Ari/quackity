@@ -43,11 +43,17 @@ const _schema = i.schema({
     channels: i.entity({
       archivedAt: i.date().optional().indexed(),
       createdAt: i.date().indexed(),
+      dmKey: i.string().optional().unique().indexed(),
       name: i.string(),
       scopedSlug: i.string().unique().indexed(),
       slug: i.string().indexed(),
       topic: i.string().optional(),
       visibility: i.string().indexed(),
+    }),
+    channelDrafts: i.entity({
+      body: i.string().optional(),
+      draftKey: i.string().unique().indexed(),
+      updatedAt: i.date().indexed(),
     }),
     channelMembers: i.entity({
       joinedAt: i.date().indexed(),
@@ -79,6 +85,12 @@ const _schema = i.schema({
       createdAt: i.date().indexed(),
       emoji: i.string().indexed(),
       reactionKey: i.string().unique().indexed(),
+    }),
+    mentions: i.entity({
+      channelId: i.string().indexed(),
+      createdAt: i.date().indexed(),
+      mentionKey: i.string().unique().indexed(),
+      read: i.boolean().indexed(),
     }),
   },
   links: {
@@ -224,6 +236,44 @@ const _schema = i.schema({
         label: "createdChannels",
       },
     },
+    channelDraftChannel: {
+      forward: {
+        on: "channelDrafts",
+        has: "one",
+        label: "channel",
+        required: true,
+      },
+      reverse: {
+        on: "channels",
+        has: "many",
+        label: "drafts",
+      },
+    },
+    channelDraftUser: {
+      forward: {
+        on: "channelDrafts",
+        has: "one",
+        label: "$user",
+        required: true,
+      },
+      reverse: {
+        on: "$users",
+        has: "many",
+        label: "channelDrafts",
+      },
+    },
+    channelDraftAttachmentFile: {
+      forward: {
+        on: "channelDrafts",
+        has: "many",
+        label: "attachments",
+      },
+      reverse: {
+        on: "$files",
+        has: "many",
+        label: "channelDrafts",
+      },
+    },
     channelMemberChannel: {
       forward: {
         on: "channelMembers",
@@ -314,6 +364,18 @@ const _schema = i.schema({
         label: "threadReplies",
       },
     },
+    messageChannelPost: {
+      forward: {
+        on: "messages",
+        has: "one",
+        label: "channelPost",
+      },
+      reverse: {
+        on: "messages",
+        has: "one",
+        label: "threadSource",
+      },
+    },
     messageAttachmentMessage: {
       forward: {
         on: "messageAttachments",
@@ -366,8 +428,54 @@ const _schema = i.schema({
         label: "reactions",
       },
     },
+    mentionMessage: {
+      forward: {
+        on: "mentions",
+        has: "one",
+        label: "message",
+        required: true,
+      },
+      reverse: {
+        on: "messages",
+        has: "many",
+        label: "mentions",
+      },
+    },
+    mentionUser: {
+      forward: {
+        on: "mentions",
+        has: "one",
+        label: "$user",
+        required: true,
+      },
+      reverse: {
+        on: "$users",
+        has: "many",
+        label: "mentions",
+      },
+    },
+    mentionSender: {
+      forward: {
+        on: "mentions",
+        has: "one",
+        label: "sender",
+        required: true,
+      },
+      reverse: {
+        on: "$users",
+        has: "many",
+        label: "sentMentions",
+      },
+    },
   },
-  rooms: {},
+  rooms: {
+    channel: {
+      presence: i.entity({
+        displayName: i.string(),
+        userId: i.string(),
+      }),
+    },
+  },
 });
 
 // This helps TypeScript display nicer intellisense

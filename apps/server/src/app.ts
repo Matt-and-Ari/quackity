@@ -5,6 +5,7 @@ import { authPlugin } from "./plugins/auth";
 import { authRoutes } from "./routes/auth";
 import { channelCallRoutes } from "./routes/channel-calls.ts";
 import { healthRoutes } from "./routes/health";
+import { inviteRoutes } from "./routes/invites";
 
 export const app = new Elysia()
   .use(cors())
@@ -12,6 +13,7 @@ export const app = new Elysia()
   .use(healthRoutes)
   .use(authRoutes)
   .use(channelCallRoutes)
+  .use(inviteRoutes)
   .get("/", () => ({
     name: "quack-server",
     ok: true,

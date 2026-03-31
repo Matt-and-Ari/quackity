@@ -44,7 +44,7 @@ export const mockWorkspace: WorkspaceSnapshot = {
   workspace: {
     id: "workspace-quack",
     createdAt: "2026-03-01T08:00:00.000Z",
-    name: "Quack",
+    name: "Quackity",
     slug: "quack",
     createdByUserId: "user-milo",
     ownerUserId: "user-milo",
@@ -52,31 +52,31 @@ export const mockWorkspace: WorkspaceSnapshot = {
   users: [
     {
       id: "user-olive",
-      email: "olive@quack.so",
+      email: "olive@quackity.so",
       imageURL:
         "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&q=80",
     },
     {
       id: "user-milo",
-      email: "milo@quack.so",
+      email: "milo@quackity.so",
       imageURL:
         "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=120&q=80",
     },
     {
       id: "user-jules",
-      email: "jules@quack.so",
+      email: "jules@quackity.so",
       imageURL:
         "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=120&q=80",
     },
     {
       id: "user-noa",
-      email: "noa@quack.so",
+      email: "noa@quackity.so",
       imageURL:
         "https://images.unsplash.com/photo-1504593811423-6dd665756598?auto=format&fit=crop&w=120&q=80",
     },
     {
       id: "user-rio",
-      email: "rio@quack.so",
+      email: "rio@quackity.so",
       imageURL:
         "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=120&q=80",
     },
@@ -273,7 +273,7 @@ export const mockWorkspace: WorkspaceSnapshot = {
   messages: [
     {
       id: "msg-flock-1",
-      body: "Morning team. The new Quack shell looks calm, bright, and way more premium already.",
+      body: "Morning team. The new Quackity shell looks calm, bright, and way more premium already.",
       createdAt: "2026-03-29T08:32:00.000Z",
       messageType: "message",
       channelId: "channel-flock-hq",

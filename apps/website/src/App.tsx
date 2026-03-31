@@ -1,23 +1,21 @@
 import type { User } from "@instantdb/react";
-import {
-  createWorkspaceMemberTx,
-  deleteWorkspaceInviteByKeyTx,
-  workspaceInvitesByEmailQuery,
-  workspaceMembershipsByUserQuery,
-  type WorkspaceRole,
-} from "@quack/data";
+import { workspaceInvitesByEmailQuery, workspaceMembershipsByUserQuery } from "@quack/data";
 import { useEffect, useMemo, useState } from "react";
 import { Link, Route, Switch, useLocation } from "wouter";
 
 import { AppFrame } from "./components/layout/AppFrame";
-import { LoadingCard } from "./components/layout/LoadingCard";
 import { Navigate } from "./components/layout/Navigate";
+import { WorkspaceShellLoading } from "./components/layout/WorkspaceShellLoading";
 import { Notice } from "./components/ui/FormFields";
-import { LoggedOutPage, OnboardingPage } from "./features/auth/AuthScreens";
+import { JoinPage, LoggedOutPage, OnboardingPage } from "./features/auth/AuthScreens";
+import { LandingPage } from "./features/landing/LandingPage";
 import { WorkspaceChatPage } from "./features/workspace/WorkspaceChatPage";
 import { instantDB } from "./lib/instant";
 import { asArray, toErrorMessage } from "./lib/ui";
-import { createWorkspaceInviteKey, normalizeEmail } from "./lib/workspaces";
+import {
+  acceptWorkspaceInvite as acceptWorkspaceInviteAction,
+  normalizeEmail,
+} from "./lib/workspaces";
 import type { WorkspaceInviteRecord, WorkspaceMemberRecord } from "./types/quack";
 
 type AuthenticatedUser = User;
@@ -26,33 +24,34 @@ export default function App() {
   const { isLoading, user } = instantDB.useAuth();
 
   if (isLoading) {
-    return (
-      <AppFrame statusLabel="Checking your Instant session">
-        <LoadingCard
-          description="Restoring your session, workspace memberships, and pending invites."
-          title="Signing you in"
-        />
-      </AppFrame>
-    );
+    return <WorkspaceShellLoading />;
   }
 
   if (!user) {
     return (
-      <AppFrame statusLabel="Sign in">
-        <Switch>
-          <Route path="/login">
-            <LoggedOutPage />
-          </Route>
+      <Switch>
+        <Route path="/">
+          <LandingPage />
+        </Route>
 
-          <Route path="/join/:workspaceId">
+        <Route path="/login">
+          <AppFrame statusLabel="Sign in">
             <LoggedOutPage />
-          </Route>
+          </AppFrame>
+        </Route>
 
-          <Route>
-            <Navigate to="/login" />
-          </Route>
-        </Switch>
-      </AppFrame>
+        <Route path="/join/:workspaceId">
+          {(params) => (
+            <AppFrame statusLabel="Accept invite">
+              <JoinPage workspaceId={params.workspaceId} />
+            </AppFrame>
+          )}
+        </Route>
+
+        <Route>
+          <Navigate to="/" />
+        </Route>
+      </Switch>
     );
   }
 
@@ -75,46 +74,42 @@ function LoggedInApp(props: { user: AuthenticatedUser }) {
     [invitesState.data],
   );
 
-  const primaryWorkspaceId = memberships[0]?.workspace?.id;
+  const primaryWorkspaceSlug = memberships[0]?.workspace?.slug;
 
   async function handleSignOut() {
     await instantDB.auth.signOut();
   }
 
   if (membershipsState.isLoading || invitesState.isLoading) {
-    return (
-      <AppFrame statusLabel="Loading your workspace graph">
-        <LoadingCard
-          description="Fetching your memberships and pending invites."
-          title="Preparing Quack"
-        />
-      </AppFrame>
-    );
+    return <WorkspaceShellLoading />;
   }
 
   return (
     <Switch>
       <Route path="/login">
-        <Navigate to={primaryWorkspaceId ? `/workspaces/${primaryWorkspaceId}` : "/onboarding"} />
+        <Navigate
+          to={primaryWorkspaceSlug ? `/workspaces/${primaryWorkspaceSlug}` : "/onboarding"}
+        />
       </Route>
 
       <Route path="/join/:workspaceId">
-        {(params) =>
-          memberships.some((m) => m.workspace?.id === params.workspaceId) ? (
-            <Navigate to={`/workspaces/${params.workspaceId}`} />
+        {(params) => {
+          const matchedMembership = memberships.find((m) => m.workspace?.id === params.workspaceId);
+          return matchedMembership?.workspace?.slug ? (
+            <Navigate to={`/workspaces/${matchedMembership.workspace.slug}`} />
           ) : (
             <WorkspaceInviteAcceptPage
               pendingInvites={pendingInvites}
               user={user}
               workspaceId={params.workspaceId}
             />
-          )
-        }
+          );
+        }}
       </Route>
 
       <Route path="/onboarding">
         {memberships.length ? (
-          <Navigate to={`/workspaces/${primaryWorkspaceId}`} />
+          <Navigate to={`/workspaces/${primaryWorkspaceSlug}`} />
         ) : (
           <AppFrame statusLabel="Create your first workspace">
             <OnboardingPage pendingInvites={pendingInvites} user={user} />
@@ -122,48 +117,16 @@ function LoggedInApp(props: { user: AuthenticatedUser }) {
         )}
       </Route>
 
-      <Route path="/workspaces/:workspaceId/setup">
+      <Route path="/workspaces/:workspaceSlug/*?">
         {(params) =>
           memberships.length ? (
             <WorkspaceChatPage
+              channelSlug={extractChannelSlug(params["*"])}
               memberships={memberships}
               onSignOut={handleSignOut}
               pendingInvites={pendingInvites}
               user={user}
-              workspaceId={params.workspaceId}
-            />
-          ) : (
-            <Navigate to="/onboarding" />
-          )
-        }
-      </Route>
-
-      <Route path="/workspaces/:workspaceId/channels/:channelSlug">
-        {(params) =>
-          memberships.length ? (
-            <WorkspaceChatPage
-              channelSlug={params.channelSlug}
-              memberships={memberships}
-              onSignOut={handleSignOut}
-              pendingInvites={pendingInvites}
-              user={user}
-              workspaceId={params.workspaceId}
-            />
-          ) : (
-            <Navigate to="/onboarding" />
-          )
-        }
-      </Route>
-
-      <Route path="/workspaces/:workspaceId">
-        {(params) =>
-          memberships.length ? (
-            <WorkspaceChatPage
-              memberships={memberships}
-              onSignOut={handleSignOut}
-              pendingInvites={pendingInvites}
-              user={user}
-              workspaceId={params.workspaceId}
+              workspaceSlug={params.workspaceSlug}
             />
           ) : (
             <Navigate to="/onboarding" />
@@ -172,7 +135,9 @@ function LoggedInApp(props: { user: AuthenticatedUser }) {
       </Route>
 
       <Route path="/">
-        <Navigate to={primaryWorkspaceId ? `/workspaces/${primaryWorkspaceId}` : "/onboarding"} />
+        <Navigate
+          to={primaryWorkspaceSlug ? `/workspaces/${primaryWorkspaceSlug}` : "/onboarding"}
+        />
       </Route>
 
       <Route>
@@ -194,6 +159,9 @@ function WorkspaceInviteAcceptPage(props: {
 
   const invite =
     props.pendingInvites.find((entry) => entry.workspace?.id === props.workspaceId) ?? null;
+
+  const queryParams = new URLSearchParams(window.location.search);
+  const workspaceNameHint = invite?.workspace?.name ?? queryParams.get("workspace");
 
   useEffect(() => {
     if (!invite || isSubmitting || hasAttempted) {
@@ -229,21 +197,48 @@ function WorkspaceInviteAcceptPage(props: {
   }, [hasAttempted, invite, isSubmitting, navigate, props.user]);
 
   if (!invite) {
+    async function handleSignOut() {
+      await instantDB.auth.signOut();
+    }
+
     return (
       <AppFrame statusLabel="Invite not found">
         <section className="flex flex-1 items-center justify-center px-4 py-14">
           <div className="w-full max-w-md rounded-[1.45rem] border border-amber-200/60 bg-white/82 p-5 shadow-[0_18px_50px_rgba(217,119,6,0.08)] sm:p-6">
             <p className="text-lg font-semibold text-slate-900">Invite not found</p>
             <p className="mt-2 text-sm text-slate-500">
-              This account does not have a pending invite for that workspace. Sign in with the
-              invited email address or ask the workspace owner to send a new invite.
+              {workspaceNameHint ? (
+                <>
+                  No pending invite for{" "}
+                  <span className="font-medium text-slate-700">{workspaceNameHint}</span> was found
+                  for this account.
+                </>
+              ) : (
+                "No pending invite was found for this account."
+              )}
             </p>
-            <Link
-              className="mt-4 inline-block rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-medium text-white transition-colors duration-100 hover:bg-amber-600"
-              href="/"
-            >
-              Back to Quack
-            </Link>
+            <p className="mt-1.5 text-sm text-slate-500">
+              You&rsquo;re signed in as{" "}
+              <span className="font-medium text-slate-700">{props.user.email}</span>. If the invite
+              was sent to a different email, sign out and try again.
+            </p>
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <button
+                className="rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-medium text-white transition-colors duration-100 hover:bg-amber-600"
+                onClick={() => {
+                  void handleSignOut();
+                }}
+                type="button"
+              >
+                Sign out &amp; use another account
+              </button>
+              <Link
+                className="rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors duration-100 hover:bg-slate-100"
+                href="/"
+              >
+                Back to Quackity
+              </Link>
+            </div>
           </div>
         </section>
       </AppFrame>
@@ -292,7 +287,7 @@ function WorkspaceInviteAcceptPage(props: {
               className="rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors duration-100 hover:bg-slate-100"
               href="/"
             >
-              Back to Quack
+              Back to Quackity
             </Link>
           </div>
         </div>
@@ -302,36 +297,11 @@ function WorkspaceInviteAcceptPage(props: {
 }
 
 async function acceptWorkspaceInvite(invite: WorkspaceInviteRecord, user: AuthenticatedUser) {
-  if (!user.email || !invite.workspace) {
-    throw new Error("This account needs an email before it can accept workspace invites.");
-  }
-
-  const role = coerceWorkspaceRole(invite.role);
-  const membership = createWorkspaceMemberTx({
-    acceptedInviteKey: createWorkspaceInviteKey(invite.workspace.id, invite.email, role),
-    displayName: user.email.split("@")[0],
-    role,
-    userId: user.id,
-    workspaceId: invite.workspace.id,
-  });
-
-  await instantDB.transact(membership.tx);
-
-  await instantDB.transact(
-    deleteWorkspaceInviteByKeyTx({
-      email: invite.email,
-      role,
-      workspaceId: invite.workspace.id,
-    }),
-  );
-
-  return `/workspaces/${invite.workspace.id}`;
+  return await acceptWorkspaceInviteAction(invite, user);
 }
 
-function coerceWorkspaceRole(value: string): WorkspaceRole {
-  if (value === "admin" || value === "guest") {
-    return value;
-  }
-
-  return "member";
+function extractChannelSlug(rest: string | undefined): string | undefined {
+  if (!rest) return undefined;
+  const match = rest.match(/^(?:channels|dms)\/([^/]+)/);
+  return match?.[1];
 }

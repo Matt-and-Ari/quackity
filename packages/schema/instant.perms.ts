@@ -90,11 +90,12 @@ const rules = {
         "(isInitialOwnerMembership || isWorkspaceOwner || (isWorkspaceAdmin && createsNonAdminMembership) || isInviteeCreatingMembership) && validRole",
       delete: "isWorkspaceOwner || (isWorkspaceAdmin && !isTargetManagerOrOwner)",
       update:
-        "(isWorkspaceOwner && validUpdatedRole) || (isWorkspaceAdmin && !updatesRole && !isTargetManagerOrOwner)",
+        "(isSelf && !updatesRole) || (isWorkspaceOwner && validUpdatedRole) || (isWorkspaceAdmin && !updatesRole && !isTargetManagerOrOwner)",
       view: "isWorkspaceMember",
     },
     bind: {
       createsNonAdminMembership: "data.role in ['member', 'guest']",
+      isSelf: "auth.id != null && auth.id in data.ref('$user.id')",
       isInitialOwnerMembership:
         "auth.id != null && auth.id in data.ref('$user.id') && auth.id in data.ref('workspace.owner.id') && data.role == 'admin'",
       isInviteeCreatingMembership:
@@ -132,7 +133,7 @@ const rules = {
   },
   channels: {
     allow: {
-      create: "isCreator && isWorkspaceManager && validVisibility",
+      create: "isCreator && (isWorkspaceManager || isDmChannel) && validVisibility",
       delete: "isWorkspaceManager",
       update: "isWorkspaceManager && validUpdatedVisibility",
       view: "canViewChannel",
@@ -145,15 +146,34 @@ const rules = {
         workspaceOwnerIds: "data.ref('workspace.owner.id')",
       }),
       isCreator: "auth.id != null && auth.id in data.ref('createdBy.id')",
+      isDmChannel: "data.visibility == 'dm' && isWorkspaceViewer",
       validUpdatedVisibility:
         "!('visibility' in request.modifiedFields) || newData.visibility in ['public', 'private']",
-      validVisibility: "data.visibility in ['public', 'private']",
+      validVisibility: "data.visibility in ['public', 'private', 'dm']",
+    },
+  },
+  channelDrafts: {
+    allow: {
+      create: "isOwner && canViewChannel",
+      delete: "isOwner",
+      update: "isOwner",
+      view: "isOwner",
+    },
+    bind: {
+      ...buildChannelAccessBinds({
+        channelId: "data.ref('channel.id')[0]",
+        visibility: "data.ref('channel.visibility')[0]",
+        workspaceId: "data.ref('channel.workspace.id')[0]",
+        workspaceOwnerIds: "data.ref('channel.workspace.owner.id')",
+      }),
+      isOwner: "auth.id != null && auth.id in data.ref('$user.id')",
     },
   },
   channelMembers: {
     allow: {
-      create: "isWorkspaceManager",
-      delete: "isWorkspaceManager",
+      create:
+        "isWorkspaceManager || (isSelf && isPublicChannel && isWorkspaceViewer) || isDmChannelCreator",
+      delete: "isWorkspaceManager || isSelf",
       update: "false",
       view: "canViewChannel",
     },
@@ -164,6 +184,10 @@ const rules = {
         workspaceId: "data.ref('channel.workspace.id')[0]",
         workspaceOwnerIds: "data.ref('channel.workspace.owner.id')",
       }),
+      isDmChannelCreator:
+        "data.ref('channel.visibility')[0] == 'dm' && auth.id != null && auth.id in data.ref('channel.createdBy.id')",
+      isPublicChannel: "data.ref('channel.visibility')[0] == 'public'",
+      isSelf: "auth.id != null && auth.id in data.ref('$user.id')",
     },
   },
   channelMeetings: {
@@ -242,6 +266,26 @@ const rules = {
       }),
       isActor: "auth.id != null && auth.id in data.ref('$user.id')",
       isActorOrWorkspaceManager: "isActor || isWorkspaceManager",
+    },
+  },
+  mentions: {
+    allow: {
+      create: "canViewChannel && isSender",
+      delete: "isSenderOrMentionedUser",
+      update: "isMentionedUser && onlyReadField",
+      view: "canViewChannel",
+    },
+    bind: {
+      ...buildChannelAccessBinds({
+        channelId: "data.ref('message.channel.id')[0]",
+        visibility: "data.ref('message.channel.visibility')[0]",
+        workspaceId: "data.ref('message.channel.workspace.id')[0]",
+        workspaceOwnerIds: "data.ref('message.channel.workspace.owner.id')",
+      }),
+      isMentionedUser: "auth.id != null && auth.id in data.ref('$user.id')",
+      isSender: "auth.id != null && auth.id in data.ref('sender.id')",
+      isSenderOrMentionedUser: "isSender || isMentionedUser",
+      onlyReadField: "request.modifiedFields.all(field, field in ['read'])",
     },
   },
 } satisfies InstantRules;

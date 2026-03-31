@@ -85,7 +85,7 @@ export function useQuackApp(): UseQuackAppResult {
     const defaultChannel = visibleChannels[0];
 
     if (!defaultChannel) {
-      throw new Error("Quack playground requires at least one channel");
+      throw new Error("Quackity playground requires at least one channel");
     }
 
     if (!isChannelRouteMatch) {
@@ -211,7 +211,7 @@ export function useQuackApp(): UseQuackAppResult {
     const user = usersById.get(workspaceData.currentUserId);
 
     if (!user) {
-      throw new Error("Current Quack user not found");
+      throw new Error("Current Quackity user not found");
     }
 
     return user;
