@@ -4,10 +4,10 @@ import { instantDB } from "../lib/instant";
 import { asArray } from "../lib/ui";
 import type { ChannelRecord, MessageRecord } from "../types/quack";
 
-export interface SearchResult {
-  channel: ChannelRecord;
-  message: MessageRecord;
-}
+export type SearchResult =
+  | { type: "message"; channel: ChannelRecord; message: MessageRecord }
+  | { type: "thread"; channel: ChannelRecord; message: MessageRecord; parentMessageId: string }
+  | { type: "channel"; channel: ChannelRecord };
 
 interface UseSearchMessagesProps {
   visibleChannels: ChannelRecord[];
@@ -36,13 +36,13 @@ export function useSearchMessages(props: UseSearchMessagesProps): UseSearchMessa
             $: {
               where: {
                 "channel.workspace.id": props.workspaceId,
-                messageType: "message",
                 deletedAt: { $isNull: true },
               },
               order: { createdAt: "desc" as const },
             },
             sender: { avatar: {} },
             channel: {},
+            parentMessage: {},
           },
         }
       : null,
@@ -50,7 +50,7 @@ export function useSearchMessages(props: UseSearchMessagesProps): UseSearchMessa
 
   const allMessages = useMemo(() => {
     return asArray(messagesState.data?.messages) as Array<
-      MessageRecord & { channel?: { id: string } }
+      MessageRecord & { channel?: { id: string }; parentMessage?: { id: string } | null }
     >;
   }, [messagesState.data]);
 
@@ -60,6 +60,16 @@ export function useSearchMessages(props: UseSearchMessagesProps): UseSearchMessa
 
     const terms = trimmed.split(/\s+/);
     const matched: SearchResult[] = [];
+
+    const matchedChannelIds = new Set<string>();
+    for (const channel of props.visibleChannels) {
+      const nameLower = channel.name.toLowerCase();
+      const allMatch = terms.every((term) => nameLower.includes(term));
+      if (allMatch) {
+        matched.push({ type: "channel", channel });
+        matchedChannelIds.add(channel.id);
+      }
+    }
 
     for (const message of allMessages) {
       if (!message.body) continue;
@@ -74,12 +84,18 @@ export function useSearchMessages(props: UseSearchMessagesProps): UseSearchMessa
       const allMatch = terms.every((term) => bodyLower.includes(term));
       if (!allMatch) continue;
 
-      matched.push({ channel, message });
+      const parentId = message.parentMessage?.id ?? null;
+      if (parentId) {
+        matched.push({ type: "thread", channel, message, parentMessageId: parentId });
+      } else {
+        matched.push({ type: "message", channel, message });
+      }
+
       if (matched.length >= 50) break;
     }
 
     return matched;
-  }, [query, allMessages, channelsById]);
+  }, [query, allMessages, channelsById, props.visibleChannels]);
 
   return {
     isLoading: messagesState.isLoading,

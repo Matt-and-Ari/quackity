@@ -4,7 +4,7 @@ import { useLocation } from "wouter";
 
 import clsx from "clsx";
 
-import { ChannelLink } from "../../../components/chat/ChatPrimitives";
+import { ChannelLink } from "../../../components/chat/ChannelLink";
 import { nameFromEmail } from "../../../lib/ui";
 import { acceptWorkspaceInvite } from "../../../lib/workspaces";
 import type { UseQuackWorkspaceResult } from "../../../hooks/useQuackWorkspace";

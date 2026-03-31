@@ -91,7 +91,7 @@ export function SearchCommandMenu(props: SearchCommandMenuProps) {
             autoComplete="off"
             className="min-w-0 flex-1 bg-transparent text-base text-slate-900 outline-none placeholder:text-slate-400"
             onChange={(event) => props.search.setQuery(event.target.value)}
-            placeholder="Search messages..."
+            placeholder="Search messages and channels..."
             ref={inputRef}
             spellCheck={false}
             type="text"
@@ -108,13 +108,13 @@ export function SearchCommandMenu(props: SearchCommandMenuProps) {
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-amber-300 border-t-amber-500" />
             </div>
           ) : hasQuery && !hasResults ? (
-            <div className="px-5 py-12 text-center text-sm text-slate-400">No messages found</div>
+            <div className="px-5 py-12 text-center text-sm text-slate-400">No results found</div>
           ) : hasResults ? (
             <div className="py-2">
               {props.search.results.map((result, index) => (
                 <SearchResultRow
                   isActive={index === activeIndex}
-                  key={result.message.id}
+                  key={resultKey(result)}
                   onMouseEnter={() => setActiveIndex(index)}
                   onSelect={() => props.onSelectResult(result)}
                   query={props.search.query}
@@ -124,7 +124,7 @@ export function SearchCommandMenu(props: SearchCommandMenuProps) {
             </div>
           ) : (
             <div className="px-5 py-12 text-center text-sm text-slate-400">
-              Type to search across all channels
+              Search messages, threads, and channels
             </div>
           )}
         </div>
@@ -132,6 +132,11 @@ export function SearchCommandMenu(props: SearchCommandMenuProps) {
     </div>,
     document.body,
   );
+}
+
+function resultKey(result: SearchResult): string {
+  if (result.type === "channel") return `ch-${result.channel.id}`;
+  return `msg-${result.message.id}`;
 }
 
 interface SearchResultRowProps {
@@ -143,12 +148,41 @@ interface SearchResultRowProps {
 }
 
 function SearchResultRow(props: SearchResultRowProps) {
+  if (props.result.type === "channel") {
+    return (
+      <button
+        className={clsx(
+          "flex w-full items-center gap-3 px-5 py-3 text-left transition-colors duration-75",
+          props.isActive ? "bg-amber-50/80" : "hover:bg-amber-50/50",
+        )}
+        data-active={props.isActive}
+        onClick={props.onSelect}
+        onMouseEnter={props.onMouseEnter}
+        type="button"
+      >
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-amber-100/60 text-amber-600">
+          <ChannelGlyph />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[0.9rem] font-medium text-slate-800">
+            <HighlightedText query={props.query} text={props.result.channel.name} />
+          </p>
+          {props.result.channel.topic ? (
+            <p className="truncate text-xs text-slate-400">{props.result.channel.topic}</p>
+          ) : null}
+        </div>
+        <span className="text-[0.65rem] text-slate-300">Channel</span>
+      </button>
+    );
+  }
+
   const senderName = props.result.message.sender?.email
     ? nameFromEmail(props.result.message.sender.email)
     : "Unknown";
   const channelName = props.result.channel.name;
   const body = props.result.message.body ?? "";
   const timestamp = props.result.message.createdAt;
+  const isThread = props.result.type === "thread";
 
   return (
     <button
@@ -163,6 +197,11 @@ function SearchResultRow(props: SearchResultRowProps) {
     >
       <div className="flex items-center gap-2">
         <span className="text-xs font-medium text-amber-600">#{channelName}</span>
+        {isThread ? (
+          <span className="rounded bg-amber-100/60 px-1.5 py-0.5 text-[0.6rem] font-medium text-amber-600/80">
+            thread
+          </span>
+        ) : null}
         <span className="text-xs text-slate-400">{senderName}</span>
         {timestamp ? (
           <span className="ml-auto text-[0.65rem] text-slate-300">
@@ -213,6 +252,20 @@ function SearchGlyph() {
     <svg className="shrink-0 text-slate-400" fill="none" height="18" viewBox="0 0 16 16" width="18">
       <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.4" />
       <path d="M10.5 10.5 14 14" stroke="currentColor" strokeLinecap="round" strokeWidth="1.4" />
+    </svg>
+  );
+}
+
+function ChannelGlyph() {
+  return (
+    <svg fill="none" height="14" viewBox="0 0 14 14" width="14">
+      <path
+        d="M5.25 1.75 4.08 12.25M9.92 1.75 8.75 12.25M1.75 4.67h10.5M1.75 9.33h10.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.3"
+      />
     </svg>
   );
 }

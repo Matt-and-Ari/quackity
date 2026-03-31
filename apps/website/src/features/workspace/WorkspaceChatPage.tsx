@@ -2,32 +2,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "wouter";
 
-import {
-  CopyGlyph,
-  DateHeading,
-  DeleteGlyph,
-  EditGlyph,
-  LeaveGlyph,
-  MessageCard,
-  MessageInput,
-  ReactionGlyph,
-  ReplyGlyph,
-  ResizeHandle,
-  ThreadPanel,
-  dateDayKey,
-} from "../../components/chat/ChatPrimitives";
+import { ResizeHandle } from "../../components/chat/ResizeHandle";
+import { ThreadPanel } from "../../components/chat/ThreadPanel";
 import { Navigate } from "../../components/layout/Navigate";
 import { WorkspaceShellLoading } from "../../components/layout/WorkspaceShellLoading";
-import { Notice } from "../../components/ui/FormFields";
-import {
-  GlobalContextMenu,
-  type ContextMenuEntry,
-  type ContextMenuState,
-} from "../../components/ui/GlobalContextMenu";
+import { GlobalContextMenu } from "../../components/ui/GlobalContextMenu";
 import { EmojiMenu } from "../../components/ui/EmojiMenu";
-import { HoverTooltip } from "../../components/ui/HoverTooltip";
 import { SearchCommandMenu } from "../../components/ui/SearchCommandMenu";
-import { anchorFromPoint, type FloatingAnchor } from "../../components/ui/floating";
+import { anchorFromPoint } from "../../components/ui/floating";
 import { useFileUpload } from "../../hooks/useFileUpload";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { useMessageKeyboardNav } from "../../hooks/useMessageKeyboardNav";
@@ -36,14 +18,10 @@ import { useQuackWorkspace } from "../../hooks/useQuackWorkspace";
 import { useSearchMessages, type SearchResult } from "../../hooks/useSearchMessages";
 import { CallModal, useChannelCall } from "../../lib/channel-calls";
 import { normalizeEmail } from "../../lib/workspaces";
+import { ChannelFooter } from "./components/ChannelFooter";
+import { ChannelHeader } from "./components/ChannelHeader";
+import { ChannelMessageList } from "./components/ChannelMessageList";
 import { DirectoryPanel } from "./components/WorkspaceDirectoryPanel";
-import {
-  CallGlyph,
-  ChannelEmptyState,
-  HamburgerGlyph,
-  HangUpGlyph,
-  KebabGlyph,
-} from "./components/WorkspaceGlyphs";
 import {
   CreateChannelModal,
   DeleteConfirmModal,
@@ -52,10 +30,10 @@ import {
   SettingsModal,
 } from "./components/WorkspaceModals";
 import { SidebarContent } from "./components/WorkspaceSidebar";
+import { useContextMenus } from "./hooks/useContextMenus";
+import { useEmojiMenuState } from "./hooks/useEmojiMenuState";
 import type {
   AuthenticatedUser,
-  ChannelRecord,
-  MessageRecord,
   WorkspaceInviteRecord,
   WorkspaceMemberRecord,
 } from "../../types/quack";
@@ -97,14 +75,6 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
   const threadInputRef = useRef<HTMLTextAreaElement>(null);
   const threadScrollRef = useRef<HTMLDivElement>(null);
   const [alsoSendToChannel, setAlsoSendToChannel] = useState(false);
-  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
-  const [emojiMenuState, setEmojiMenuState] = useState<{
-    anchor: FloatingAnchor | null;
-    messageId: string | null;
-  }>({
-    anchor: null,
-    messageId: null,
-  });
   const [editingChannelId, setEditingChannelId] = useState<string | null>(null);
   const [isCreateChannelOpen, setIsCreateChannelOpen] = useState(false);
   const [isDirectoryOpen, setIsDirectoryOpen] = useState(false);
@@ -134,6 +104,37 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
 
   const callChannelId = callSession?.channelId ?? null;
 
+  const emojiMenu = useEmojiMenuState();
+
+  const contextMenus = useContextMenus({
+    activeChannelId: app.activeChannel?.id,
+    callChannelId,
+    canManageChannels: app.canManageChannels,
+    currentUserId: props.user.id,
+    isInCall,
+    navigate: (to) => navigate(to),
+    onDeleteChannel: (channelId) => {
+      void app.deleteChannel(channelId);
+    },
+    onEditChannel: (channelId) => setEditingChannelId(channelId),
+    onLeaveCall: () => {
+      void leave();
+    },
+    onLeaveChannel: (channelId) => {
+      void app.leaveChannel(channelId);
+    },
+    onOpenPrejoin: openPrejoin,
+    onOpenThread: (messageId) => app.openThread(messageId),
+    onSetPendingDeleteMessageId: (messageId) => setPendingDeleteMessageId(messageId),
+    onStartEditMessage: (messageId) => app.startEditingMessage(messageId),
+    onToggleReaction: (messageId, emoji) => {
+      void app.toggleReaction(messageId, emoji);
+    },
+    openEmojiMenu: emojiMenu.openEmojiMenu,
+    visibleChannelsCount: app.visibleChannels.length,
+    workspaceId: props.workspaceId,
+  });
+
   const search = useSearchMessages({
     visibleChannels: app.visibleChannels,
     workspaceId: props.workspaceId,
@@ -146,13 +147,9 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
   const channelUpload = useFileUpload({ workspaceId: props.workspaceId });
   const threadUpload = useFileUpload({ workspaceId: props.workspaceId });
 
-  function isOwnMessage(message: MessageRecord) {
-    return message.sender?.id === props.user.id;
-  }
-
   const keyboardNav = useMessageKeyboardNav({
     activeChannelId: app.activeChannel?.id ?? null,
-    canEditOrDelete: isOwnMessage,
+    canEditOrDelete: (message) => message.sender?.id === props.user.id,
     channelInputRef,
     messages: app.messages,
     onDelete: (messageId) => setPendingDeleteMessageId(messageId),
@@ -160,7 +157,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
       const el = document.querySelector(`[data-message-id="${messageId}"]`);
       if (el) {
         const rect = el.getBoundingClientRect();
-        openEmojiMenu(anchorFromPoint(rect.right - 40, rect.top), messageId);
+        emojiMenu.openEmojiMenu(anchorFromPoint(rect.right - 40, rect.top), messageId);
       }
     },
     onReply: (messageId) => app.openThread(messageId),
@@ -276,7 +273,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
   }, [pendingThreadReplyId, app.selectedThreadMessage, app.selectedThreadReplies]);
 
   useEffect(() => {
-    setContextMenu(null);
+    contextMenus.setContextMenu(null);
   }, [
     app.activeChannel?.id,
     app.editingMessageId,
@@ -330,6 +327,12 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
   function handleSearchSelect(result: SearchResult) {
     closeSearch();
     const targetChannel = result.channel;
+
+    if (result.type === "channel") {
+      navigate(`/workspaces/${props.workspaceId}/channels/${targetChannel.slug}`);
+      return;
+    }
+
     const targetMessageId = result.message.id;
 
     if (app.activeChannel?.id === targetChannel.id) {
@@ -340,203 +343,23 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     }
   }
 
-  function closeContextMenu() {
-    setContextMenu(null);
-  }
-
-  function closeEmojiMenu() {
-    setEmojiMenuState({ anchor: null, messageId: null });
-  }
-
-  function openEmojiMenu(anchor: FloatingAnchor, messageId: string) {
-    setContextMenu(null);
-    setEmojiMenuState({ anchor, messageId });
-  }
-
   async function handleEmojiSelect(emoji: string) {
-    if (!emojiMenuState.messageId) {
+    if (!emojiMenu.messageId) {
       return;
     }
 
-    await app.toggleReaction(emojiMenuState.messageId, emoji);
-    closeEmojiMenu();
+    await app.toggleReaction(emojiMenu.messageId, emoji);
+    emojiMenu.closeEmojiMenu();
   }
 
-  function handleChannelContextMenu(event: React.MouseEvent, channel: ChannelRecord) {
-    event.preventDefault();
-    closeEmojiMenu();
-
-    const canRemoveChannel = app.visibleChannels.length > 1;
-    const hasMembership = Boolean(
-      channel.members?.some((member) => member.$user?.id === props.user.id),
-    );
-    const canLeaveChannel = canRemoveChannel && hasMembership;
-
-    const isInCallOnThisChannel = isInCall && callChannelId === channel.id;
-
-    const entries: ContextMenuEntry[] = [];
-
-    if (!isInCall) {
-      entries.push({
-        disabled: !channel.id || !props.user.refresh_token,
-        hint: "Start a new call in this channel",
-        icon: <CallGlyph />,
-        id: "start-call",
-        label: "Start call",
-        onSelect: () => {
-          if (channel.id !== app.activeChannel?.id) {
-            navigate(`/workspaces/${props.workspaceId}/channels/${channel.slug}`);
-          }
-          requestAnimationFrame(() => openPrejoin());
-        },
-      });
-    }
-
-    if (isInCallOnThisChannel) {
-      entries.push({
-        disabled: false,
-        hint: "Leave the active call",
-        icon: <HangUpGlyph />,
-        id: "leave-call",
-        label: "Leave call",
-        onSelect: () => {
-          void leave();
-        },
-        tone: "danger",
-      });
-    }
-
-    if (entries.length > 0) {
-      entries.push({ id: "separator-call-actions", type: "separator" });
-    }
-
-    entries.push(
-      {
-        disabled: !app.canManageChannels,
-        hint: app.canManageChannels
-          ? "Edit name, description, and visibility"
-          : "Only workspace managers can edit channels",
-        icon: <EditGlyph />,
-        id: "edit-channel",
-        label: "Edit channel",
-        onSelect: () => setEditingChannelId(channel.id),
-      },
-      { id: "separator-channel-actions", type: "separator" },
-      {
-        disabled: !app.canManageChannels || !canRemoveChannel,
-        hint: !canRemoveChannel
-          ? "At least one channel must remain"
-          : app.canManageChannels
-            ? "Archive it from the sidebar"
-            : "Only workspace managers can delete channels",
-        icon: <DeleteGlyph />,
-        id: "delete-channel",
-        label: "Delete channel",
-        onSelect: () => {
-          void app.deleteChannel(channel.id);
-        },
-        tone: "danger",
-      },
-      {
-        disabled: !canLeaveChannel,
-        hint: !canRemoveChannel
-          ? "At least one channel must remain"
-          : !hasMembership
-            ? "You are not a member of this channel"
-            : "Remove this channel from your sidebar",
-        icon: <LeaveGlyph />,
-        id: "leave-channel",
-        label: "Leave channel",
-        onSelect: () => {
-          void app.leaveChannel(channel.id);
-        },
-      },
-    );
-
-    setContextMenu({
-      entries,
-      subtitle: channel.visibility === "private" ? "Private channel" : "Public channel",
-      title: `#${channel.name}`,
-      x: event.clientX,
-      y: event.clientY,
-    });
+  function handleJumpToChannelPost(channelPostMessageId: string) {
+    keyboardNav.handleMessageClick(channelPostMessageId);
   }
 
-  function handleMessageContextMenu(event: React.MouseEvent, message: MessageRecord) {
-    event.preventDefault();
-    closeEmojiMenu();
-
-    const menuX = event.clientX;
-    const menuY = event.clientY;
-    const threadTargetMessageId = message.parentMessage?.id ?? message.id;
-    const isDeleted = Boolean(message.deletedAt);
-    const isOwn = isOwnMessage(message);
-    const entries: ContextMenuEntry[] = [
-      {
-        hint: message.parentMessage ? "Jump back to the thread" : "Open the conversation drawer",
-        icon: <ReplyGlyph />,
-        id: "reply-thread",
-        label: "Reply in thread",
-        onSelect: () => app.openThread(threadTargetMessageId),
-      },
-      {
-        disabled: isDeleted,
-        hint: isDeleted ? "Unavailable for deleted messages" : "Browse the full emoji menu",
-        icon: <ReactionGlyph />,
-        id: "add-reaction",
-        label: "Add reaction",
-        onSelect: () => {
-          requestAnimationFrame(() => {
-            openEmojiMenu(anchorFromPoint(menuX, menuY), message.id);
-          });
-        },
-      },
-      {
-        disabled: isDeleted || !message.body,
-        hint: isDeleted ? "Unavailable for deleted messages" : "Copy the message text",
-        icon: <CopyGlyph />,
-        id: "copy-text",
-        label: "Copy text",
-        onSelect: () => {
-          if (message.body) {
-            void navigator.clipboard.writeText(message.body);
-          }
-        },
-      },
-    ];
-
-    if (isOwn) {
-      entries.push(
-        { id: "separator-message-actions", type: "separator" },
-        {
-          disabled: isDeleted,
-          hint: isDeleted ? "Deleted messages cannot be edited" : "Open the inline editor",
-          icon: <EditGlyph />,
-          id: "edit-message",
-          label: "Edit message",
-          onSelect: () => app.startEditingMessage(message.id),
-        },
-        {
-          disabled: isDeleted,
-          hint: isDeleted
-            ? "This message is already deleted"
-            : "Replace the body with a deleted state",
-          icon: <DeleteGlyph />,
-          id: "delete-message",
-          label: "Delete message",
-          onSelect: () => setPendingDeleteMessageId(message.id),
-          tone: "danger",
-        },
-      );
-    }
-
-    setContextMenu({
-      entries,
-      subtitle: "Message actions",
-      title: "Conversation menu",
-      x: menuX,
-      y: menuY,
-    });
+  function handleJumpToThreadSource(threadReplyId: string, parentMessageId: string) {
+    app.openThread(parentMessageId);
+    setPendingThreadReplyId(threadReplyId);
+    requestAnimationFrame(() => threadInputRef.current?.focus());
   }
 
   const sidebarContentProps = {
@@ -545,7 +368,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     currentUserMember: app.currentUserMember,
     isDirectoryOpen,
     memberships: props.memberships,
-    onChannelContextMenu: handleChannelContextMenu,
+    onChannelContextMenu: contextMenus.handleChannelContextMenu,
     onChannelNavigate: () => {
       setIsDirectoryOpen(false);
       closeSidebar();
@@ -563,94 +386,13 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     workspaceId: workspace.id,
   };
 
-  const threadCurrentUser = app.usersById.get(props.user.id) ?? {
-    email: props.user.email ?? undefined,
-    id: props.user.id,
-  };
-
-  function handleThreadMessageContextMenu(event: React.MouseEvent, message: MessageRecord) {
-    event.preventDefault();
-    closeEmojiMenu();
-
-    const menuX = event.clientX;
-    const menuY = event.clientY;
-    const isDeleted = Boolean(message.deletedAt);
-    const isOwn = isOwnMessage(message);
-    const entries: ContextMenuEntry[] = [
-      {
-        disabled: isDeleted,
-        hint: isDeleted ? "Unavailable for deleted messages" : "Browse the full emoji menu",
-        icon: <ReactionGlyph />,
-        id: "add-reaction",
-        label: "Add reaction",
-        onSelect: () => {
-          requestAnimationFrame(() => {
-            openEmojiMenu(anchorFromPoint(menuX, menuY), message.id);
-          });
-        },
-      },
-      {
-        disabled: isDeleted || !message.body,
-        hint: isDeleted ? "Unavailable for deleted messages" : "Copy the message text",
-        icon: <CopyGlyph />,
-        id: "copy-text",
-        label: "Copy text",
-        onSelect: () => {
-          if (message.body) {
-            void navigator.clipboard.writeText(message.body);
-          }
-        },
-      },
-    ];
-
-    if (isOwn) {
-      entries.push(
-        { id: "separator-message-actions", type: "separator" },
-        {
-          disabled: isDeleted,
-          hint: isDeleted ? "Deleted messages cannot be edited" : "Open the inline editor",
-          icon: <EditGlyph />,
-          id: "edit-message",
-          label: "Edit message",
-          onSelect: () => app.startEditingMessage(message.id),
-        },
-        {
-          disabled: isDeleted,
-          hint: isDeleted
-            ? "This message is already deleted"
-            : "Replace the body with a deleted state",
-          icon: <DeleteGlyph />,
-          id: "delete-message",
-          label: "Delete message",
-          onSelect: () => setPendingDeleteMessageId(message.id),
-          tone: "danger",
-        },
-      );
-    }
-
-    setContextMenu({
-      entries,
-      subtitle: "Message actions",
-      title: "Thread menu",
-      x: menuX,
-      y: menuY,
-    });
-  }
-
-  function handleJumpToChannelPost(channelPostMessageId: string) {
-    keyboardNav.handleMessageClick(channelPostMessageId);
-  }
-
-  function handleJumpToThreadSource(threadReplyId: string, parentMessageId: string) {
-    app.openThread(parentMessageId);
-    setPendingThreadReplyId(threadReplyId);
-    requestAnimationFrame(() => threadInputRef.current?.focus());
-  }
-
   const threadPanelProps = {
     alsoSendToChannel,
     channelName: app.activeChannel?.name ?? "channel",
-    currentUser: threadCurrentUser,
+    currentUser: app.usersById.get(props.user.id) ?? {
+      email: props.user.email ?? undefined,
+      id: props.user.id,
+    },
     currentUserId: props.user.id,
     editingDraft: app.editingDraft,
     editingMessageId: app.editingMessageId,
@@ -664,10 +406,8 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     onEditDraftChange: app.setEditingDraft,
     onJumpToChannelPost: handleJumpToChannelPost,
     onJumpToThreadSource: handleJumpToThreadSource,
-    onMessageContextMenu: handleThreadMessageContextMenu,
-    onOpenReactionMenu: (anchor: FloatingAnchor, messageId: string) => {
-      openEmojiMenu(anchor, messageId);
-    },
+    onMessageContextMenu: contextMenus.handleThreadMessageContextMenu,
+    onOpenReactionMenu: emojiMenu.openEmojiMenu,
     onRemoveFile: threadUpload.removeFile,
     onReply: () => {
       void handleSendThreadReply();
@@ -697,7 +437,6 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     <>
       <div className="h-[100dvh] overflow-hidden p-1.5 sm:p-2 md:p-3">
         <div className="flex h-full gap-1.5 sm:gap-2 md:gap-3">
-          {/* ── Mobile sidebar overlay ── */}
           {isMobile ? (
             <>
               {isSidebarOpen
@@ -723,7 +462,6 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                 : null}
             </>
           ) : (
-            /* ── Desktop sidebar ── */
             <aside
               className="relative flex min-h-0 flex-col overflow-hidden rounded-[1.45rem] border border-amber-200/60 bg-amber-50/75 shadow-[0_18px_50px_rgba(217,119,6,0.08)] select-none"
               style={{ flexShrink: 0, width: sidebar.width }}
@@ -733,7 +471,6 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
             </aside>
           )}
 
-          {/* ── Main area ── */}
           {isDirectoryOpen ? (
             <DirectoryPanel
               allChannels={[...app.visibleChannels, ...app.unjoinedChannels]}
@@ -752,169 +489,74 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
             />
           ) : (
             <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl md:rounded-[1.45rem] border border-amber-200/60 bg-white/82 shadow-[0_18px_50px_rgba(15,23,42,0.07)]">
-              <header className="select-none border-b border-amber-100/70 px-3 py-2.5 sm:px-5 sm:py-3.5">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-2">
-                    {isMobile ? (
-                      <button
-                        className="flex size-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors duration-100 hover:bg-amber-50 hover:text-slate-700"
-                        onClick={() => setIsSidebarOpen(true)}
-                        type="button"
-                      >
-                        <HamburgerGlyph />
-                      </button>
-                    ) : null}
-                    <div className="flex min-w-0 items-baseline gap-2">
-                      <h2 className="shrink-0 truncate text-base font-semibold tracking-tight text-slate-900 sm:text-lg">
-                        {app.activeChannel?.name ?? "channel"}
-                      </h2>
-                      {app.activeChannel?.topic && !isMobile ? (
-                        <p className="min-w-0 truncate text-sm text-slate-400">
-                          {app.activeChannel.topic}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
+              <ChannelHeader
+                callError={callError}
+                canManageChannels={app.canManageChannels}
+                channelId={app.activeChannel?.id}
+                channelName={app.activeChannel?.name ?? "channel"}
+                channelTopic={app.activeChannel?.topic}
+                errorMessage={app.errorMessage}
+                hasRefreshToken={Boolean(props.user.refresh_token)}
+                isInCall={isInCall}
+                isMobile={isMobile}
+                notice={app.notice}
+                onEditChannel={() => setEditingChannelId(app.activeChannel!.id)}
+                onLeaveCall={() => {
+                  void leave();
+                }}
+                onOpenPrejoin={openPrejoin}
+                onOpenSidebar={() => setIsSidebarOpen(true)}
+              />
 
-                  <div className="flex shrink-0 items-center gap-1">
-                    {isInCall ? (
-                      <HoverTooltip content="Leave call" side="bottom">
-                        <button
-                          className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-rose-500 transition-colors duration-100 hover:bg-rose-50"
-                          onClick={() => {
-                            void leave();
-                          }}
-                          type="button"
-                        >
-                          <HangUpGlyph />
-                          <span className="hidden sm:inline">Leave</span>
-                        </button>
-                      </HoverTooltip>
-                    ) : (
-                      <HoverTooltip content="Start a call" side="bottom">
-                        <button
-                          className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors duration-100 hover:bg-amber-50 hover:text-amber-700"
-                          disabled={!app.activeChannel?.id || !props.user.refresh_token}
-                          onClick={openPrejoin}
-                          type="button"
-                        >
-                          <CallGlyph />
-                          <span className="hidden sm:inline">Call</span>
-                        </button>
-                      </HoverTooltip>
-                    )}
-                    {app.canManageChannels && app.activeChannel ? (
-                      <HoverTooltip content="Channel settings" side="bottom">
-                        <button
-                          className="flex size-8 items-center justify-center rounded-lg text-slate-400 transition-colors duration-100 hover:bg-amber-50 hover:text-slate-600"
-                          onClick={() => setEditingChannelId(app.activeChannel!.id)}
-                          type="button"
-                        >
-                          <KebabGlyph />
-                        </button>
-                      </HoverTooltip>
-                    ) : null}
-                  </div>
-                </div>
-
-                {callError ? (
-                  <div className="mt-2">
-                    <Notice message={callError} tone="error" />
-                  </div>
-                ) : null}
-                {app.notice ? (
-                  <div className="mt-2">
-                    <Notice message={app.notice} tone="error" />
-                  </div>
-                ) : null}
-                {app.errorMessage ? (
-                  <div className="mt-2">
-                    <Notice message={app.errorMessage} tone="error" />
-                  </div>
-                ) : null}
-              </header>
-
-              <section
+              <ChannelMessageList
+                activeThreadMessageId={app.selectedThreadMessage?.id}
+                channelName={app.activeChannel?.name ?? "channel"}
+                currentUserId={props.user.id}
+                editingDraft={app.editingDraft}
+                editingMessageId={app.editingMessageId}
+                isMessagesLoading={app.isMessagesLoading}
+                messages={app.messages}
+                onCancelEdit={app.cancelEditingMessage}
+                onContextMenu={contextMenus.handleMessageContextMenu}
+                onDelete={(messageId) => setPendingDeleteMessageId(messageId)}
+                onEditDraftChange={app.setEditingDraft}
+                onJumpToThreadSource={handleJumpToThreadSource}
+                onMessageClick={keyboardNav.handleMessageClick}
+                onOpenReactionMenu={emojiMenu.openEmojiMenu}
+                onReply={(messageId) => {
+                  app.openThread(messageId);
+                  requestAnimationFrame(() => threadInputRef.current?.focus());
+                }}
+                onSaveEdit={() => {
+                  void app.saveEditingMessage();
+                }}
+                onStartEdit={(messageId) => app.startEditingMessage(messageId)}
+                onToggleReaction={(messageId, emoji) => {
+                  void app.toggleReaction(messageId, emoji);
+                }}
                 ref={channelScrollRef}
-                className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden flex flex-col-reverse px-2 py-3 sm:px-4 sm:py-4"
-              >
-                {app.isMessagesLoading ? (
-                  <div className="flex flex-1 items-center justify-center py-12">
-                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-amber-300 border-t-amber-500" />
-                  </div>
-                ) : app.messages.filter((m) => !m.deletedAt).length === 0 ? (
-                  <ChannelEmptyState channelName={app.activeChannel?.name ?? "channel"} />
-                ) : (
-                  <div className="flex flex-col gap-1">
-                    {app.messages
-                      .filter((m) => !m.deletedAt)
-                      .map((message, index, filtered) => {
-                        const prevMessage = index > 0 ? filtered[index - 1] : null;
-                        const showDateHeading =
-                          !prevMessage ||
-                          dateDayKey(message.createdAt) !== dateDayKey(prevMessage.createdAt);
+                selectedMessageId={keyboardNav.selectedMessageId}
+                usersById={app.usersById}
+                workspaceMembersByUserId={app.workspaceMembersByUserId}
+              />
 
-                        return (
-                          <div key={message.id}>
-                            {showDateHeading ? <DateHeading timestamp={message.createdAt} /> : null}
-                            <MessageCard
-                              currentUserId={props.user.id}
-                              editingDraft={app.editingDraft}
-                              isActiveThread={message.id === app.selectedThreadMessage?.id}
-                              isEditing={app.editingMessageId === message.id}
-                              isOwnMessage={isOwnMessage(message)}
-                              isSelected={keyboardNav.selectedMessageId === message.id}
-                              message={message}
-                              onCancelEdit={app.cancelEditingMessage}
-                              onClick={() => keyboardNav.handleMessageClick(message.id)}
-                              onContextMenu={handleMessageContextMenu}
-                              onDelete={() => setPendingDeleteMessageId(message.id)}
-                              onEditDraftChange={app.setEditingDraft}
-                              onJumpToThreadSource={handleJumpToThreadSource}
-                              onOpenReactionMenu={(anchor) => openEmojiMenu(anchor, message.id)}
-                              onReply={() => {
-                                app.openThread(message.id);
-                                requestAnimationFrame(() => threadInputRef.current?.focus());
-                              }}
-                              onSaveEdit={() => {
-                                void app.saveEditingMessage();
-                              }}
-                              onStartEdit={() => app.startEditingMessage(message.id)}
-                              onToggleReaction={(emoji) => {
-                                void app.toggleReaction(message.id, emoji);
-                              }}
-                              usersById={app.usersById}
-                              workspaceMembersByUserId={app.workspaceMembersByUserId}
-                            />
-                          </div>
-                        );
-                      })}
-                  </div>
-                )}
-              </section>
-
-              <footer className="border-t border-amber-100/70 px-2 py-2 sm:px-4 sm:py-3">
-                <div>
-                  <MessageInput
-                    onAddFiles={channelUpload.addFiles}
-                    onFocus={keyboardNav.handleInputFocus}
-                    onKeyDown={keyboardNav.handleInputKeyDown}
-                    onRemoveFile={channelUpload.removeFile}
-                    onSubmit={() => {
-                      void handleSendChannelMessage();
-                    }}
-                    onValueChange={app.setChannelDraft}
-                    placeholder={`Message #${app.activeChannel?.name ?? "channel"}`}
-                    stagedFiles={channelUpload.stagedFiles}
-                    textareaRef={channelInputRef}
-                    value={app.channelDraft}
-                  />
-                </div>
-              </footer>
+              <ChannelFooter
+                channelName={app.activeChannel?.name ?? "channel"}
+                draft={app.channelDraft}
+                onAddFiles={channelUpload.addFiles}
+                onInputFocus={keyboardNav.handleInputFocus}
+                onInputKeyDown={keyboardNav.handleInputKeyDown}
+                onRemoveFile={channelUpload.removeFile}
+                onSubmit={() => {
+                  void handleSendChannelMessage();
+                }}
+                onValueChange={app.setChannelDraft}
+                stagedFiles={channelUpload.stagedFiles}
+                textareaRef={channelInputRef}
+              />
             </main>
           )}
 
-          {/* ── Thread panel ── */}
           {app.selectedThreadMessage ? (
             isMobile ? (
               createPortal(
@@ -930,11 +572,11 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
         </div>
       </div>
 
-      <GlobalContextMenu menu={contextMenu} onClose={closeContextMenu} />
+      <GlobalContextMenu menu={contextMenus.contextMenu} onClose={contextMenus.closeContextMenu} />
       <EmojiMenu
-        anchor={emojiMenuState.anchor}
-        isOpen={emojiMenuState.messageId !== null}
-        onClose={closeEmojiMenu}
+        anchor={emojiMenu.anchor}
+        isOpen={emojiMenu.isOpen}
+        onClose={emojiMenu.closeEmojiMenu}
         onSelect={(emoji) => {
           void handleEmojiSelect(emoji);
         }}
