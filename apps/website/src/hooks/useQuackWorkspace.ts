@@ -199,6 +199,17 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
 
   const autoJoinRanForRef = useRef<string | null>(null);
   useEffect(() => {
+    console.log("[auto-join] effect fired", {
+      alreadyRanForWorkspace: autoJoinRanForRef.current === resolvedWorkspaceId,
+      resolvedWorkspaceId,
+      hasWorkspace: Boolean(workspace),
+      channelsLoading: channelsState.isLoading,
+      hasCurrentUserMember: Boolean(currentUserMember),
+      isOwner,
+      allChannelsCount: allChannels.length,
+      userId: props.user.id,
+    });
+
     if (autoJoinRanForRef.current === resolvedWorkspaceId) return;
     if (!workspace || channelsState.isLoading) return;
     if (!(currentUserMember || isOwner)) return;
@@ -207,15 +218,40 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
 
     const publicChannelsToJoin = allChannels.filter((channel) => {
       if (channel.archivedAt || channel.visibility !== "public") return false;
-      return !asArray(channel.members).some((member) => member.$user?.id === props.user.id);
+      const alreadyMember = asArray(channel.members).some(
+        (member) => member.$user?.id === props.user.id,
+      );
+      console.log("[auto-join] channel check", {
+        channelId: channel.id,
+        channelName: channel.name,
+        visibility: channel.visibility,
+        archivedAt: channel.archivedAt,
+        alreadyMember,
+        memberCount: asArray(channel.members).length,
+      });
+      return !alreadyMember;
     });
+
+    console.log(
+      "[auto-join] publicChannelsToJoin:",
+      publicChannelsToJoin.length,
+      publicChannelsToJoin.map((c) => c.name),
+    );
 
     if (publicChannelsToJoin.length === 0) return;
 
     const txs = publicChannelsToJoin.map(
       (channel) => createChannelMemberTx({ channelId: channel.id, userId: props.user.id }).tx,
     );
-    void instantDB.transact(txs);
+    console.log("[auto-join] transacting", txs.length, "channel memberships");
+    void instantDB
+      .transact(txs)
+      .then(() => {
+        console.log("[auto-join] transact succeeded");
+      })
+      .catch((err: unknown) => {
+        console.error("[auto-join] transact failed", err);
+      });
   });
 
   const prevChannelIdRef = useRef(activeChannelId);

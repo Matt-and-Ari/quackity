@@ -17,7 +17,7 @@ import { InputField, Notice } from "../../components/ui/FormFields";
 import { api } from "../../lib/api";
 import { instantDB } from "../../lib/instant";
 import { toErrorMessage } from "../../lib/ui";
-import { coerceWorkspaceRole, parseInviteEmails } from "../../lib/workspaces";
+import { buildInviteUrl, coerceWorkspaceRole, parseInviteEmails } from "../../lib/workspaces";
 import type {
   AuthenticatedUser,
   WorkspaceInviteRecord,
@@ -502,7 +502,7 @@ function MembersSettings(props: MembersSettingsProps) {
           {
             emails: parsed,
             inviterName: props.inviterName,
-            inviteUrl: window.location.origin,
+            inviteUrl: buildInviteUrl(props.workspace.id, props.workspace.name, props.inviterName),
             workspaceName: props.workspace.name,
           },
           props.refreshToken,
