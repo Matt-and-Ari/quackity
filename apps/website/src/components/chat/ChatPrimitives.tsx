@@ -96,6 +96,7 @@ interface ChannelLinkProps {
 interface MessageCardProps {
   currentUserId: string;
   editingDraft: string;
+  hideThreadActions?: boolean;
   isActiveThread: boolean;
   isEditing: boolean;
   isOwnMessage: boolean;
@@ -129,7 +130,7 @@ interface MessageInputProps {
 }
 
 interface ThreadPanelProps {
-  currentUser: InstantUserEntity;
+  currentUser?: InstantUserEntity;
   currentUserId: string;
   editingDraft: string;
   editingMessageId: string | null;
@@ -140,6 +141,7 @@ interface ThreadPanelProps {
   onDeleteMessage: (messageId: string) => void;
   onEditDraftChange: (value: string) => void;
   onMessageContextMenu: (event: React.MouseEvent, message: MessageRecord) => void;
+  onOpenReactionMenu: (anchor: FloatingAnchor, messageId: string) => void;
   onRemoveFile?: (fileId: string) => void;
   onReply: () => void;
   onSaveEdit: () => void;
@@ -310,8 +312,16 @@ export function MessageCard(props: MessageCardProps) {
           label="Add reaction"
           onClick={handleOpenReactionMenu}
         />
-        <span className="mx-0.5 h-5 w-px bg-amber-100" />
-        <ToolbarBtn icon={<ReplyGlyph />} label="Reply in thread" onClick={() => props.onReply()} />
+        {!props.hideThreadActions ? (
+          <>
+            <span className="mx-0.5 h-5 w-px bg-amber-100" />
+            <ToolbarBtn
+              icon={<ReplyGlyph />}
+              label="Reply in thread"
+              onClick={() => props.onReply()}
+            />
+          </>
+        ) : null}
         {props.isOwnMessage ? (
           <>
             <ToolbarBtn
@@ -373,10 +383,11 @@ export function MessageCard(props: MessageCardProps) {
             </div>
           ) : null}
 
-          {reactions.length > 0 || (props.message.threadReplies?.length ?? 0) > 0 ? (
+          {reactions.length > 0 ||
+          (!props.hideThreadActions && (props.message.threadReplies?.length ?? 0) > 0) ? (
             <div className="mt-2 flex select-none flex-wrap items-center gap-1.5">
               <ReactionPills onToggleReaction={props.onToggleReaction} reactions={reactions} />
-              {(props.message.threadReplies?.length ?? 0) > 0 ? (
+              {!props.hideThreadActions && (props.message.threadReplies?.length ?? 0) > 0 ? (
                 <HoverTooltip
                   content={
                     props.message.threadReplies?.length === 1
@@ -591,6 +602,32 @@ export function ThreadPanel(props: ThreadPanelProps) {
     return null;
   }
 
+  const rootMessage = props.rootMessage;
+  const filteredReplies = props.replies.filter((r) => !r.deletedAt);
+
+  function makeMessageCardProps(message: MessageRecord) {
+    return {
+      currentUserId: props.currentUserId,
+      editingDraft: props.editingDraft,
+      hideThreadActions: true,
+      isActiveThread: false,
+      isEditing: props.editingMessageId === message.id,
+      isOwnMessage: message.sender?.id === props.currentUserId,
+      message,
+      onCancelEdit: props.onCancelEdit,
+      onContextMenu: props.onMessageContextMenu,
+      onDelete: () => props.onDeleteMessage(message.id),
+      onEditDraftChange: props.onEditDraftChange,
+      onOpenReactionMenu: (anchor: FloatingAnchor) => props.onOpenReactionMenu(anchor, message.id),
+      onReply: () => {},
+      onSaveEdit: () => props.onSaveEdit(),
+      onStartEdit: () => props.onStartEdit(message.id),
+      onToggleReaction: (emoji: string) => props.onToggleReaction(message.id, emoji),
+      usersById: props.usersById,
+      workspaceMembersByUserId: props.workspaceMembersByUserId,
+    };
+  }
+
   return (
     <aside
       className={clsx(
@@ -636,51 +673,24 @@ export function ThreadPanel(props: ThreadPanelProps) {
         )}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto flex flex-col-reverse px-3 py-3">
-        <div className="flex flex-col gap-3">
-          <ThreadMessage
-            currentUserId={props.currentUserId}
-            editingDraft={props.editingDraft}
-            isEditing={props.editingMessageId === props.rootMessage.id}
-            isOwnMessage={props.rootMessage.sender?.id === props.currentUserId}
-            message={props.rootMessage}
-            onCancelEdit={props.onCancelEdit}
-            onContextMenu={props.onMessageContextMenu}
-            onDelete={() => props.onDeleteMessage(props.rootMessage?.id ?? "")}
-            onEditDraftChange={props.onEditDraftChange}
-            onSaveEdit={props.onSaveEdit}
-            onStartEdit={() => props.onStartEdit(props.rootMessage?.id ?? "")}
-            onToggleReaction={(emoji) => props.onToggleReaction(props.rootMessage?.id ?? "", emoji)}
-            sender={props.rootMessage.sender ?? props.currentUser}
-            usersById={props.usersById}
-            workspaceMembersByUserId={props.workspaceMembersByUserId}
-          />
+      <div className="min-h-0 flex-1 overflow-y-auto px-2 py-3 sm:px-3">
+        <div className="flex flex-col gap-1">
+          <MessageCard {...makeMessageCardProps(rootMessage)} />
 
-          {props.replies.filter((r) => !r.deletedAt).length > 0 ? (
-            <div className="relative ml-5 flex flex-col gap-3 border-l-2 border-amber-200/60 pl-4">
-              {props.replies
-                .filter((r) => !r.deletedAt)
-                .map((reply) => (
-                  <ThreadMessage
-                    currentUserId={props.currentUserId}
-                    editingDraft={props.editingDraft}
-                    isEditing={props.editingMessageId === reply.id}
-                    isOwnMessage={reply.sender?.id === props.currentUserId}
-                    key={reply.id}
-                    message={reply}
-                    onCancelEdit={props.onCancelEdit}
-                    onContextMenu={props.onMessageContextMenu}
-                    onDelete={() => props.onDeleteMessage(reply.id)}
-                    onEditDraftChange={props.onEditDraftChange}
-                    onSaveEdit={props.onSaveEdit}
-                    onStartEdit={() => props.onStartEdit(reply.id)}
-                    onToggleReaction={(emoji) => props.onToggleReaction(reply.id, emoji)}
-                    sender={reply.sender ?? props.currentUser}
-                    usersById={props.usersById}
-                    workspaceMembersByUserId={props.workspaceMembersByUserId}
-                  />
-                ))}
-            </div>
+          {filteredReplies.length > 0 ? (
+            <>
+              <div className="relative flex items-center py-1.5 select-none">
+                <div className="flex-1 border-t border-amber-200/50" />
+                <span className="mx-3 shrink-0 text-xs font-medium text-slate-400">
+                  {filteredReplies.length} {filteredReplies.length === 1 ? "reply" : "replies"}
+                </span>
+                <div className="flex-1 border-t border-amber-200/50" />
+              </div>
+
+              {filteredReplies.map((reply) => (
+                <MessageCard key={reply.id} {...makeMessageCardProps(reply)} />
+              ))}
+            </>
           ) : null}
         </div>
       </div>
@@ -723,115 +733,6 @@ function ToolbarBtn(props: ToolbarBtnProps) {
         <span className="block size-4">{props.icon}</span>
       </button>
     </HoverTooltip>
-  );
-}
-
-interface ThreadMessageProps {
-  currentUserId: string;
-  editingDraft: string;
-  isEditing: boolean;
-  isOwnMessage: boolean;
-  message: MessageRecord;
-  onCancelEdit: () => void;
-  onContextMenu: (event: React.MouseEvent, message: MessageRecord) => void;
-  onDelete: () => void;
-  onEditDraftChange: (value: string) => void;
-  onSaveEdit: () => void;
-  onStartEdit: () => void;
-  onToggleReaction: (emoji: string) => void;
-  sender: InstantUserEntity;
-  usersById: Map<string, InstantUserWithAvatar>;
-  workspaceMembersByUserId: Map<string, WorkspaceMemberRecord>;
-}
-
-function ThreadMessage(props: ThreadMessageProps) {
-  const reactions = summarizeReactions({
-    currentUserId: props.currentUserId,
-    reactionRecords: props.message.reactions ?? [],
-    usersById: props.usersById,
-    workspaceMembersByUserId: props.workspaceMembersByUserId,
-  });
-  const isDeleted = Boolean(props.message.deletedAt);
-  const senderMember = props.sender.id
-    ? props.workspaceMembersByUserId.get(props.sender.id)
-    : undefined;
-
-  return (
-    <div
-      className="rounded-xl px-2 py-1.5"
-      onContextMenu={(event) => props.onContextMenu(event, props.message)}
-    >
-      <div className="flex select-none items-baseline gap-2">
-        <span className="text-sm font-semibold text-slate-900">
-          {senderMember?.displayName ?? nameFromEmail(props.sender.email)}
-        </span>
-        <time className="text-xs text-slate-400">
-          {timeFormatter.format(new Date(props.message.createdAt))}
-        </time>
-      </div>
-      {props.isEditing ? (
-        <div className="mt-2">
-          <MessageEditor
-            onCancel={props.onCancelEdit}
-            onSave={props.onSaveEdit}
-            onValueChange={props.onEditDraftChange}
-            value={props.editingDraft}
-          />
-        </div>
-      ) : (
-        <p
-          className={clsx(
-            "mt-1 whitespace-pre-wrap text-sm leading-relaxed",
-            isDeleted ? "italic text-slate-400" : "text-slate-600",
-          )}
-        >
-          {isDeleted ? "This reply was deleted." : props.message.body}
-        </p>
-      )}
-      {props.message.attachments && props.message.attachments.length > 0 ? (
-        <div className="mt-1.5 flex flex-wrap gap-1.5">
-          {props.message.attachments.map((attachment) => (
-            <AttachmentDisplay attachment={attachment} key={attachment.id} size="sm" />
-          ))}
-        </div>
-      ) : null}
-      {reactions.length > 0 ? (
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          <ReactionPills onToggleReaction={props.onToggleReaction} reactions={reactions} />
-        </div>
-      ) : null}
-      {!props.isEditing ? (
-        <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-400">
-          {props.isOwnMessage ? (
-            <>
-              <button
-                className={clsx(
-                  "transition-colors duration-100",
-                  isDeleted ? "cursor-not-allowed text-slate-300" : "hover:text-slate-600",
-                )}
-                disabled={isDeleted}
-                onClick={props.onStartEdit}
-                type="button"
-              >
-                Edit
-              </button>
-              <span>·</span>
-              <button
-                className={clsx(
-                  "transition-colors duration-100",
-                  isDeleted ? "cursor-not-allowed text-slate-300" : "hover:text-rose-500",
-                )}
-                disabled={isDeleted}
-                onClick={props.onDelete}
-                type="button"
-              >
-                Delete
-              </button>
-            </>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
   );
 }
 

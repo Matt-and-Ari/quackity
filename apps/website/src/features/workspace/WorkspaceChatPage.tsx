@@ -387,7 +387,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
       {
         disabled: !app.canManageChannels,
         hint: app.canManageChannels
-          ? "Edit name, topic, and visibility"
+          ? "Edit name, description, and visibility"
           : "Only workspace managers can edit channels",
         icon: <EditGlyph />,
         id: "edit-channel",
@@ -541,6 +541,75 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     id: props.user.id,
   };
 
+  function handleThreadMessageContextMenu(event: React.MouseEvent, message: MessageRecord) {
+    event.preventDefault();
+    closeEmojiMenu();
+
+    const menuX = event.clientX;
+    const menuY = event.clientY;
+    const isDeleted = Boolean(message.deletedAt);
+    const isOwn = isOwnMessage(message);
+    const entries: ContextMenuEntry[] = [
+      {
+        disabled: isDeleted,
+        hint: isDeleted ? "Unavailable for deleted messages" : "Browse the full emoji menu",
+        icon: <ReactionGlyph />,
+        id: "add-reaction",
+        label: "Add reaction",
+        onSelect: () => {
+          requestAnimationFrame(() => {
+            openEmojiMenu(anchorFromPoint(menuX, menuY), message.id);
+          });
+        },
+      },
+      {
+        disabled: isDeleted || !message.body,
+        hint: isDeleted ? "Unavailable for deleted messages" : "Copy the message text",
+        icon: <CopyGlyph />,
+        id: "copy-text",
+        label: "Copy text",
+        onSelect: () => {
+          if (message.body) {
+            void navigator.clipboard.writeText(message.body);
+          }
+        },
+      },
+    ];
+
+    if (isOwn) {
+      entries.push(
+        { id: "separator-message-actions", type: "separator" },
+        {
+          disabled: isDeleted,
+          hint: isDeleted ? "Deleted messages cannot be edited" : "Open the inline editor",
+          icon: <EditGlyph />,
+          id: "edit-message",
+          label: "Edit message",
+          onSelect: () => app.startEditingMessage(message.id),
+        },
+        {
+          disabled: isDeleted,
+          hint: isDeleted
+            ? "This message is already deleted"
+            : "Replace the body with a deleted state",
+          icon: <DeleteGlyph />,
+          id: "delete-message",
+          label: "Delete message",
+          onSelect: () => setPendingDeleteMessageId(message.id),
+          tone: "danger",
+        },
+      );
+    }
+
+    setContextMenu({
+      entries,
+      subtitle: "Message actions",
+      title: "Thread menu",
+      x: menuX,
+      y: menuY,
+    });
+  }
+
   const threadPanelProps = {
     currentUser: threadCurrentUser,
     currentUserId: props.user.id,
@@ -553,7 +622,10 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
       setPendingDeleteMessageId(messageId);
     },
     onEditDraftChange: app.setEditingDraft,
-    onMessageContextMenu: handleMessageContextMenu,
+    onMessageContextMenu: handleThreadMessageContextMenu,
+    onOpenReactionMenu: (anchor: FloatingAnchor, messageId: string) => {
+      openEmojiMenu(anchor, messageId);
+    },
     onRemoveFile: threadUpload.removeFile,
     onReply: () => {
       void handleSendThreadReply();

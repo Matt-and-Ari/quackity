@@ -79,7 +79,12 @@ export function CreateChannelModal(props: CreateChannelModalProps) {
     <ActionModal onClose={props.onClose} title="New channel">
       <form className="space-y-4" onSubmit={handleSubmit}>
         <InputField label="Name" onChange={setName} placeholder="design-crit" value={name} />
-        <InputField label="Topic" onChange={setTopic} placeholder="Optional topic" value={topic} />
+        <InputField
+          label="Description"
+          onChange={setTopic}
+          placeholder="Optional description"
+          value={topic}
+        />
         <label className="block space-y-2">
           <span className="text-sm font-medium text-slate-600">Visibility</span>
           <select
@@ -143,7 +148,7 @@ export function EditChannelModal(props: EditChannelModalProps) {
       <form className="space-y-4" onSubmit={handleSubmit}>
         <InputField label="Name" onChange={setName} placeholder="general" value={name} />
         <InputField
-          label="Topic"
+          label="Description"
           onChange={setTopic}
           placeholder="What's this channel about?"
           value={topic}
