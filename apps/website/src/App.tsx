@@ -4,8 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, Route, Switch, useLocation } from "wouter";
 
 import { AppFrame } from "./components/layout/AppFrame";
-import { LoadingCard } from "./components/layout/LoadingCard";
 import { Navigate } from "./components/layout/Navigate";
+import { WorkspaceShellLoading } from "./components/layout/WorkspaceShellLoading";
 import { Notice } from "./components/ui/FormFields";
 import { LoggedOutPage, OnboardingPage } from "./features/auth/AuthScreens";
 import { LandingPage } from "./features/landing/LandingPage";
@@ -24,14 +24,7 @@ export default function App() {
   const { isLoading, user } = instantDB.useAuth();
 
   if (isLoading) {
-    return (
-      <AppFrame statusLabel="Checking your Instant session">
-        <LoadingCard
-          description="Restoring your session, workspace memberships, and pending invites."
-          title="Signing you in"
-        />
-      </AppFrame>
-    );
+    return <WorkspaceShellLoading />;
   }
 
   if (!user) {
@@ -86,14 +79,7 @@ function LoggedInApp(props: { user: AuthenticatedUser }) {
   }
 
   if (membershipsState.isLoading || invitesState.isLoading) {
-    return (
-      <AppFrame statusLabel="Loading your workspace graph">
-        <LoadingCard
-          description="Fetching your memberships and pending invites."
-          title="Preparing Quackity"
-        />
-      </AppFrame>
-    );
+    return <WorkspaceShellLoading />;
   }
 
   return (

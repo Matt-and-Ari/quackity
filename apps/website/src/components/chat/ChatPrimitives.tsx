@@ -636,7 +636,7 @@ export function ThreadPanel(props: ThreadPanelProps) {
         )}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+      <div className="min-h-0 flex-1 overflow-y-auto flex flex-col-reverse px-3 py-3">
         <div className="flex flex-col gap-3">
           <ThreadMessage
             currentUserId={props.currentUserId}

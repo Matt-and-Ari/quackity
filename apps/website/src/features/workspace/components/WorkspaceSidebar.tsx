@@ -54,6 +54,7 @@ interface SidebarContentProps {
   onClose?: () => void;
   onCreateChannel: () => void;
   onInvite: () => void;
+  onSearch?: () => void;
   onSettings: () => void;
   onSignOut: () => void;
   pendingInvites: WorkspaceInviteRecord[];
@@ -177,7 +178,20 @@ export function SidebarContent(props: SidebarContentProps) {
         ) : null}
       </div>
 
-      <div className="border-b border-amber-200/50 px-2 py-2">
+      <div className="flex flex-col gap-0.5 border-b border-amber-200/50 px-2 py-2">
+        {props.onSearch ? (
+          <button
+            className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-sm font-medium text-slate-500 transition-colors duration-100 hover:bg-amber-50/80 hover:text-slate-700"
+            onClick={props.onSearch}
+            type="button"
+          >
+            <SearchGlyph />
+            <span className="flex-1 text-left">Search</span>
+            <kbd className="hidden rounded-md border border-amber-200/60 bg-amber-50/60 px-1.5 py-0.5 text-[0.55rem] font-medium text-slate-400 sm:inline-block">
+              ⌘K
+            </kbd>
+          </button>
+        ) : null}
         <button
           className={clsx(
             "flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-sm font-medium transition-colors duration-100",
@@ -492,6 +506,15 @@ function BrowseGlyph() {
         strokeLinejoin="round"
         strokeWidth="1.3"
       />
+    </svg>
+  );
+}
+
+function SearchGlyph() {
+  return (
+    <svg fill="none" height="16" viewBox="0 0 16 16" width="16">
+      <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M10.5 10.5 14 14" stroke="currentColor" strokeLinecap="round" strokeWidth="1.3" />
     </svg>
   );
 }

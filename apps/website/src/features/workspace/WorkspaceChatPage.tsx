@@ -17,6 +17,7 @@ import {
   dateDayKey,
 } from "../../components/chat/ChatPrimitives";
 import { Navigate } from "../../components/layout/Navigate";
+import { WorkspaceShellLoading } from "../../components/layout/WorkspaceShellLoading";
 import { Notice } from "../../components/ui/FormFields";
 import {
   GlobalContextMenu,
@@ -25,12 +26,14 @@ import {
 } from "../../components/ui/GlobalContextMenu";
 import { EmojiMenu } from "../../components/ui/EmojiMenu";
 import { HoverTooltip } from "../../components/ui/HoverTooltip";
+import { SearchCommandMenu } from "../../components/ui/SearchCommandMenu";
 import { anchorFromPoint, type FloatingAnchor } from "../../components/ui/floating";
 import { useFileUpload } from "../../hooks/useFileUpload";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { useMessageKeyboardNav } from "../../hooks/useMessageKeyboardNav";
 import { useResizeHandle } from "../../hooks/useResizeHandle";
 import { useQuackWorkspace } from "../../hooks/useQuackWorkspace";
+import { useSearchMessages, type SearchResult } from "../../hooks/useSearchMessages";
 import { CallModal, useChannelCall } from "../../lib/channel-calls";
 import { normalizeEmail } from "../../lib/workspaces";
 import { DirectoryPanel } from "./components/WorkspaceDirectoryPanel";
@@ -89,6 +92,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     side: "left",
   });
   const channelInputRef = useRef<HTMLTextAreaElement>(null);
+  const channelScrollRef = useRef<HTMLElement>(null);
   const pendingFocusChannelIdRef = useRef<string | null>(null);
   const threadInputRef = useRef<HTMLTextAreaElement>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -103,9 +107,11 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
   const [isCreateChannelOpen, setIsCreateChannelOpen] = useState(false);
   const [isDirectoryOpen, setIsDirectoryOpen] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [pendingDeleteMessageId, setPendingDeleteMessageId] = useState<string | null>(null);
+  const [pendingScrollToMessageId, setPendingScrollToMessageId] = useState<string | null>(null);
 
   const {
     dismiss: dismissCall,
@@ -125,7 +131,14 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
 
   const callChannelId = callSession?.channelId ?? null;
 
+  const search = useSearchMessages({
+    visibleChannels: app.visibleChannels,
+    workspaceId: props.workspaceId,
+  });
+
   const closeSidebar = useCallback(() => setIsSidebarOpen(false), []);
+  const openSearch = useCallback(() => setIsSearchOpen(true), []);
+  const closeSearch = useCallback(() => setIsSearchOpen(false), []);
 
   const channelUpload = useFileUpload({ workspaceId: props.workspaceId });
   const threadUpload = useFileUpload({ workspaceId: props.workspaceId });
@@ -155,6 +168,28 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     const channelName = app.activeChannel?.name;
     document.title = channelName ? `${channelName} | Quackity` : "Quackity";
   }, [app.activeChannel?.name]);
+
+  useEffect(() => {
+    function handleGlobalKeyDown(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key === "k") {
+        event.preventDefault();
+        setIsSearchOpen((prev) => !prev);
+      }
+    }
+
+    document.addEventListener("keydown", handleGlobalKeyDown);
+    return () => document.removeEventListener("keydown", handleGlobalKeyDown);
+  }, []);
+
+  useEffect(() => {
+    if (!pendingScrollToMessageId || !app.messages.length) return;
+
+    const messageExists = app.messages.some((m) => m.id === pendingScrollToMessageId);
+    if (messageExists) {
+      keyboardNav.handleMessageClick(pendingScrollToMessageId);
+      setPendingScrollToMessageId(null);
+    }
+  }, [pendingScrollToMessageId, app.messages]);
 
   useEffect(() => {
     if (!app.activeChannel?.id) return;
@@ -235,7 +270,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
   ]);
 
   if (app.isLoading) {
-    return null;
+    return <WorkspaceShellLoading />;
   }
 
   if (!app.workspace) {
@@ -252,12 +287,30 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     const uploaded = channelUpload.hasFiles ? await channelUpload.uploadAll() : undefined;
     await app.sendChannelMessage(uploaded);
     channelUpload.clearFiles();
+    requestAnimationFrame(() => {
+      if (channelScrollRef.current) {
+        channelScrollRef.current.scrollTop = 0;
+      }
+    });
   }
 
   async function handleSendThreadReply() {
     const uploaded = threadUpload.hasFiles ? await threadUpload.uploadAll() : undefined;
     await app.sendThreadReply(uploaded);
     threadUpload.clearFiles();
+  }
+
+  function handleSearchSelect(result: SearchResult) {
+    closeSearch();
+    const targetChannel = result.channel;
+    const targetMessageId = result.message.id;
+
+    if (app.activeChannel?.id === targetChannel.id) {
+      keyboardNav.handleMessageClick(targetMessageId);
+    } else {
+      setPendingScrollToMessageId(targetMessageId);
+      navigate(`/workspaces/${props.workspaceId}/channels/${targetChannel.slug}`);
+    }
   }
 
   function closeContextMenu() {
@@ -472,6 +525,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     },
     onCreateChannel: () => setIsCreateChannelOpen(true),
     onInvite: () => setIsInviteOpen(true),
+    onSearch: openSearch,
     onSettings: () => setIsSettingsOpen(true),
     onSignOut: () => {
       void props.onSignOut();
@@ -664,16 +718,19 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                 ) : null}
               </header>
 
-              <section className="min-h-0 flex-1 overflow-y-auto px-2 py-3 sm:px-4 sm:py-4">
-                <div className="flex flex-col gap-1">
-                  {app.isMessagesLoading ? (
-                    <div className="flex flex-1 items-center justify-center py-12">
-                      <div className="h-5 w-5 animate-spin rounded-full border-2 border-amber-300 border-t-amber-500" />
-                    </div>
-                  ) : app.messages.filter((m) => !m.deletedAt).length === 0 ? (
-                    <ChannelEmptyState channelName={app.activeChannel?.name ?? "channel"} />
-                  ) : (
-                    app.messages
+              <section
+                ref={channelScrollRef}
+                className="min-h-0 flex-1 overflow-y-auto flex flex-col-reverse px-2 py-3 sm:px-4 sm:py-4"
+              >
+                {app.isMessagesLoading ? (
+                  <div className="flex flex-1 items-center justify-center py-12">
+                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-amber-300 border-t-amber-500" />
+                  </div>
+                ) : app.messages.filter((m) => !m.deletedAt).length === 0 ? (
+                  <ChannelEmptyState channelName={app.activeChannel?.name ?? "channel"} />
+                ) : (
+                  <div className="flex flex-col gap-1">
+                    {app.messages
                       .filter((m) => !m.deletedAt)
                       .map((message, index, filtered) => {
                         const prevMessage = index > 0 ? filtered[index - 1] : null;
@@ -711,9 +768,9 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                             />
                           </div>
                         );
-                      })
-                  )}
-                </div>
+                      })}
+                  </div>
+                )}
               </section>
 
               <footer className="border-t border-amber-100/70 px-2 py-2 sm:px-4 sm:py-3">
@@ -821,6 +878,13 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
           workspace={workspace}
         />
       ) : null}
+
+      <SearchCommandMenu
+        isOpen={isSearchOpen}
+        onClose={closeSearch}
+        onSelectResult={handleSearchSelect}
+        search={search}
+      />
     </>
   );
 }
