@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 
 import clsx from "clsx";
 
-import { UserAvatar } from "./WorkspaceSidebar";
+import { UserAvatar } from "./WorkspaceAtoms";
 import type { ChannelRecord, WorkspaceMemberRecord } from "../../../types/quack";
 
 type DirectoryTab = "channels" | "members";
@@ -17,7 +17,7 @@ interface DirectoryPanelProps {
   onJoinChannel: (channelId: string) => void;
   onLeaveChannel: (channelId: string) => void;
   visibleChannelIds: Set<string>;
-  workspaceId: string;
+  workspaceSlug: string;
 }
 
 interface DirectoryTabButtonProps {
@@ -131,7 +131,7 @@ export function DirectoryPanel(props: DirectoryPanelProps) {
                         className="truncate text-sm font-medium text-slate-800 hover:underline"
                         onClick={() => {
                           if (isJoined) {
-                            navigate(`/workspaces/${props.workspaceId}/channels/${channel.slug}`);
+                            navigate(`/workspaces/${props.workspaceSlug}/channels/${channel.slug}`);
                           }
                         }}
                         type="button"

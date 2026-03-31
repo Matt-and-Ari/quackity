@@ -11,7 +11,7 @@ import {
   messagesByChannelQuery,
   updateChannelTx,
   updateMessageTx,
-  workspaceByIdQuery,
+  workspaceBySlugQuery,
   type ChannelVisibility,
 } from "@quack/data";
 import { tx } from "@instantdb/core";
@@ -37,12 +37,12 @@ interface CreateChannelInput {
   visibility: ChannelVisibility;
 }
 
-const EMPTY_CHANNEL_ID = "00000000-0000-0000-0000-000000000000";
+const EMPTY_UUID = "00000000-0000-0000-0000-000000000000";
 
 interface UseQuackWorkspaceProps {
   channelSlug?: string;
   user: AuthenticatedUser;
-  workspaceId: string;
+  workspaceSlug: string;
 }
 
 export interface UseQuackWorkspaceResult {
@@ -108,10 +108,13 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
   const [selectedThreadMessageId, setSelectedThreadMessageId] = useState<string | null>(null);
   const [threadDraft, setThreadDraft] = useState("");
 
-  const workspaceState = instantDB.useQuery(workspaceByIdQuery(props.workspaceId));
-  const channelsState = instantDB.useQuery(channelsByWorkspaceQuery(props.workspaceId));
+  const workspaceState = instantDB.useQuery(workspaceBySlugQuery(props.workspaceSlug));
 
   const workspace = asArray<WorkspaceSummary>(workspaceState.data?.workspaces)[0] ?? null;
+  const resolvedWorkspaceId = workspace?.id ?? EMPTY_UUID;
+
+  const channelsState = instantDB.useQuery(channelsByWorkspaceQuery(resolvedWorkspaceId));
+
   const members = asArray<WorkspaceMemberRecord>(workspace?.members);
   const invites = asArray<WorkspaceInviteRecord>(workspace?.invites);
   const allChannels = asArray<ChannelRecord>(channelsState.data?.channels);
@@ -160,19 +163,19 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
     }
 
     if (!props.channelSlug || props.channelSlug !== activeChannel.slug) {
-      navigate(`/workspaces/${props.workspaceId}/channels/${activeChannel.slug}`, {
+      navigate(`/workspaces/${props.workspaceSlug}/channels/${activeChannel.slug}`, {
         replace: true,
       });
     }
-  }, [activeChannel, navigate, props.channelSlug, props.workspaceId]);
+  }, [activeChannel, navigate, props.channelSlug, props.workspaceSlug]);
 
   const autoJoinRanForRef = useRef<string | null>(null);
   useEffect(() => {
-    if (autoJoinRanForRef.current === props.workspaceId) return;
+    if (autoJoinRanForRef.current === resolvedWorkspaceId) return;
     if (!workspace || channelsState.isLoading) return;
     if (!(currentUserMember || isOwner)) return;
 
-    autoJoinRanForRef.current = props.workspaceId;
+    autoJoinRanForRef.current = resolvedWorkspaceId;
 
     const publicChannelsToJoin = allChannels.filter((channel) => {
       if (channel.archivedAt || channel.visibility !== "public") return false;
@@ -188,9 +191,7 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
   });
 
   const hasActiveChannel = activeChannel !== null;
-  const messagesState = instantDB.useQuery(
-    messagesByChannelQuery(activeChannel?.id ?? EMPTY_CHANNEL_ID),
-  );
+  const messagesState = instantDB.useQuery(messagesByChannelQuery(activeChannel?.id ?? EMPTY_UUID));
 
   const rootMessages = useMemo(() => {
     if (!hasActiveChannel) {
@@ -329,7 +330,7 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
       );
 
       if (activeChannel?.id === renamingChannelId) {
-        navigate(`/workspaces/${workspace.id}/channels/${nextSlug}`);
+        navigate(`/workspaces/${props.workspaceSlug}/channels/${nextSlug}`);
       }
     } catch (error) {
       setNotice(toErrorMessage(error, "Could not rename the channel."));
@@ -371,7 +372,7 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
       );
 
       if (activeChannel?.id === channelId) {
-        navigate(`/workspaces/${workspace.id}/channels/${nextSlug}`);
+        navigate(`/workspaces/${props.workspaceSlug}/channels/${nextSlug}`);
       }
     } catch (error) {
       setNotice(toErrorMessage(error, "Could not update the channel."));
@@ -587,7 +588,7 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
         workspaceId: workspace.id,
       });
       await instantDB.transact(nextChannel.tx);
-      navigate(`/workspaces/${workspace.id}/channels/${slug}`);
+      navigate(`/workspaces/${props.workspaceSlug}/channels/${slug}`);
     } catch (error) {
       setNotice(toErrorMessage(error, "Could not create the channel."));
     }

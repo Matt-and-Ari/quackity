@@ -47,7 +47,7 @@ interface WorkspaceChatPageProps {
   onSignOut: () => Promise<void>;
   pendingInvites: WorkspaceInviteRecord[];
   user: AuthenticatedUser;
-  workspaceId: string;
+  workspaceSlug: string;
 }
 
 export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
@@ -56,7 +56,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
   const app = useQuackWorkspace({
     channelSlug: props.channelSlug,
     user: props.user,
-    workspaceId: props.workspaceId,
+    workspaceSlug: props.workspaceSlug,
   });
   const sidebar = useResizeHandle({
     defaultWidth: 248,
@@ -134,20 +134,21 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     },
     openEmojiMenu: emojiMenu.openEmojiMenu,
     visibleChannelsCount: app.visibleChannels.length,
-    workspaceId: props.workspaceId,
+    workspaceSlug: props.workspaceSlug,
   });
 
   const search = useSearchMessages({
     visibleChannels: app.visibleChannels,
-    workspaceId: props.workspaceId,
+    workspaceId: app.workspace?.id ?? "",
   });
 
   const closeSidebar = useCallback(() => setIsSidebarOpen(false), []);
   const openSearch = useCallback(() => setIsSearchOpen(true), []);
   const closeSearch = useCallback(() => setIsSearchOpen(false), []);
 
-  const channelUpload = useFileUpload({ workspaceId: props.workspaceId });
-  const threadUpload = useFileUpload({ workspaceId: props.workspaceId });
+  const workspaceId = app.workspace?.id ?? "";
+  const channelUpload = useFileUpload({ workspaceId });
+  const threadUpload = useFileUpload({ workspaceId });
 
   const keyboardNav = useMessageKeyboardNav({
     activeChannelId: app.activeChannel?.id ?? null,
@@ -331,7 +332,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     const targetChannel = result.channel;
 
     if (result.type === "channel") {
-      navigate(`/workspaces/${props.workspaceId}/channels/${targetChannel.slug}`);
+      navigate(`/workspaces/${props.workspaceSlug}/channels/${targetChannel.slug}`);
       return;
     }
 
@@ -341,7 +342,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
       keyboardNav.handleMessageClick(targetMessageId);
     } else {
       setPendingScrollToMessageId(targetMessageId);
-      navigate(`/workspaces/${props.workspaceId}/channels/${targetChannel.slug}`);
+      navigate(`/workspaces/${props.workspaceSlug}/channels/${targetChannel.slug}`);
     }
   }
 
@@ -386,7 +387,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     pendingInvites: props.pendingInvites,
     user: props.user,
     workspace,
-    workspaceId: workspace.id,
+    workspaceSlug: props.workspaceSlug,
   };
 
   const threadPanelProps = {
@@ -488,7 +489,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                 void app.leaveChannel(channelId);
               }}
               visibleChannelIds={new Set(app.visibleChannels.map((c) => c.id))}
-              workspaceId={props.workspaceId}
+              workspaceSlug={props.workspaceSlug}
             />
           ) : (
             <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl md:rounded-[1.45rem] border border-amber-200/60 bg-white/82 shadow-[0_18px_50px_rgba(15,23,42,0.07)]">

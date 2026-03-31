@@ -48,6 +48,86 @@ export function KebabGlyph() {
   );
 }
 
+export function BrowseGlyph() {
+  return (
+    <svg fill="none" height="16" viewBox="0 0 16 16" width="16">
+      <path
+        d="M6.5 2H3.5C2.67 2 2 2.67 2 3.5v9C2 13.33 2.67 14 3.5 14h9c.83 0 1.5-.67 1.5-1.5V9.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.3"
+      />
+      <path
+        d="M6 10l1.5-4.5L12 4l-1.5 4.5L6 10Z"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.3"
+      />
+    </svg>
+  );
+}
+
+export function SearchGlyph() {
+  return (
+    <svg fill="none" height="16" viewBox="0 0 16 16" width="16">
+      <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M10.5 10.5 14 14" stroke="currentColor" strokeLinecap="round" strokeWidth="1.3" />
+    </svg>
+  );
+}
+
+export function CloseGlyph() {
+  return (
+    <svg fill="none" height="16" viewBox="0 0 16 16" width="16">
+      <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeLinecap="round" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+export function PlusGlyph(props: { size?: number }) {
+  const s = props.size ?? 12;
+  const half = s / 2;
+  return (
+    <svg fill="none" height={s} viewBox={`0 0 ${s} ${s}`} width={s}>
+      <path
+        d={`M${half} 1v${s - 2}M1 ${half}h${s - 2}`}
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.5"
+      />
+    </svg>
+  );
+}
+
+export function ChevronGlyph(props: { direction: "up" | "down" }) {
+  const d = props.direction === "down" ? "M3.5 5.25 7 8.75l3.5-3.5" : "M3.5 8.75 7 5.25l3.5 3.5";
+  return (
+    <svg fill="none" height="14" viewBox="0 0 14 14" width="14">
+      <path
+        d={d}
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+    </svg>
+  );
+}
+
+export function CheckGlyph() {
+  return (
+    <svg className="shrink-0 text-amber-500" fill="none" height="16" viewBox="0 0 16 16" width="16">
+      <path
+        d="M3.5 8.5 6.5 11.5 12.5 4.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  );
+}
+
 export function ChannelEmptyState(props: { channelName: string }) {
   return (
     <div className="flex flex-1 select-none flex-col items-center justify-center py-20">

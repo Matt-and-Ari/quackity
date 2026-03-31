@@ -261,7 +261,7 @@ export function OnboardingPage(props: OnboardingPageProps) {
       );
 
       await instantDB.transact([...workspace.tx, ...generalChannel.tx, ...inviteTransactions]);
-      navigate(`/workspaces/${workspace.workspaceId}/channels/general`);
+      navigate(`/workspaces/${slug}/channels/general`);
     } catch (error) {
       setNotice(toErrorMessage(error, "Could not create the workspace."));
     } finally {

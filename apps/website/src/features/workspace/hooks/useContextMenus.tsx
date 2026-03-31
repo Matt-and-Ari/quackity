@@ -31,7 +31,7 @@ interface UseContextMenusProps {
   onToggleReaction: (messageId: string, emoji: string) => void;
   openEmojiMenu: (anchor: FloatingAnchor, messageId: string) => void;
   visibleChannelsCount: number;
-  workspaceId: string;
+  workspaceSlug: string;
 }
 
 export function useContextMenus(props: UseContextMenusProps) {
@@ -66,7 +66,7 @@ export function useContextMenus(props: UseContextMenusProps) {
         label: "Start call",
         onSelect: () => {
           if (channel.id !== props.activeChannelId) {
-            props.navigate(`/workspaces/${props.workspaceId}/channels/${channel.slug}`);
+            props.navigate(`/workspaces/${props.workspaceSlug}/channels/${channel.slug}`);
           }
           requestAnimationFrame(() => props.onOpenPrejoin());
         },

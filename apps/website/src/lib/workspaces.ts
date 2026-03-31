@@ -66,5 +66,5 @@ export async function acceptWorkspaceInvite(
     }),
   );
 
-  return `/workspaces/${invite.workspace.id}`;
+  return `/workspaces/${invite.workspace.slug}`;
 }

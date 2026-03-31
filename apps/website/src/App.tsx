@@ -72,7 +72,7 @@ function LoggedInApp(props: { user: AuthenticatedUser }) {
     [invitesState.data],
   );
 
-  const primaryWorkspaceId = memberships[0]?.workspace?.id;
+  const primaryWorkspaceSlug = memberships[0]?.workspace?.slug;
 
   async function handleSignOut() {
     await instantDB.auth.signOut();
@@ -85,26 +85,29 @@ function LoggedInApp(props: { user: AuthenticatedUser }) {
   return (
     <Switch>
       <Route path="/login">
-        <Navigate to={primaryWorkspaceId ? `/workspaces/${primaryWorkspaceId}` : "/onboarding"} />
+        <Navigate
+          to={primaryWorkspaceSlug ? `/workspaces/${primaryWorkspaceSlug}` : "/onboarding"}
+        />
       </Route>
 
       <Route path="/join/:workspaceId">
-        {(params) =>
-          memberships.some((m) => m.workspace?.id === params.workspaceId) ? (
-            <Navigate to={`/workspaces/${params.workspaceId}`} />
+        {(params) => {
+          const matchedMembership = memberships.find((m) => m.workspace?.id === params.workspaceId);
+          return matchedMembership?.workspace?.slug ? (
+            <Navigate to={`/workspaces/${matchedMembership.workspace.slug}`} />
           ) : (
             <WorkspaceInviteAcceptPage
               pendingInvites={pendingInvites}
               user={user}
               workspaceId={params.workspaceId}
             />
-          )
-        }
+          );
+        }}
       </Route>
 
       <Route path="/onboarding">
         {memberships.length ? (
-          <Navigate to={`/workspaces/${primaryWorkspaceId}`} />
+          <Navigate to={`/workspaces/${primaryWorkspaceSlug}`} />
         ) : (
           <AppFrame statusLabel="Create your first workspace">
             <OnboardingPage pendingInvites={pendingInvites} user={user} />
@@ -112,7 +115,7 @@ function LoggedInApp(props: { user: AuthenticatedUser }) {
         )}
       </Route>
 
-      <Route path="/workspaces/:workspaceId/*?">
+      <Route path="/workspaces/:workspaceSlug/*?">
         {(params) =>
           memberships.length ? (
             <WorkspaceChatPage
@@ -121,7 +124,7 @@ function LoggedInApp(props: { user: AuthenticatedUser }) {
               onSignOut={handleSignOut}
               pendingInvites={pendingInvites}
               user={user}
-              workspaceId={params.workspaceId}
+              workspaceSlug={params.workspaceSlug}
             />
           ) : (
             <Navigate to="/onboarding" />
@@ -130,7 +133,9 @@ function LoggedInApp(props: { user: AuthenticatedUser }) {
       </Route>
 
       <Route path="/">
-        <Navigate to={primaryWorkspaceId ? `/workspaces/${primaryWorkspaceId}` : "/onboarding"} />
+        <Navigate
+          to={primaryWorkspaceSlug ? `/workspaces/${primaryWorkspaceSlug}` : "/onboarding"}
+        />
       </Route>
 
       <Route>

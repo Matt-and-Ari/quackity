@@ -30,7 +30,7 @@ export function useSearchMessages(props: UseSearchMessagesProps): UseSearchMessa
   }, [props.visibleChannels]);
 
   const messagesState = instantDB.useQuery(
-    channelIds.length > 0
+    channelIds.length > 0 && props.workspaceId
       ? {
           messages: {
             $: {
