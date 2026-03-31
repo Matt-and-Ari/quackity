@@ -261,6 +261,19 @@ export function OnboardingPage(props: OnboardingPageProps) {
       );
 
       await instantDB.transact([...workspace.tx, ...generalChannel.tx, ...inviteTransactions]);
+
+      if (emails.length > 0 && props.user.refresh_token) {
+        void api.sendInviteEmails(
+          {
+            emails,
+            inviterName: displayName.trim() || props.user.email || "Someone",
+            inviteUrl: window.location.origin,
+            workspaceName: workspaceName.trim(),
+          },
+          props.user.refresh_token,
+        );
+      }
+
       navigate(`/workspaces/${slug}/channels/general`);
     } catch (error) {
       setNotice(toErrorMessage(error, "Could not create the workspace."));

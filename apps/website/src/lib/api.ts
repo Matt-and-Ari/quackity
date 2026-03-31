@@ -13,6 +13,21 @@ export const api = {
       },
     });
   },
+  sendInviteEmails(
+    input: {
+      emails: string[];
+      inviterName: string;
+      inviteUrl: string;
+      workspaceName: string;
+    },
+    refreshToken: string,
+  ) {
+    return client.invites["send-emails"].post(input, {
+      headers: {
+        authorization: `Bearer ${refreshToken}`,
+      },
+    });
+  },
   sendMagicCode(email: string) {
     return client["auth-send-magic-code"].get({
       query: {

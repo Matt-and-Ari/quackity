@@ -11,6 +11,7 @@ import clsx from "clsx";
 
 import { InputField, Notice, TextareaField } from "../../../components/ui/FormFields";
 import { CloseGlyph } from "./WorkspaceGlyphs";
+import { api } from "../../../lib/api";
 import { instantDB } from "../../../lib/instant";
 import { normalizeEmail, parseInviteEmails, slugifyWorkspaceName } from "../../../lib/workspaces";
 import { toErrorMessage } from "../../../lib/ui";
@@ -150,6 +151,18 @@ export function CreateWorkspaceModal(props: CreateWorkspaceModalProps) {
       );
 
       await instantDB.transact([...workspaceTx.tx, ...generalChannel.tx, ...inviteTransactions]);
+
+      if (emails.length > 0 && props.user.refresh_token) {
+        void api.sendInviteEmails(
+          {
+            emails,
+            inviterName: displayName.trim() || props.user.email || "Someone",
+            inviteUrl: window.location.origin,
+            workspaceName: workspaceName.trim(),
+          },
+          props.user.refresh_token,
+        );
+      }
 
       navigate(`/workspaces/${slug}/channels/general`);
       props.onClose();

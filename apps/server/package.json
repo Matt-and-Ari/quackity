@@ -14,7 +14,8 @@
     "@elysiajs/cors": "latest",
     "@instantdb/admin": "latest",
     "@quack/schema": "workspace:*",
-    "elysia": "latest"
+    "elysia": "latest",
+    "resend": "catalog:"
   },
   "devDependencies": {
     "bun-types": "latest",

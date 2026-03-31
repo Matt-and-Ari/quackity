@@ -638,9 +638,8 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
 
       {isInviteOpen ? (
         <InviteModal
+          inviterName={app.currentUserMember?.displayName ?? props.user.email ?? "Someone"}
           isOwner={workspace.owner?.id === props.user.id}
-          onClose={() => setIsInviteOpen(false)}
-          pendingEmails={new Set(app.invites.map((invite) => normalizeEmail(invite.email)))}
           memberEmails={
             new Set(
               workspace.members
@@ -649,8 +648,12 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                 .map(normalizeEmail) ?? [],
             )
           }
-          workspaceId={workspace.id}
+          onClose={() => setIsInviteOpen(false)}
+          pendingEmails={new Set(app.invites.map((invite) => normalizeEmail(invite.email)))}
+          refreshToken={props.user.refresh_token}
           userId={props.user.id}
+          workspaceId={workspace.id}
+          workspaceName={workspace.name}
         />
       ) : null}
 

@@ -5,16 +5,20 @@ import { createWorkspaceInviteTx, type WorkspaceRole } from "@quack/data";
 import { ActionModal } from "./ActionModal";
 import { ModalButtonRow } from "./ModalPrimitives";
 import { Notice, TextareaField } from "../../../components/ui/FormFields";
+import { api } from "../../../lib/api";
 import { instantDB } from "../../../lib/instant";
 import { coerceWorkspaceRole, parseInviteEmails } from "../../../lib/workspaces";
 
 interface InviteModalProps {
+  inviterName: string;
   isOwner: boolean;
   memberEmails: Set<string>;
   onClose: () => void;
   pendingEmails: Set<string>;
+  refreshToken: string;
   userId: string;
   workspaceId: string;
+  workspaceName: string;
 }
 
 export function InviteModal(props: InviteModalProps) {
@@ -50,6 +54,32 @@ export function InviteModal(props: InviteModalProps) {
       );
 
       await instantDB.transact(txs);
+
+      console.log("[InviteModal] Sending invite emails", {
+        emails: parsedEmails,
+        inviterName: props.inviterName,
+        inviteUrl: window.location.origin,
+        workspaceName: props.workspaceName,
+        hasRefreshToken: Boolean(props.refreshToken),
+      });
+
+      api
+        .sendInviteEmails(
+          {
+            emails: parsedEmails,
+            inviterName: props.inviterName,
+            inviteUrl: window.location.origin,
+            workspaceName: props.workspaceName,
+          },
+          props.refreshToken,
+        )
+        .then((res: unknown) => {
+          console.log("[InviteModal] sendInviteEmails response", res);
+        })
+        .catch((err: unknown) => {
+          console.error("[InviteModal] sendInviteEmails failed", err);
+        });
+
       props.onClose();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Could not send invites.");
