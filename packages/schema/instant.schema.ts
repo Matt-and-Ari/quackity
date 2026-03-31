@@ -49,6 +49,11 @@ const _schema = i.schema({
       topic: i.string().optional(),
       visibility: i.string().indexed(),
     }),
+    channelDrafts: i.entity({
+      body: i.string().optional(),
+      draftKey: i.string().unique().indexed(),
+      updatedAt: i.date().indexed(),
+    }),
     channelMembers: i.entity({
       joinedAt: i.date().indexed(),
       membershipKey: i.string().unique().indexed(),
@@ -222,6 +227,44 @@ const _schema = i.schema({
         on: "$users",
         has: "many",
         label: "createdChannels",
+      },
+    },
+    channelDraftChannel: {
+      forward: {
+        on: "channelDrafts",
+        has: "one",
+        label: "channel",
+        required: true,
+      },
+      reverse: {
+        on: "channels",
+        has: "many",
+        label: "drafts",
+      },
+    },
+    channelDraftUser: {
+      forward: {
+        on: "channelDrafts",
+        has: "one",
+        label: "$user",
+        required: true,
+      },
+      reverse: {
+        on: "$users",
+        has: "many",
+        label: "channelDrafts",
+      },
+    },
+    channelDraftAttachmentFile: {
+      forward: {
+        on: "channelDrafts",
+        has: "many",
+        label: "attachments",
+      },
+      reverse: {
+        on: "$files",
+        has: "many",
+        label: "channelDrafts",
       },
     },
     channelMemberChannel: {

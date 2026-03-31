@@ -25,6 +25,7 @@ export {
 interface SidebarContentProps {
   app: UseQuackWorkspaceResult;
   canManageChannels: boolean;
+  channelIdsWithDrafts: Set<string>;
   currentUserMember?: WorkspaceMemberRecord;
   isDirectoryOpen: boolean;
   memberships: WorkspaceMemberRecord[];
@@ -121,6 +122,7 @@ export function SidebarContent(props: SidebarContentProps) {
         {props.app.visibleChannels.map((channel) => (
           <ChannelLink
             channel={channel}
+            hasDraft={props.channelIdsWithDrafts.has(channel.id)}
             href={`/workspaces/${props.workspaceSlug}/channels/${channel.slug}`}
             isActive={channel.id === props.app.activeChannel?.id && !props.isDirectoryOpen}
             isRenaming={channel.id === props.app.renamingChannelId}

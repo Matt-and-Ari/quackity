@@ -41,7 +41,7 @@ export const ChannelMessageList = forwardRef<HTMLElement, ChannelMessageListProp
     return (
       <section
         ref={ref}
-        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden flex flex-col-reverse px-2 py-3 sm:px-4 sm:py-4"
+        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden flex flex-col-reverse px-2 pt-3 pb-1 sm:px-4 sm:pt-4 sm:pb-1.5"
       >
         {props.isMessagesLoading ? (
           <div className="flex flex-1 items-center justify-center py-12">

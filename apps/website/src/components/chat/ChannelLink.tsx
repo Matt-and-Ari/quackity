@@ -8,6 +8,7 @@ import { HoverTooltip } from "../ui/HoverTooltip";
 
 interface ChannelLinkProps {
   channel: ChannelRecord;
+  hasDraft?: boolean;
   href: string;
   isActive: boolean;
   isRenaming: boolean;
@@ -82,6 +83,27 @@ export function ChannelLink(props: ChannelLinkProps) {
         </span>
       </HoverTooltip>
       <span className="truncate">{props.channel.name}</span>
+      {props.hasDraft ? (
+        <HoverTooltip content="Draft">
+          <span
+            className={clsx(
+              "ml-auto shrink-0",
+              props.isActive ? "text-white/60" : "text-slate-400",
+            )}
+            aria-label="Has draft"
+          >
+            <svg fill="none" height="12" viewBox="0 0 12 12" width="12">
+              <path
+                d="M8.5 1.5L10.5 3.5L4 10H2V8L8.5 1.5Z"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="1.25"
+              />
+            </svg>
+          </span>
+        </HoverTooltip>
+      ) : null}
     </Link>
   );
 }

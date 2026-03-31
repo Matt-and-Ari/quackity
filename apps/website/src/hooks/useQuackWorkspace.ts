@@ -41,6 +41,9 @@ const EMPTY_UUID = "00000000-0000-0000-0000-000000000000";
 
 interface UseQuackWorkspaceProps {
   channelSlug?: string;
+  clearChannelDraft?: (channelId: string) => void;
+  getChannelDraft?: (channelId: string) => string;
+  setChannelDraftExternal?: (channelId: string, value: string) => void;
   user: AuthenticatedUser;
   workspaceSlug: string;
 }
@@ -52,11 +55,12 @@ export interface UseQuackWorkspaceResult {
   cancelRenamingChannel: () => void;
   channelDraft: string;
   channelRenameDraft: string;
+  clearChannelDraft: () => void;
   closeThread: () => void;
   createChannel: (input: CreateChannelInput) => Promise<void>;
   currentUserMember?: WorkspaceMemberRecord;
   deleteChannel: (channelId: string) => Promise<void>;
-  deleteMessage: (messageId: string) => Promise<void>;
+  deleteMessage: (messageId: string) => void;
   editingDraft: string;
   editingMessageId: string | null;
   errorMessage?: string;
@@ -71,12 +75,12 @@ export interface UseQuackWorkspaceResult {
   onlineMembers: WorkspaceMemberRecord[];
   openThread: (messageId: string) => void;
   renamingChannelId: string | null;
-  saveEditingMessage: () => Promise<void>;
+  saveEditingMessage: () => void;
   saveRenamingChannel: () => Promise<void>;
   selectedThreadMessage: MessageRecord | null;
   selectedThreadReplies: MessageRecord[];
-  sendChannelMessage: (files?: UploadedFile[]) => Promise<void>;
-  sendThreadReply: (files?: UploadedFile[], alsoSendToChannel?: boolean) => Promise<void>;
+  sendChannelMessage: (files?: UploadedFile[]) => void;
+  sendThreadReply: (files?: UploadedFile[], alsoSendToChannel?: boolean) => void;
   setChannelDraft: (value: string) => void;
   setChannelRenameDraft: (value: string) => void;
   setEditingDraft: (value: string) => void;
@@ -85,7 +89,7 @@ export interface UseQuackWorkspaceResult {
   startEditingMessage: (messageId: string) => void;
   startRenamingChannel: (channelId: string) => void;
   threadDraft: string;
-  toggleReaction: (messageId: string, emoji: string) => Promise<void>;
+  toggleReaction: (messageId: string, emoji: string) => void;
   updateChannel: (
     channelId: string,
     input: { name: string; topic?: string; visibility?: ChannelVisibility },
@@ -99,11 +103,12 @@ export interface UseQuackWorkspaceResult {
 
 export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorkspaceResult {
   const [, navigate] = useLocation();
-  const [channelDraft, setChannelDraft] = useState("");
+  const [fallbackDraft, setFallbackDraft] = useState("");
   const [channelRenameDraft, setChannelRenameDraft] = useState("");
   const [editingDraft, setEditingDraft] = useState("");
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [optimisticMessages, setOptimisticMessages] = useState<MessageRecord[]>([]);
   const [renamingChannelId, setRenamingChannelId] = useState<string | null>(null);
   const [selectedThreadMessageId, setSelectedThreadMessageId] = useState<string | null>(null);
   const [threadDraft, setThreadDraft] = useState("");
@@ -157,6 +162,29 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
     return visibleChannels.find((channel) => channel.slug === props.channelSlug) ?? defaultChannel;
   }, [props.channelSlug, visibleChannels]);
 
+  const activeChannelId = activeChannel?.id ?? null;
+
+  const channelDraft =
+    activeChannelId && props.getChannelDraft
+      ? props.getChannelDraft(activeChannelId)
+      : fallbackDraft;
+
+  function setChannelDraft(value: string) {
+    if (activeChannelId && props.setChannelDraftExternal) {
+      props.setChannelDraftExternal(activeChannelId, value);
+    } else {
+      setFallbackDraft(value);
+    }
+  }
+
+  function clearChannelDraft() {
+    if (activeChannelId && props.clearChannelDraft) {
+      props.clearChannelDraft(activeChannelId);
+    } else {
+      setFallbackDraft("");
+    }
+  }
+
   useEffect(() => {
     if (!activeChannel) {
       return;
@@ -190,16 +218,47 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
     void instantDB.transact(txs);
   });
 
+  const prevChannelIdRef = useRef(activeChannelId);
+  useEffect(() => {
+    if (prevChannelIdRef.current !== activeChannelId) {
+      prevChannelIdRef.current = activeChannelId;
+      setOptimisticMessages([]);
+    }
+  }, [activeChannelId]);
+
   const hasActiveChannel = activeChannel !== null;
   const messagesState = instantDB.useQuery(messagesByChannelQuery(activeChannel?.id ?? EMPTY_UUID));
 
-  const rootMessages = useMemo(() => {
+  const serverMessages = useMemo(() => {
     if (!hasActiveChannel) {
       return [];
     }
-
     return asArray<MessageRecord>(messagesState.data?.messages);
   }, [hasActiveChannel, messagesState.data]);
+
+  useEffect(() => {
+    if (optimisticMessages.length === 0) return;
+    const serverIds = new Set<string>();
+    for (const msg of serverMessages) {
+      serverIds.add(msg.id);
+      for (const reply of asArray(msg.threadReplies)) {
+        serverIds.add(reply.id);
+      }
+    }
+    const remaining = optimisticMessages.filter((m) => !serverIds.has(m.id));
+    if (remaining.length !== optimisticMessages.length) {
+      setOptimisticMessages(remaining);
+    }
+  }, [serverMessages, optimisticMessages]);
+
+  const rootMessages = useMemo(() => {
+    const pendingRoot = optimisticMessages.filter((m) => m.messageType === "message");
+    if (pendingRoot.length === 0) return serverMessages;
+    const serverIds = new Set(serverMessages.map((m) => m.id));
+    const deduped = pendingRoot.filter((m) => !serverIds.has(m.id));
+    if (deduped.length === 0) return serverMessages;
+    return [...serverMessages, ...deduped];
+  }, [serverMessages, optimisticMessages]);
 
   useEffect(() => {
     if (!selectedThreadMessageId) {
@@ -228,8 +287,17 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
   }, [rootMessages, selectedThreadMessageId]);
 
   const selectedThreadReplies = useMemo(() => {
-    return asArray(selectedThreadMessage?.threadReplies);
-  }, [selectedThreadMessage]);
+    const serverReplies = asArray(selectedThreadMessage?.threadReplies);
+    if (!selectedThreadMessageId || optimisticMessages.length === 0) return serverReplies;
+    const pendingReplies = optimisticMessages.filter(
+      (m) => m.messageType === "thread_reply" && m.parentMessage?.id === selectedThreadMessageId,
+    );
+    if (pendingReplies.length === 0) return serverReplies;
+    const replyIds = new Set(serverReplies.map((r) => r.id));
+    const dedupedReplies = pendingReplies.filter((m) => !replyIds.has(m.id));
+    if (dedupedReplies.length === 0) return serverReplies;
+    return [...serverReplies, ...dedupedReplies];
+  }, [selectedThreadMessage, selectedThreadMessageId, optimisticMessages]);
 
   const usersById = useMemo(() => {
     const nextUsers = new Map<string, InstantUserWithAvatar>();
@@ -397,7 +465,7 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
     setEditingMessageId(null);
   }
 
-  async function saveEditingMessage() {
+  function saveEditingMessage() {
     if (!editingMessageId) {
       return;
     }
@@ -408,20 +476,20 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
       return;
     }
 
-    try {
-      await instantDB.transact(
+    instantDB
+      .transact(
         updateMessageTx(editingMessageId, {
           body: trimmedBody,
           updatedAt: new Date(),
         }),
-      );
-      cancelEditingMessage();
-    } catch (error) {
-      setNotice(toErrorMessage(error, "Could not update the message."));
-    }
+      )
+      .catch((error) => {
+        setNotice(toErrorMessage(error, "Could not update the message."));
+      });
+    cancelEditingMessage();
   }
 
-  async function sendChannelMessage(files?: UploadedFile[]) {
+  function sendChannelMessage(files?: UploadedFile[]) {
     if (!activeChannel) {
       return;
     }
@@ -433,33 +501,46 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
       return;
     }
 
-    try {
-      const nextMessage = createMessageTx({
-        body: trimmedBody || undefined,
-        channelId: activeChannel.id,
-        senderId: props.user.id,
-      });
+    const nextMessage = createMessageTx({
+      body: trimmedBody || undefined,
+      channelId: activeChannel.id,
+      senderId: props.user.id,
+    });
 
-      const attachmentTxs = (files ?? []).map(
-        (file) =>
-          createMessageAttachmentTx({
-            attachmentType: file.attachmentType,
-            contentType: file.contentType,
-            fileId: file.fileId,
-            messageId: nextMessage.messageId,
-            name: file.name,
-            sizeBytes: file.sizeBytes,
-          }).tx,
-      );
+    const attachmentTxs = (files ?? []).map(
+      (file) =>
+        createMessageAttachmentTx({
+          attachmentType: file.attachmentType,
+          contentType: file.contentType,
+          fileId: file.fileId,
+          messageId: nextMessage.messageId,
+          name: file.name,
+          sizeBytes: file.sizeBytes,
+        }).tx,
+    );
 
-      await instantDB.transact([nextMessage.tx, ...attachmentTxs]);
-      setChannelDraft("");
-    } catch (error) {
+    const currentUserData = currentUserMember?.$user;
+    const optimistic: MessageRecord = {
+      id: nextMessage.messageId,
+      body: trimmedBody || undefined,
+      createdAt: new Date().toISOString(),
+      messageType: "message",
+      sender: currentUserData ?? { id: props.user.id, email: props.user.email ?? "" },
+      reactions: [],
+      threadReplies: [],
+      attachments: [],
+    } as MessageRecord;
+
+    setOptimisticMessages((prev) => [...prev, optimistic]);
+
+    clearChannelDraft();
+    instantDB.transact([nextMessage.tx, ...attachmentTxs]).catch((error) => {
+      setOptimisticMessages((prev) => prev.filter((m) => m.id !== nextMessage.messageId));
       setNotice(toErrorMessage(error, "Could not send the message."));
-    }
+    });
   }
 
-  async function sendThreadReply(files?: UploadedFile[], alsoSendToChannel?: boolean) {
+  function sendThreadReply(files?: UploadedFile[], alsoSendToChannel?: boolean) {
     if (!activeChannel || !selectedThreadMessage) {
       return;
     }
@@ -471,64 +552,100 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
       return;
     }
 
-    try {
-      const reply = createMessageTx({
+    const reply = createMessageTx({
+      body: trimmedBody || undefined,
+      channelId: activeChannel.id,
+      parentMessageId: selectedThreadMessage.id,
+      senderId: props.user.id,
+    });
+
+    const attachmentTxs = (files ?? []).map(
+      (file) =>
+        createMessageAttachmentTx({
+          attachmentType: file.attachmentType,
+          contentType: file.contentType,
+          fileId: file.fileId,
+          messageId: reply.messageId,
+          name: file.name,
+          sizeBytes: file.sizeBytes,
+        }).tx,
+    );
+
+    const allTxs = [reply.tx, ...attachmentTxs];
+
+    let optimisticChannelMessageId: string | undefined;
+
+    if (alsoSendToChannel) {
+      const channelMessage = createMessageTx({
         body: trimmedBody || undefined,
         channelId: activeChannel.id,
-        parentMessageId: selectedThreadMessage.id,
         senderId: props.user.id,
       });
-
-      const attachmentTxs = (files ?? []).map(
-        (file) =>
-          createMessageAttachmentTx({
-            attachmentType: file.attachmentType,
-            contentType: file.contentType,
-            fileId: file.fileId,
-            messageId: reply.messageId,
-            name: file.name,
-            sizeBytes: file.sizeBytes,
-          }).tx,
-      );
-
-      const allTxs = [reply.tx, ...attachmentTxs];
-
-      if (alsoSendToChannel) {
-        const channelMessage = createMessageTx({
-          body: trimmedBody || undefined,
-          channelId: activeChannel.id,
-          senderId: props.user.id,
-        });
-        allTxs.push(channelMessage.tx);
-        allTxs.push(tx.messages[reply.messageId].link({ channelPost: channelMessage.messageId }));
-      }
-
-      await instantDB.transact(allTxs);
-      setThreadDraft("");
-    } catch (error) {
-      setNotice(toErrorMessage(error, "Could not send the thread reply."));
+      optimisticChannelMessageId = channelMessage.messageId;
+      allTxs.push(channelMessage.tx);
+      allTxs.push(tx.messages[reply.messageId].link({ channelPost: channelMessage.messageId }));
     }
+
+    const currentUserData = currentUserMember?.$user;
+    const senderData = currentUserData ?? { id: props.user.id, email: props.user.email ?? "" };
+
+    const optimisticReply: MessageRecord = {
+      id: reply.messageId,
+      body: trimmedBody || undefined,
+      createdAt: new Date().toISOString(),
+      messageType: "thread_reply",
+      parentMessage: { id: selectedThreadMessage.id } as MessageRecord,
+      sender: senderData,
+      reactions: [],
+      threadReplies: [],
+      attachments: [],
+    } as MessageRecord;
+
+    setOptimisticMessages((prev) => {
+      const next = [...prev, optimisticReply];
+      if (optimisticChannelMessageId) {
+        next.push({
+          id: optimisticChannelMessageId,
+          body: trimmedBody || undefined,
+          createdAt: new Date().toISOString(),
+          messageType: "message",
+          sender: senderData,
+          reactions: [],
+          threadReplies: [],
+          attachments: [],
+        } as MessageRecord);
+      }
+      return next;
+    });
+
+    setThreadDraft("");
+    instantDB.transact(allTxs).catch((error) => {
+      setOptimisticMessages((prev) =>
+        prev.filter((m) => m.id !== reply.messageId && m.id !== optimisticChannelMessageId),
+      );
+      setNotice(toErrorMessage(error, "Could not send the thread reply."));
+    });
   }
 
-  async function deleteMessage(messageId: string) {
-    try {
-      await instantDB.transact(
+  function deleteMessage(messageId: string) {
+    if (editingMessageId === messageId) {
+      cancelEditingMessage();
+    }
+
+    instantDB
+      .transact(
         updateMessageTx(messageId, {
           body: undefined,
           deletedAt: new Date(),
           updatedAt: new Date(),
         }),
-      );
-
-      if (editingMessageId === messageId) {
-        cancelEditingMessage();
-      }
-    } catch (error) {
-      setNotice(toErrorMessage(error, "Could not delete the message."));
-    }
+      )
+      .catch((error) => {
+        setNotice(toErrorMessage(error, "Could not delete the message."));
+      });
   }
 
-  async function toggleReaction(messageId: string, emoji: string) {
+  function toggleReaction(messageId: string, emoji: string) {
     const targetMessage = rootMessages
       .flatMap((message) => [message, ...asArray(message.threadReplies)])
       .find((message) => message.id === messageId);
@@ -541,8 +658,8 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
       (reaction) => reaction.$user?.id === props.user.id && reaction.emoji === emoji,
     );
 
-    try {
-      await instantDB.transact(
+    instantDB
+      .transact(
         existingReaction
           ? deleteReactionByKeyTx({
               emoji,
@@ -554,10 +671,10 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
               messageId,
               userId: props.user.id,
             }).tx,
-      );
-    } catch (error) {
-      setNotice(toErrorMessage(error, "Could not update the reaction."));
-    }
+      )
+      .catch((error) => {
+        setNotice(toErrorMessage(error, "Could not update the reaction."));
+      });
   }
 
   async function createChannel(input: CreateChannelInput) {
@@ -664,6 +781,7 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
     cancelRenamingChannel,
     channelDraft,
     channelRenameDraft,
+    clearChannelDraft,
     closeThread,
     createChannel,
     allWorkspaceMembers: members,

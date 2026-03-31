@@ -18,7 +18,7 @@ interface ChannelFooterProps {
 
 export function ChannelFooter(props: ChannelFooterProps) {
   return (
-    <footer className="border-t border-amber-100/70 px-2 py-2 sm:px-4 sm:py-3">
+    <footer className="border-t border-amber-100/70 px-2 pt-1.5 pb-2 sm:px-4 sm:pt-2 sm:pb-3">
       <div>
         <MessageInput
           onAddFiles={props.onAddFiles}

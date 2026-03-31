@@ -7,6 +7,7 @@ import {
   type WorkspaceRole,
 } from "./constants";
 import {
+  createChannelDraftKey,
   createChannelMembershipKey,
   createChannelMeetingKey,
   createChannelScopedSlug,
@@ -502,4 +503,36 @@ export function deleteReactionByKeyTx(input: { emoji: string; messageId: string;
   return tx.reactions
     .lookup("reactionKey", createReactionKey(input.messageId, input.userId, input.emoji))
     .delete();
+}
+
+export function upsertChannelDraftTx(input: {
+  body?: string;
+  channelId: string;
+  draftId?: string;
+  fileIds?: string[];
+  userId: string;
+}) {
+  const draftKey = createChannelDraftKey(input.channelId, input.userId);
+  const draftId = input.draftId ?? id();
+
+  const baseTx = tx.channelDrafts[draftId]
+    .update({
+      body: input.body ?? "",
+      draftKey,
+      updatedAt: new Date().toISOString(),
+    })
+    .link({
+      $user: input.userId,
+      channel: input.channelId,
+    });
+
+  return {
+    draftId,
+    tx: baseTx,
+  };
+}
+
+export function deleteChannelDraftByKeyTx(channelId: string, userId: string) {
+  const draftKey = createChannelDraftKey(channelId, userId);
+  return tx.channelDrafts.lookup("draftKey", draftKey).delete();
 }

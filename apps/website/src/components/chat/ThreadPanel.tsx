@@ -129,7 +129,7 @@ export function ThreadPanel(props: ThreadPanelProps) {
       </div>
 
       <div
-        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2 py-3 sm:px-3"
+        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2 pt-3 pb-1 sm:px-3"
         ref={props.threadScrollRef}
       >
         <div className="flex flex-col gap-1">
@@ -153,7 +153,7 @@ export function ThreadPanel(props: ThreadPanelProps) {
         </div>
       </div>
 
-      <div className="border-t border-amber-100/70 px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <div className="border-t border-amber-100/70 px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <label className="mb-2 flex cursor-pointer select-none items-center gap-2 px-1 text-xs text-slate-500">
           <input
             checked={props.alsoSendToChannel}

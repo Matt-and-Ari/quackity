@@ -10,6 +10,7 @@ import { GlobalContextMenu } from "../../components/ui/GlobalContextMenu";
 import { EmojiMenu } from "../../components/ui/EmojiMenu";
 import { SearchCommandMenu } from "../../components/ui/SearchCommandMenu";
 import { anchorFromPoint } from "../../components/ui/floating";
+import { useChannelDrafts } from "../../hooks/useChannelDrafts";
 import { useFileUpload } from "../../hooks/useFileUpload";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { useMessageKeyboardNav } from "../../hooks/useMessageKeyboardNav";
@@ -53,8 +54,15 @@ interface WorkspaceChatPageProps {
 export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
   const isMobile = useIsMobile();
   const [, navigate] = useLocation();
+  const channelDrafts = useChannelDrafts({
+    userId: props.user.id,
+    workspaceId: "",
+  });
   const app = useQuackWorkspace({
     channelSlug: props.channelSlug,
+    clearChannelDraft: channelDrafts.clearDraft,
+    getChannelDraft: channelDrafts.getDraft,
+    setChannelDraftExternal: channelDrafts.setDraft,
     user: props.user,
     workspaceSlug: props.workspaceSlug,
   });
@@ -130,7 +138,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     onSetPendingDeleteMessageId: (messageId) => setPendingDeleteMessageId(messageId),
     onStartEditMessage: (messageId) => app.startEditingMessage(messageId),
     onToggleReaction: (messageId, emoji) => {
-      void app.toggleReaction(messageId, emoji);
+      app.toggleReaction(messageId, emoji);
     },
     openEmojiMenu: emojiMenu.openEmojiMenu,
     visibleChannelsCount: app.visibleChannels.length,
@@ -147,7 +155,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
   const closeSearch = useCallback(() => setIsSearchOpen(false), []);
 
   const workspaceId = app.workspace?.id ?? "";
-  const channelUpload = useFileUpload({ workspaceId });
+  channelDrafts.updateWorkspaceId(workspaceId);
   const threadUpload = useFileUpload({ workspaceId });
 
   const keyboardNav = useMessageKeyboardNav({
@@ -217,7 +225,6 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     requestAnimationFrame(tryFocus);
     if (isMobile) closeSidebar();
     setIsDirectoryOpen(false);
-    channelUpload.clearFiles();
   }, [app.activeChannel?.id, isMobile, closeSidebar]);
 
   const previousThreadIdRef = useRef<string | null>(null);
@@ -299,9 +306,12 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
   }
 
   async function handleSendChannelMessage() {
-    const uploaded = channelUpload.hasFiles ? await channelUpload.uploadAll() : undefined;
-    await app.sendChannelMessage(uploaded);
-    channelUpload.clearFiles();
+    const activeId = app.activeChannel?.id;
+    if (!activeId) return;
+    const uploaded = channelDrafts.hasFiles(activeId)
+      ? await channelDrafts.uploadAllFiles(activeId)
+      : undefined;
+    app.sendChannelMessage(uploaded);
     requestAnimationFrame(() => {
       if (channelScrollRef.current) {
         channelScrollRef.current.scrollTop = 0;
@@ -311,7 +321,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
 
   async function handleSendThreadReply() {
     const uploaded = threadUpload.hasFiles ? await threadUpload.uploadAll() : undefined;
-    await app.sendThreadReply(uploaded, alsoSendToChannel);
+    app.sendThreadReply(uploaded, alsoSendToChannel);
     threadUpload.clearFiles();
     if (alsoSendToChannel) {
       requestAnimationFrame(() => {
@@ -368,6 +378,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
   const sidebarContentProps = {
     app,
     canManageChannels: app.canManageChannels,
+    channelIdsWithDrafts: channelDrafts.channelIdsWithDrafts,
     currentUserMember: app.currentUserMember,
     isDirectoryOpen,
     memberships: props.memberships,
@@ -417,12 +428,12 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
       void handleSendThreadReply();
     },
     onSaveEdit: () => {
-      void app.saveEditingMessage();
+      app.saveEditingMessage();
     },
     onStartEdit: app.startEditingMessage,
     onThreadDraftChange: app.setThreadDraft,
     onToggleReaction: (messageId: string, emoji: string) => {
-      void app.toggleReaction(messageId, emoji);
+      app.toggleReaction(messageId, emoji);
     },
     replies: app.selectedThreadReplies,
     rootMessage: app.selectedThreadMessage,
@@ -532,11 +543,11 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                   requestAnimationFrame(() => threadInputRef.current?.focus());
                 }}
                 onSaveEdit={() => {
-                  void app.saveEditingMessage();
+                  app.saveEditingMessage();
                 }}
                 onStartEdit={(messageId) => app.startEditingMessage(messageId)}
                 onToggleReaction={(messageId, emoji) => {
-                  void app.toggleReaction(messageId, emoji);
+                  app.toggleReaction(messageId, emoji);
                 }}
                 ref={channelScrollRef}
                 selectedMessageId={keyboardNav.selectedMessageId}
@@ -547,15 +558,25 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
               <ChannelFooter
                 channelName={app.activeChannel?.name ?? "channel"}
                 draft={app.channelDraft}
-                onAddFiles={channelUpload.addFiles}
+                onAddFiles={(files: FileList) => {
+                  if (app.activeChannel?.id) {
+                    channelDrafts.addFiles(app.activeChannel.id, files);
+                  }
+                }}
                 onInputFocus={keyboardNav.handleInputFocus}
                 onInputKeyDown={keyboardNav.handleInputKeyDown}
-                onRemoveFile={channelUpload.removeFile}
+                onRemoveFile={(fileId: string) => {
+                  if (app.activeChannel?.id) {
+                    channelDrafts.removeFile(app.activeChannel.id, fileId);
+                  }
+                }}
                 onSubmit={() => {
                   void handleSendChannelMessage();
                 }}
                 onValueChange={app.setChannelDraft}
-                stagedFiles={channelUpload.stagedFiles}
+                stagedFiles={
+                  app.activeChannel?.id ? channelDrafts.getStagedFiles(app.activeChannel.id) : []
+                }
                 textareaRef={channelInputRef}
               />
             </main>
@@ -590,7 +611,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
         <DeleteConfirmModal
           onClose={() => setPendingDeleteMessageId(null)}
           onConfirm={() => {
-            void app.deleteMessage(pendingDeleteMessageId);
+            app.deleteMessage(pendingDeleteMessageId);
             setPendingDeleteMessageId(null);
             keyboardNav.clearSelection();
           }}

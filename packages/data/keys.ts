@@ -38,6 +38,10 @@ export function createReactionKey(messageId: string, userId: string, emoji: stri
   return `${messageId}:${userId}:${emoji}`;
 }
 
+export function createChannelDraftKey(channelId: string, userId: string) {
+  return `${channelId}:${userId}`;
+}
+
 export function createWorkspaceFilePath(workspaceId: string, fileId: string, filename: string) {
   return `quack/workspaces/${workspaceId}/${fileId}/${filename}`;
 }

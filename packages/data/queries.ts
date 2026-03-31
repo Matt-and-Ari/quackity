@@ -307,6 +307,20 @@ export function activeChannelMeetingsByWorkspaceQuery(workspaceId: string) {
   } satisfies QuackQuery;
 }
 
+export function channelDraftsByUserQuery(userId: string) {
+  return {
+    channelDrafts: {
+      $: {
+        where: {
+          "$user.id": userId,
+        },
+      },
+      attachments: {},
+      channel: {},
+    },
+  } satisfies QuackQuery;
+}
+
 export function messagesByChannelQuery(
   channelId: string,
   options?: {

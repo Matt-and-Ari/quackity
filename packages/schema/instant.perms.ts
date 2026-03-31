@@ -150,6 +150,23 @@ const rules = {
       validVisibility: "data.visibility in ['public', 'private']",
     },
   },
+  channelDrafts: {
+    allow: {
+      create: "isOwner && canViewChannel",
+      delete: "isOwner",
+      update: "isOwner",
+      view: "isOwner",
+    },
+    bind: {
+      ...buildChannelAccessBinds({
+        channelId: "data.ref('channel.id')[0]",
+        visibility: "data.ref('channel.visibility')[0]",
+        workspaceId: "data.ref('channel.workspace.id')[0]",
+        workspaceOwnerIds: "data.ref('channel.workspace.owner.id')",
+      }),
+      isOwner: "auth.id != null && auth.id in data.ref('$user.id')",
+    },
+  },
   channelMembers: {
     allow: {
       create: "isWorkspaceManager || (isSelf && isPublicChannel && isWorkspaceViewer)",
