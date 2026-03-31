@@ -228,6 +228,10 @@ function QuackLogo() {
 }
 
 export function LoggedOutPage() {
+  useEffect(() => {
+    document.title = "Sign in | Quackity";
+  }, []);
+
   return (
     <section className="flex min-h-0 flex-1 items-center justify-center px-4 py-16 sm:py-20">
       <div className="relative w-full max-w-sm">

@@ -33,6 +33,10 @@ export function LandingPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    document.title = "Quackity";
+  }, []);
+
+  useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     function handleScroll() {

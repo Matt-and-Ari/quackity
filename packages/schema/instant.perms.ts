@@ -90,11 +90,12 @@ const rules = {
         "(isInitialOwnerMembership || isWorkspaceOwner || (isWorkspaceAdmin && createsNonAdminMembership) || isInviteeCreatingMembership) && validRole",
       delete: "isWorkspaceOwner || (isWorkspaceAdmin && !isTargetManagerOrOwner)",
       update:
-        "(isWorkspaceOwner && validUpdatedRole) || (isWorkspaceAdmin && !updatesRole && !isTargetManagerOrOwner)",
+        "(isSelf && !updatesRole) || (isWorkspaceOwner && validUpdatedRole) || (isWorkspaceAdmin && !updatesRole && !isTargetManagerOrOwner)",
       view: "isWorkspaceMember",
     },
     bind: {
       createsNonAdminMembership: "data.role in ['member', 'guest']",
+      isSelf: "auth.id != null && auth.id in data.ref('$user.id')",
       isInitialOwnerMembership:
         "auth.id != null && auth.id in data.ref('$user.id') && auth.id in data.ref('workspace.owner.id') && data.role == 'admin'",
       isInviteeCreatingMembership:
