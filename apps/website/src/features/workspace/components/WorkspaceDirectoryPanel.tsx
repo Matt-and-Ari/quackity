@@ -16,6 +16,7 @@ interface DirectoryPanelProps {
   onClose: () => void;
   onJoinChannel: (channelId: string) => void;
   onLeaveChannel: (channelId: string) => void;
+  onMemberClick?: (userId: string) => void;
   visibleChannelIds: Set<string>;
   workspaceSlug: string;
 }
@@ -39,7 +40,7 @@ export function DirectoryPanel(props: DirectoryPanelProps) {
   const query = search.toLowerCase().trim();
 
   const filteredChannels = props.allChannels.filter((channel) => {
-    if (channel.archivedAt) {
+    if (channel.visibility === "dm" || channel.archivedAt) {
       return false;
     }
 
@@ -183,9 +184,11 @@ export function DirectoryPanel(props: DirectoryPanelProps) {
               <p className="px-5 py-8 text-center text-sm text-slate-400">No members found</p>
             ) : (
               filteredMembers.map((member) => (
-                <div
-                  className="flex select-none items-center gap-3 px-4 py-2.5 transition-colors duration-75 hover:bg-amber-50/50 sm:px-5"
+                <button
+                  className="flex w-full select-none items-center gap-3 px-4 py-2.5 text-left transition-colors duration-75 hover:bg-amber-50/50 sm:px-5"
                   key={member.id}
+                  onClick={() => member.$user?.id && props.onMemberClick?.(member.$user.id)}
+                  type="button"
                 >
                   <UserAvatar
                     imageUrl={member.$user?.avatar?.url ?? member.$user?.imageURL}
@@ -203,7 +206,7 @@ export function DirectoryPanel(props: DirectoryPanelProps) {
                   <span className="shrink-0 rounded-md bg-amber-50 px-2 py-0.5 text-[0.65rem] font-medium text-amber-700">
                     {member.role ?? "member"}
                   </span>
-                </div>
+                </button>
               ))
             )}
           </div>

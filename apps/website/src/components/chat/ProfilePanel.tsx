@@ -8,8 +8,10 @@ import { RightPanel } from "./RightPanel";
 
 interface ProfilePanelProps {
   channels?: ChannelRecord[];
+  currentUserId?: string;
   isMobile?: boolean;
   onClose: () => void;
+  onMessage?: (userId: string) => void;
   startResize: (event: React.MouseEvent) => void;
   user: InstantUserWithAvatar;
   width: number;
@@ -52,6 +54,25 @@ export function ProfilePanel(props: ProfilePanelProps) {
           <span className="mt-0.5 rounded-full bg-amber-100/70 px-2.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wider text-amber-700">
             {role}
           </span>
+
+          {props.onMessage && props.user.id !== props.currentUserId ? (
+            <button
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors duration-100 hover:bg-amber-600"
+              onClick={() => props.onMessage!(props.user.id)}
+              type="button"
+            >
+              <svg className="size-4" fill="none" viewBox="0 0 24 24">
+                <path
+                  d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10Z"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                />
+              </svg>
+              Message
+            </button>
+          ) : null}
         </div>
 
         <div className="mt-6 flex flex-col gap-4">

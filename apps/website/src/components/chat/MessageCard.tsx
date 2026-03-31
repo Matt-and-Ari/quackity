@@ -154,7 +154,7 @@ export function MessageCard(props: MessageCardProps) {
         ) : null}
       </div>
 
-      <div className="flex gap-3">
+      <div className="flex items-start gap-3">
         <button
           className="mt-0.5 shrink-0 cursor-pointer"
           onClick={() => sender?.id && props.onUserClick?.(sender.id)}

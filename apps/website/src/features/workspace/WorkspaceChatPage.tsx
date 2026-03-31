@@ -290,6 +290,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
               onLeaveChannel={(channelId) => {
                 void state.app.leaveChannel(channelId);
               }}
+              onMemberClick={handleOpenProfile}
               visibleChannelIds={new Set(state.app.visibleChannels.map((c) => c.id))}
               workspaceSlug={props.workspaceSlug}
             />
@@ -459,8 +460,14 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                     channels={state.app.visibleChannels.filter((ch) =>
                       ch.members?.some((m) => m.$user?.id === state.profileUserId),
                     )}
+                    currentUserId={props.user.id}
                     isMobile
                     onClose={handleCloseProfile}
+                    onMessage={(userId) => {
+                      handleCloseProfile();
+                      state.setIsDirectoryOpen(false);
+                      void state.app.openOrCreateDm(userId);
+                    }}
                     startResize={state.thread.startResize}
                     user={state.app.usersById.get(state.profileUserId)!}
                     width={state.thread.width}
@@ -474,7 +481,13 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                 channels={state.app.visibleChannels.filter((ch) =>
                   ch.members?.some((m) => m.$user?.id === state.profileUserId),
                 )}
+                currentUserId={props.user.id}
                 onClose={handleCloseProfile}
+                onMessage={(userId) => {
+                  handleCloseProfile();
+                  state.setIsDirectoryOpen(false);
+                  void state.app.openOrCreateDm(userId);
+                }}
                 startResize={state.thread.startResize}
                 user={state.app.usersById.get(state.profileUserId)!}
                 width={state.thread.width}
