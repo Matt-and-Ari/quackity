@@ -3,6 +3,8 @@ import {
   channelsByWorkspaceQuery,
   createChannelMemberTx,
   createChannelTx,
+  createDmChannelTx,
+  createDmChannelKey,
   createMessageAttachmentTx,
   createMessageTx,
   createReactionTx,
@@ -62,6 +64,7 @@ export interface UseQuackWorkspaceResult {
   currentUserMember?: WorkspaceMemberRecord;
   deleteChannel: (channelId: string) => Promise<void>;
   deleteMessage: (messageId: string) => void;
+  dmChannels: ChannelRecord[];
   editingDraft: string;
   editingMessageId: string | null;
   errorMessage?: string;
@@ -74,6 +77,7 @@ export interface UseQuackWorkspaceResult {
   messages: MessageRecord[];
   notice: string | null;
   onlineMembers: WorkspaceMemberRecord[];
+  openOrCreateDm: (targetUserId: string) => Promise<void>;
   openThread: (messageId: string) => void;
   renamingChannelId: string | null;
   saveEditingMessage: () => void;
@@ -132,6 +136,15 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
   const visibleChannels = useMemo(() => {
     return allChannels.filter((channel) => {
       if (channel.archivedAt) return false;
+      if (channel.visibility === "dm") return false;
+      return asArray(channel.members).some((member) => member.$user?.id === props.user.id);
+    });
+  }, [allChannels, props.user.id]);
+
+  const dmChannels = useMemo(() => {
+    return allChannels.filter((channel) => {
+      if (channel.archivedAt) return false;
+      if (channel.visibility !== "dm") return false;
       return asArray(channel.members).some((member) => member.$user?.id === props.user.id);
     });
   }, [allChannels, props.user.id]);
@@ -152,16 +165,19 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
   const activeChannel = useMemo(() => {
     const defaultChannel = visibleChannels[0] ?? null;
 
-    if (!defaultChannel) {
-      return null;
-    }
-
     if (!props.channelSlug) {
-      return defaultChannel;
+      return defaultChannel ?? null;
     }
 
-    return visibleChannels.find((channel) => channel.slug === props.channelSlug) ?? defaultChannel;
-  }, [props.channelSlug, visibleChannels]);
+    const allUserChannels = [...visibleChannels, ...dmChannels];
+    const found = allUserChannels.find((channel) => channel.slug === props.channelSlug);
+    if (found) return found;
+
+    // DM slug not yet in the subscription — don't fall back to a regular channel
+    if (props.channelSlug.startsWith("dm-")) return null;
+
+    return defaultChannel;
+  }, [props.channelSlug, visibleChannels, dmChannels]);
 
   const activeChannelId = activeChannel?.id ?? null;
 
@@ -191,8 +207,11 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
       return;
     }
 
+    const isDm = activeChannel.visibility === "dm";
+    const prefix = isDm ? "dms" : "channels";
+
     if (!props.channelSlug || props.channelSlug !== activeChannel.slug) {
-      navigate(`/workspaces/${props.workspaceSlug}/channels/${activeChannel.slug}`, {
+      navigate(`/workspaces/${props.workspaceSlug}/${prefix}/${activeChannel.slug}`, {
         replace: true,
       });
     }
@@ -792,6 +811,40 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
     }
   }
 
+  async function openOrCreateDm(targetUserId: string) {
+    if (!workspace) return;
+
+    const dmKey = createDmChannelKey(workspace.id, props.user.id, targetUserId);
+    const existingDm = allChannels.find((ch) => ch.dmKey === dmKey);
+
+    if (existingDm) {
+      navigate(`/workspaces/${props.workspaceSlug}/dms/${existingDm.slug}`);
+      return;
+    }
+
+    const targetMember = members.find((m) => m.$user?.id === targetUserId);
+    const targetName = targetMember?.displayName ?? targetMember?.$user?.email ?? "Unknown";
+    const currentName = currentUserMember?.displayName ?? props.user.email ?? "Me";
+    const isSelf = targetUserId === props.user.id;
+    const channelName = isSelf ? currentName : targetName;
+
+    const slug = `dm-${Date.now().toString(36)}`;
+
+    try {
+      const result = createDmChannelTx({
+        creatorId: props.user.id,
+        name: channelName,
+        otherUserId: targetUserId,
+        slug,
+        workspaceId: workspace.id,
+      });
+      await instantDB.transact(result.tx);
+      navigate(`/workspaces/${props.workspaceSlug}/dms/${slug}`);
+    } catch (error) {
+      setNotice(toErrorMessage(error, "Could not open direct message."));
+    }
+  }
+
   return {
     activeChannel,
     canManageChannels,
@@ -806,6 +859,7 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
     currentUserMember,
     deleteChannel,
     deleteMessage,
+    dmChannels,
     editingDraft,
     editingMessageId,
     errorMessage:
@@ -818,6 +872,7 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
     messages: rootMessages,
     notice,
     onlineMembers,
+    openOrCreateDm,
     openThread,
     renamingChannelId,
     saveEditingMessage,

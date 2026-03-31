@@ -42,6 +42,11 @@ export function createChannelDraftKey(channelId: string, userId: string) {
   return `${channelId}:${userId}`;
 }
 
+export function createDmChannelKey(workspaceId: string, userIdA: string, userIdB: string) {
+  const sorted = [userIdA, userIdB].sort();
+  return `${workspaceId}:dm:${sorted[0]}:${sorted[1]}`;
+}
+
 export function createWorkspaceFilePath(workspaceId: string, fileId: string, filename: string) {
   return `quack/workspaces/${workspaceId}/${fileId}/${filename}`;
 }

@@ -185,6 +185,24 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     return map;
   }, [app.visibleChannels]);
 
+  const activeDmInfo = useMemo(() => {
+    if (app.activeChannel?.visibility !== "dm") return undefined;
+
+    const members = app.activeChannel.members ?? [];
+    const otherMember = members.find((m) => m.$user?.id !== props.user.id);
+    const isSelf = !otherMember || otherMember.$user?.id === props.user.id;
+    const targetUserId = isSelf ? props.user.id : otherMember.$user?.id;
+    const workspaceMember = targetUserId
+      ? app.workspaceMembersByUserId.get(targetUserId)
+      : undefined;
+    const user = targetUserId ? app.usersById.get(targetUserId) : undefined;
+    const displayName = workspaceMember?.displayName ?? user?.email ?? app.activeChannel.name;
+    const imageUrl = user?.avatar?.url ?? user?.imageURL ?? undefined;
+    const role = workspaceMember?.role;
+
+    return { displayName, imageUrl, isSelf, role };
+  }, [app.activeChannel, app.workspaceMembersByUserId, app.usersById, props.user.id]);
+
   useMentionNotifications({
     channelNamesById,
     userId: props.user.id,
@@ -473,6 +491,11 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
       setIsDirectoryOpen(false);
       closeSidebar();
     },
+    onDmNavigate: (targetUserId: string) => {
+      setIsDirectoryOpen(false);
+      closeSidebar();
+      void app.openOrCreateDm(targetUserId);
+    },
     onCreateChannel: () => setIsCreateChannelOpen(true),
     onCreateWorkspace: () => setIsCreateWorkspaceOpen(true),
     onInvite: () => setIsInviteOpen(true),
@@ -638,6 +661,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                 channelTopic={app.activeChannel.topic}
                 errorMessage={app.errorMessage}
                 hasRefreshToken={Boolean(props.user.refresh_token)}
+                isDm={app.activeChannel.visibility === "dm"}
                 isInCall={isInCall}
                 isMobile={isMobile}
                 notice={app.notice}
@@ -653,6 +677,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                 activeThreadMessageId={app.selectedThreadMessage?.id}
                 channelName={app.activeChannel.name}
                 currentUserId={props.user.id}
+                dmInfo={activeDmInfo}
                 editingDraft={app.editingDraft}
                 editingMessageId={app.editingMessageId}
                 isMessagesLoading={app.isMessagesLoading}
@@ -687,6 +712,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                 channelName={app.activeChannel.name}
                 draft={app.channelDraft}
                 editorRef={channelInputRef}
+                isDm={app.activeChannel.visibility === "dm"}
                 members={mentionMembers}
                 onAddFiles={(files: FileList) => {
                   channelDrafts.addFiles(app.activeChannel!.id, files);

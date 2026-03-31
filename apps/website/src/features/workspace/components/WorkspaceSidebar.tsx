@@ -6,6 +6,7 @@ import { SidebarMenuButton } from "./SidebarMenuButton";
 import { SidebarUserCard } from "./SidebarUserCard";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 import { BrowseGlyph, CloseGlyph, PlusGlyph, SearchGlyph } from "./WorkspaceGlyphs";
+import { UserAvatar } from "./WorkspaceAtoms";
 import type { UseQuackWorkspaceResult } from "../../../hooks/useQuackWorkspace";
 import type {
   AuthenticatedUser,
@@ -36,6 +37,7 @@ interface SidebarContentProps {
   onClose?: () => void;
   onCreateChannel: () => void;
   onCreateWorkspace: () => void;
+  onDmNavigate?: (targetUserId: string) => void;
   onInvite: () => void;
   onSearch?: () => void;
   onSettings: () => void;
@@ -141,6 +143,17 @@ export function SidebarContent(props: SidebarContentProps) {
             renameValue={props.app.channelRenameDraft}
           />
         ))}
+
+        <DirectMessagesList
+          activeChannelId={props.app.activeChannel?.id}
+          allWorkspaceMembers={props.app.allWorkspaceMembers}
+          dmChannels={props.app.dmChannels}
+          isDirectoryOpen={props.isDirectoryOpen}
+          onDmNavigate={props.onDmNavigate}
+          user={props.user}
+          workspaceMembersByUserId={props.app.workspaceMembersByUserId}
+          workspaceSlug={props.workspaceSlug}
+        />
       </nav>
 
       {props.pendingInvites.length > 0 ? (
@@ -165,6 +178,79 @@ export function SidebarContent(props: SidebarContentProps) {
         onSignOut={props.onSignOut}
         user={props.user}
       />
+    </>
+  );
+}
+
+interface DirectMessagesListProps {
+  activeChannelId?: string | null;
+  allWorkspaceMembers: WorkspaceMemberRecord[];
+  dmChannels: ChannelRecord[];
+  isDirectoryOpen: boolean;
+  onDmNavigate?: (targetUserId: string) => void;
+  user: AuthenticatedUser;
+  workspaceMembersByUserId: Map<string, WorkspaceMemberRecord>;
+  workspaceSlug: string;
+}
+
+function DirectMessagesList(props: DirectMessagesListProps) {
+  const dmChannelsByUserId = new Map<string, ChannelRecord>();
+  for (const dm of props.dmChannels) {
+    const members = dm.members ?? [];
+    const otherMember = members.find((m) => m.$user?.id !== props.user.id);
+    const targetUserId = otherMember?.$user?.id ?? props.user.id;
+    dmChannelsByUserId.set(targetUserId, dm);
+  }
+
+  function getDmDisplayInfo(member: WorkspaceMemberRecord) {
+    const userId = member.$user?.id ?? "";
+    const isSelf = userId === props.user.id;
+    const displayName = member.displayName ?? member.$user?.email ?? "Unknown";
+    const imageUrl = member.$user?.avatar?.url ?? member.$user?.imageURL ?? undefined;
+    return { displayName, imageUrl, isSelf, userId };
+  }
+
+  return (
+    <>
+      <div className="mb-1 mt-4 flex items-center justify-between px-2">
+        <p className="text-[0.65rem] font-semibold uppercase tracking-widest text-slate-400">
+          Direct Messages
+        </p>
+      </div>
+      {props.allWorkspaceMembers.map((member) => {
+        const info = getDmDisplayInfo(member);
+        if (!info.userId) return null;
+
+        const existingDm = dmChannelsByUserId.get(info.userId);
+        const isActive =
+          !props.isDirectoryOpen && existingDm != null && existingDm.id === props.activeChannelId;
+
+        return (
+          <button
+            className={clsx(
+              "flex w-full select-none items-center gap-2 rounded-xl px-2.5 py-1.5 text-sm transition-colors duration-100",
+              isActive
+                ? "bg-amber-500 font-medium text-white shadow-[0_8px_24px_rgba(245,158,11,0.24)]"
+                : "text-slate-600 hover:bg-amber-100/60",
+            )}
+            key={info.userId}
+            onClick={() => props.onDmNavigate?.(info.userId)}
+            type="button"
+          >
+            <UserAvatar imageUrl={info.imageUrl} name={info.displayName} size="xs" />
+            <span className="truncate">
+              {info.displayName}
+              {info.isSelf ? (
+                <span
+                  className={clsx("ml-1 text-xs", isActive ? "text-white/70" : "text-slate-400")}
+                >
+                  (you)
+                </span>
+              ) : null}
+            </span>
+          </button>
+        );
+      })}
     </>
   );
 }

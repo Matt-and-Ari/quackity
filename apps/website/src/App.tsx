@@ -302,6 +302,6 @@ async function acceptWorkspaceInvite(invite: WorkspaceInviteRecord, user: Authen
 
 function extractChannelSlug(rest: string | undefined): string | undefined {
   if (!rest) return undefined;
-  const match = rest.match(/^channels\/([^/]+)/);
+  const match = rest.match(/^(?:channels|dms)\/([^/]+)/);
   return match?.[1];
 }

@@ -10,6 +10,7 @@ interface ChannelHeaderProps {
   channelTopic: string | undefined;
   errorMessage: string | null | undefined;
   hasRefreshToken: boolean;
+  isDm?: boolean;
   isInCall: boolean;
   isMobile: boolean;
   notice: string | null;
@@ -68,7 +69,7 @@ export function ChannelHeader(props: ChannelHeaderProps) {
               </button>
             </HoverTooltip>
           )}
-          {props.canManageChannels && props.channelId ? (
+          {props.canManageChannels && props.channelId && !props.isDm ? (
             <HoverTooltip content="Channel settings" side="bottom">
               <button
                 className="flex size-8 items-center justify-center rounded-lg text-slate-400 transition-colors duration-100 hover:bg-amber-50 hover:text-slate-600"

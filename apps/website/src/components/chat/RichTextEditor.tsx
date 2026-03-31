@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-import { EditorContent, ReactRenderer, useEditor, type Editor } from "@tiptap/react";
+import { EditorContent, Extension, ReactRenderer, useEditor, type Editor } from "@tiptap/react";
 import type { EditorView } from "@tiptap/pm/view";
 import type { ResolvedPos } from "@tiptap/pm/model";
 import StarterKit from "@tiptap/starter-kit";
@@ -8,9 +8,13 @@ import Placeholder from "@tiptap/extension-placeholder";
 import Link from "@tiptap/extension-link";
 import Underline from "@tiptap/extension-underline";
 import Mention from "@tiptap/extension-mention";
+import Suggestion from "@tiptap/suggestion";
 import type { SuggestionProps, SuggestionKeyDownProps } from "@tiptap/suggestion";
 import clsx from "clsx";
+import emojiDataJson from "@emoji-mart/data/sets/15/native.json";
+import type { EmojiMartData } from "@emoji-mart/data";
 
+import { EmojiSuggestionList, type EmojiSuggestionItem } from "./EmojiSuggestionList";
 import { MentionList, type MentionSuggestionItem } from "./MentionList";
 
 interface RichTextEditorProps {
@@ -55,6 +59,7 @@ export function RichTextEditor(props: RichTextEditorProps) {
         HTMLAttributes: { class: "mention" },
         suggestion: buildMentionSuggestion(membersRef),
       }),
+      buildEmojiSuggestionExtension(),
     ],
     content: parseContent(props.value),
     editorProps: {
@@ -67,6 +72,12 @@ export function RichTextEditor(props: RichTextEditorProps) {
         if (p.onKeyDown) {
           const handled = p.onKeyDown(event);
           if (handled) return true;
+        }
+
+        if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "x") {
+          event.preventDefault();
+          propsRef.current.editorRef?.current?.commands.toggleStrike();
+          return true;
         }
 
         if (event.key === "Enter" && event.shiftKey) {
@@ -308,10 +319,7 @@ function buildMentionSuggestion(membersRef: React.RefObject<MentionSuggestionIte
             editor: suggestionProps.editor,
           }) as ReactRenderer<MentionRef>;
 
-          popup = document.createElement("div");
-          popup.style.position = "absolute";
-          popup.style.zIndex = "50";
-          document.body.appendChild(popup);
+          popup = createSuggestionPopup();
           if (component) popup.appendChild(component.element);
 
           if (suggestionProps.clientRect) {
@@ -346,19 +354,131 @@ function buildMentionSuggestion(membersRef: React.RefObject<MentionSuggestionIte
   };
 }
 
+function createSuggestionPopup(): HTMLDivElement {
+  const popup = document.createElement("div");
+  popup.style.position = "fixed";
+  popup.style.zIndex = "50";
+  document.body.appendChild(popup);
+  return popup;
+}
+
 function positionPopup(popup: HTMLDivElement, clientRect: (() => DOMRect | null) | null) {
   if (!clientRect) return;
   const rect = clientRect();
   if (!rect) return;
 
-  popup.style.left = `${rect.left + window.scrollX}px`;
-  popup.style.top = `${rect.top + window.scrollY - popup.offsetHeight - 4}px`;
+  const gap = 4;
+  const popupHeight = popup.offsetHeight;
 
-  requestAnimationFrame(() => {
-    if (!popup) return;
-    const popupRect = popup.getBoundingClientRect();
-    if (popupRect.top < 0) {
-      popup.style.top = `${rect.bottom + window.scrollY + 4}px`;
-    }
+  if (popupHeight === 0) {
+    popup.style.visibility = "hidden";
+    popup.style.left = `${rect.left}px`;
+    popup.style.top = `${rect.top - gap}px`;
+
+    requestAnimationFrame(() => {
+      if (!popup) return;
+      popup.style.visibility = "";
+      positionPopup(popup, clientRect);
+    });
+    return;
+  }
+
+  const fitsAbove = rect.top - gap - popupHeight >= 0;
+  const top = fitsAbove ? rect.top - gap - popupHeight : rect.bottom + gap;
+
+  popup.style.left = `${Math.max(0, rect.left)}px`;
+  popup.style.top = `${top}px`;
+}
+
+const emojiData = emojiDataJson as EmojiMartData;
+
+interface EmojiSearchEntry {
+  emoji: string;
+  id: string;
+  name: string;
+  searchText: string;
+}
+
+const allEmojiSearchEntries: EmojiSearchEntry[] = Object.values(emojiData.emojis)
+  .map((emoji) => {
+    const native = emoji.skins[0]?.native;
+    if (!native) return null;
+    return {
+      emoji: native,
+      id: emoji.id,
+      name: emoji.name,
+      searchText: `${emoji.id} ${emoji.name} ${emoji.keywords.join(" ")}`.toLowerCase(),
+    };
+  })
+  .filter((e): e is EmojiSearchEntry => e !== null);
+
+interface EmojiSuggestionRef {
+  onKeyDown: (props: { event: KeyboardEvent }) => boolean;
+}
+
+function buildEmojiSuggestionExtension() {
+  return Extension.create({
+    name: "emojiSuggestion",
+    addProseMirrorPlugins() {
+      return [
+        Suggestion<EmojiSuggestionItem>({
+          editor: this.editor,
+          char: ":",
+          allowSpaces: false,
+          startOfLine: false,
+          items({ query }: { query: string }): EmojiSuggestionItem[] {
+            if (!query) return [];
+            const q = query.toLowerCase();
+            return allEmojiSearchEntries.filter((e) => e.searchText.includes(q)).slice(0, 10);
+          },
+          command({ editor, range, props: item }) {
+            editor.chain().focus().deleteRange(range).insertContent(item.emoji).run();
+          },
+          render() {
+            let component: ReactRenderer<EmojiSuggestionRef> | null = null;
+            let popup: HTMLDivElement | null = null;
+
+            return {
+              onStart(suggestionProps: SuggestionProps<EmojiSuggestionItem>) {
+                component = new ReactRenderer(EmojiSuggestionList, {
+                  props: suggestionProps,
+                  editor: suggestionProps.editor,
+                }) as ReactRenderer<EmojiSuggestionRef>;
+
+                popup = createSuggestionPopup();
+                if (component) popup.appendChild(component.element);
+
+                if (suggestionProps.clientRect) {
+                  positionPopup(popup, suggestionProps.clientRect);
+                }
+              },
+              onUpdate(suggestionProps: SuggestionProps<EmojiSuggestionItem>) {
+                component?.updateProps(suggestionProps);
+
+                if (popup && suggestionProps.clientRect) {
+                  positionPopup(popup, suggestionProps.clientRect);
+                }
+              },
+              onKeyDown(suggestionProps: SuggestionKeyDownProps) {
+                if (suggestionProps.event.key === "Escape") {
+                  popup?.remove();
+                  popup = null;
+                  component?.destroy();
+                  component = null;
+                  return true;
+                }
+                return component?.ref?.onKeyDown(suggestionProps) ?? false;
+              },
+              onExit() {
+                popup?.remove();
+                popup = null;
+                component?.destroy();
+                component = null;
+              },
+            };
+          },
+        }),
+      ];
+    },
   });
 }

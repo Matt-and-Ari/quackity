@@ -54,14 +54,17 @@ export function resolveFloatingPosition(props: ResolveFloatingPositionProps): Fl
   const offset = props.offset ?? 10;
   const viewportHeight = window.innerHeight;
   const viewportWidth = window.innerWidth;
+
+  const fitsAbove = props.anchor.top - offset - props.floatingHeight >= viewportMargin;
   const fitsBelow =
     props.anchor.top + props.anchor.height + offset + props.floatingHeight <=
     viewportHeight - viewportMargin;
 
-  const targetTop =
-    props.preferredY === "top" || !fitsBelow
-      ? props.anchor.top - props.floatingHeight - offset
-      : props.anchor.top + props.anchor.height + offset;
+  const placeAbove = props.preferredY === "top" ? fitsAbove || !fitsBelow : !fitsBelow;
+
+  const targetTop = placeAbove
+    ? props.anchor.top - props.floatingHeight - offset
+    : props.anchor.top + props.anchor.height + offset;
 
   let targetLeft = props.anchor.left;
 

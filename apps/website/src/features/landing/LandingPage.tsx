@@ -196,59 +196,7 @@ function ChatPreview() {
               <span className="font-medium text-slate-600">Marcus</span> is typing
             </span>
           </div>
-          <div className="relative rounded-xl border border-amber-200/70 bg-white">
-            <div className="flex items-center gap-0.5 border-b border-amber-100/60 px-2 py-1">
-              <PreviewToolbarBtn>
-                <PreviewBoldIcon />
-              </PreviewToolbarBtn>
-              <PreviewToolbarBtn>
-                <PreviewItalicIcon />
-              </PreviewToolbarBtn>
-              <PreviewToolbarBtn>
-                <PreviewStrikeIcon />
-              </PreviewToolbarBtn>
-              <div className="mx-0.5 h-4 w-px bg-amber-200/50" />
-              <PreviewToolbarBtn>
-                <PreviewLinkIcon />
-              </PreviewToolbarBtn>
-              <div className="mx-0.5 h-4 w-px bg-amber-200/50" />
-              <PreviewToolbarBtn>
-                <PreviewBulletListIcon />
-              </PreviewToolbarBtn>
-              <PreviewToolbarBtn>
-                <PreviewOrderedListIcon />
-              </PreviewToolbarBtn>
-              <div className="mx-0.5 h-4 w-px bg-amber-200/50" />
-              <PreviewToolbarBtn>
-                <PreviewBlockquoteIcon />
-              </PreviewToolbarBtn>
-              <PreviewToolbarBtn>
-                <PreviewCodeIcon />
-              </PreviewToolbarBtn>
-              <PreviewToolbarBtn>
-                <PreviewCodeBlockIcon />
-              </PreviewToolbarBtn>
-            </div>
-            <div className="flex items-end">
-              <span className="mb-2.5 ml-2 flex size-7 shrink-0 items-center justify-center rounded-lg text-slate-400">
-                <svg className="size-4" fill="none" viewBox="0 0 16 16">
-                  <path
-                    d="M13.5 7.5l-5.8 5.8a3.2 3.2 0 0 1-4.5-4.5l5.8-5.8a2 2 0 0 1 2.8 2.8L6 11.6a.8.8 0 0 1-1.1-1.1L10.1 5"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="1.2"
-                  />
-                </svg>
-              </span>
-              <div className="w-full px-3 py-3 pr-12 text-sm text-slate-400">Message #general</div>
-              <span className="absolute bottom-2.5 right-3 flex size-7 items-center justify-center rounded-lg bg-amber-50 text-slate-300">
-                <svg fill="none" height="14" viewBox="0 0 16 16" width="14">
-                  <path d="M3 13V9L11 8L3 7V3L14 8L3 13Z" fill="currentColor" />
-                </svg>
-              </span>
-            </div>
-          </div>
+          <PreviewMessageInput placeholder="Message #general" />
         </div>
       </div>
     </div>
@@ -386,37 +334,7 @@ function ThreadPreview() {
             <span className="size-3.5 rounded-sm border border-slate-300" />
             Also send to <span className="font-medium text-slate-700">#general</span>
           </label>
-          <div className="relative rounded-xl border border-amber-200/70 bg-white">
-            <div className="flex items-center gap-0.5 border-b border-amber-100/60 px-2 py-1">
-              <PreviewToolbarBtn>
-                <PreviewBoldIcon />
-              </PreviewToolbarBtn>
-              <PreviewToolbarBtn>
-                <PreviewItalicIcon />
-              </PreviewToolbarBtn>
-              <PreviewToolbarBtn>
-                <PreviewStrikeIcon />
-              </PreviewToolbarBtn>
-              <div className="mx-0.5 h-4 w-px bg-amber-200/50" />
-              <PreviewToolbarBtn>
-                <PreviewLinkIcon />
-              </PreviewToolbarBtn>
-              <div className="mx-0.5 h-4 w-px bg-amber-200/50" />
-              <PreviewToolbarBtn>
-                <PreviewCodeIcon />
-              </PreviewToolbarBtn>
-            </div>
-            <div className="flex items-end">
-              <div className="w-full px-4 py-3 pr-12 text-sm text-slate-400">
-                Reply in thread...
-              </div>
-              <span className="absolute bottom-2.5 right-3 flex size-7 items-center justify-center rounded-lg bg-amber-50 text-slate-300">
-                <svg fill="none" height="14" viewBox="0 0 16 16" width="14">
-                  <path d="M3 13V9L11 8L3 7V3L14 8L3 13Z" fill="currentColor" />
-                </svg>
-              </span>
-            </div>
-          </div>
+          <PreviewMessageInput compact placeholder="Reply in thread..." />
         </div>
       </div>
     </div>
@@ -493,43 +411,44 @@ function RichTextPreview() {
           </PreviewToolbarBtn>
         </div>
 
-        <div className="flex items-start">
-          <span className="mt-2.5 ml-2 flex size-7 shrink-0 items-center justify-center rounded-lg text-slate-400">
-            <svg className="size-4" fill="none" viewBox="0 0 16 16">
-              <path
-                d="M13.5 7.5l-5.8 5.8a3.2 3.2 0 0 1-4.5-4.5l5.8-5.8a2 2 0 0 1 2.8 2.8L6 11.6a.8.8 0 0 1-1.1-1.1L10.1 5"
-                stroke="currentColor"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="1.2"
-              />
-            </svg>
-          </span>
-          <div className="w-full space-y-1 px-3 py-3 pr-12 text-sm leading-relaxed text-slate-700">
-            <p>
-              Hey team, here's the <strong className="font-semibold">sprint update</strong>:
-            </p>
-            <ul className="my-1 list-disc space-y-0.5 pl-5 text-slate-600">
-              <li>
-                Shipped{" "}
-                <code className="rounded bg-amber-100/60 px-1 py-0.5 text-[0.8125rem] text-amber-900">
-                  v2.1
-                </code>{" "}
-                to production
-              </li>
-              <li>Fixed the auth redirect bug</li>
-              <li>
-                <span className="rounded-md bg-amber-100/70 px-1 py-0.5 font-medium text-amber-800">
-                  @Marcus
-                </span>{" "}
-                can you review the PR?
-              </li>
-            </ul>
-            <blockquote className="my-1 border-l-2 border-amber-300 pl-3 text-slate-500">
-              "Ship it when it's ready, not when it's perfect"
-            </blockquote>
+        <div className="space-y-1 px-4 py-3 text-sm leading-relaxed text-slate-700">
+          <p>
+            Hey team, here's the <strong className="font-semibold">sprint update</strong>:
+          </p>
+          <ul className="my-1 list-disc space-y-0.5 pl-5 text-slate-600">
+            <li>
+              Shipped{" "}
+              <code className="rounded bg-amber-100/60 px-1 py-0.5 text-[0.8125rem] text-amber-900">
+                v2.1
+              </code>{" "}
+              to production
+            </li>
+            <li>Fixed the auth redirect bug</li>
+            <li>
+              <span className="rounded-md bg-amber-100/70 px-1 py-0.5 font-medium text-amber-800">
+                @Marcus
+              </span>{" "}
+              can you review the PR?
+            </li>
+          </ul>
+          <blockquote className="my-1 border-l-2 border-amber-300 pl-3 text-slate-500">
+            "Ship it when it's ready, not when it's perfect"
+          </blockquote>
+        </div>
+
+        <div className="flex items-center justify-between border-t border-amber-100/60 px-1.5 py-1">
+          <div className="flex items-center gap-0.5">
+            <PreviewActionBtn>
+              <PreviewAttachIcon />
+            </PreviewActionBtn>
+            <PreviewActionBtn>
+              <PreviewEmojiIcon />
+            </PreviewActionBtn>
+            <PreviewActionBtn>
+              <PreviewMentionIcon />
+            </PreviewActionBtn>
           </div>
-          <span className="absolute bottom-2.5 right-3 flex size-7 items-center justify-center rounded-lg bg-amber-500 text-white">
+          <span className="flex size-7 items-center justify-center rounded-lg bg-amber-500 text-white">
             <svg fill="none" height="14" viewBox="0 0 16 16" width="14">
               <path d="M3 13V9L11 8L3 7V3L14 8L3 13Z" fill="currentColor" />
             </svg>
@@ -540,7 +459,131 @@ function RichTextPreview() {
   );
 }
 
-/* ─── Shared preview toolbar primitives ─── */
+/* ─── Shared preview primitives ─── */
+
+function PreviewMessageInput(props: { compact?: boolean; placeholder: string }) {
+  return (
+    <div className="rounded-xl border border-amber-200/70 bg-white">
+      <div className="flex items-center gap-0.5 border-b border-amber-100/60 px-2 py-1">
+        <PreviewToolbarBtn>
+          <PreviewBoldIcon />
+        </PreviewToolbarBtn>
+        <PreviewToolbarBtn>
+          <PreviewItalicIcon />
+        </PreviewToolbarBtn>
+        <PreviewToolbarBtn>
+          <PreviewStrikeIcon />
+        </PreviewToolbarBtn>
+        <div className="mx-0.5 h-4 w-px bg-amber-200/50" />
+        <PreviewToolbarBtn>
+          <PreviewLinkIcon />
+        </PreviewToolbarBtn>
+        {!props.compact ? (
+          <>
+            <div className="mx-0.5 h-4 w-px bg-amber-200/50" />
+            <PreviewToolbarBtn>
+              <PreviewBulletListIcon />
+            </PreviewToolbarBtn>
+            <PreviewToolbarBtn>
+              <PreviewOrderedListIcon />
+            </PreviewToolbarBtn>
+          </>
+        ) : null}
+        <div className="mx-0.5 h-4 w-px bg-amber-200/50" />
+        {!props.compact ? (
+          <PreviewToolbarBtn>
+            <PreviewBlockquoteIcon />
+          </PreviewToolbarBtn>
+        ) : null}
+        <PreviewToolbarBtn>
+          <PreviewCodeIcon />
+        </PreviewToolbarBtn>
+        {!props.compact ? (
+          <PreviewToolbarBtn>
+            <PreviewCodeBlockIcon />
+          </PreviewToolbarBtn>
+        ) : null}
+      </div>
+      <div className="px-4 py-3 text-sm text-slate-400">{props.placeholder}</div>
+      <div className="flex items-center justify-between border-t border-amber-100/60 px-1.5 py-1">
+        <div className="flex items-center gap-0.5">
+          <PreviewActionBtn>
+            <PreviewAttachIcon />
+          </PreviewActionBtn>
+          <PreviewActionBtn>
+            <PreviewEmojiIcon />
+          </PreviewActionBtn>
+          <PreviewActionBtn>
+            <PreviewMentionIcon />
+          </PreviewActionBtn>
+        </div>
+        <span className="flex size-7 items-center justify-center rounded-lg bg-amber-50 text-slate-300">
+          <svg fill="none" height="14" viewBox="0 0 16 16" width="14">
+            <path d="M3 13V9L11 8L3 7V3L14 8L3 13Z" fill="currentColor" />
+          </svg>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function PreviewActionBtn(props: { children: React.ReactNode }) {
+  return (
+    <span className="flex size-7 items-center justify-center rounded-lg text-slate-400">
+      {props.children}
+    </span>
+  );
+}
+
+function PreviewAttachIcon() {
+  return (
+    <svg className="size-4" fill="none" viewBox="0 0 16 16">
+      <path
+        d="M13.5 7.5l-5.8 5.8a3.2 3.2 0 0 1-4.5-4.5l5.8-5.8a2 2 0 0 1 2.8 2.8L6 11.6a.8.8 0 0 1-1.1-1.1L10.1 5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.2"
+      />
+    </svg>
+  );
+}
+
+function PreviewEmojiIcon() {
+  return (
+    <svg className="size-4" fill="none" viewBox="0 0 16 16">
+      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.2" />
+      <circle cx="6" cy="6.8" r="0.8" fill="currentColor" />
+      <circle cx="10" cy="6.8" r="0.8" fill="currentColor" />
+      <path
+        d="M5.5 9.5c.5 1.2 1.3 1.8 2.5 1.8s2-.6 2.5-1.8"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.1"
+      />
+    </svg>
+  );
+}
+
+function PreviewMentionIcon() {
+  return (
+    <svg className="size-4" fill="none" viewBox="0 0 16 16">
+      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.2" />
+      <path
+        d="M10.5 8a2.5 2.5 0 1 0-1 2"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.2"
+      />
+      <path
+        d="M10.5 5.5V9c0 .83.67 1.5 1.5 1.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.2"
+      />
+    </svg>
+  );
+}
 
 function PreviewToolbarBtn(props: { active?: boolean; children: React.ReactNode }) {
   return (

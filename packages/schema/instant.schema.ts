@@ -43,6 +43,7 @@ const _schema = i.schema({
     channels: i.entity({
       archivedAt: i.date().optional().indexed(),
       createdAt: i.date().indexed(),
+      dmKey: i.string().optional().unique().indexed(),
       name: i.string(),
       scopedSlug: i.string().unique().indexed(),
       slug: i.string().indexed(),

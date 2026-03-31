@@ -11,6 +11,7 @@ interface ChannelFooterProps {
   channelName: string;
   draft: string;
   editorRef: React.RefObject<Editor | null>;
+  isDm?: boolean;
   members?: MentionSuggestionItem[];
   onAddFiles: (files: FileList) => void;
   onInputFocus?: () => void;
@@ -37,7 +38,7 @@ export function ChannelFooter(props: ChannelFooterProps) {
         onTypingBlur={props.onTypingBlur}
         onTypingKeyDown={props.onTypingKeyDown}
         onValueChange={props.onValueChange}
-        placeholder={`Message #${props.channelName}`}
+        placeholder={props.isDm ? `Message ${props.channelName}` : `Message #${props.channelName}`}
         stagedFiles={props.stagedFiles}
         value={props.draft}
       />

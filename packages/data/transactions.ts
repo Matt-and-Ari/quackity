@@ -11,6 +11,7 @@ import {
   createChannelMembershipKey,
   createChannelMeetingKey,
   createChannelScopedSlug,
+  createDmChannelKey,
   createReactionKey,
   createWorkspaceInviteKey,
   createWorkspaceMemberKey,
@@ -535,4 +536,67 @@ export function upsertChannelDraftTx(input: {
 export function deleteChannelDraftByKeyTx(channelId: string, userId: string) {
   const draftKey = createChannelDraftKey(channelId, userId);
   return tx.channelDrafts.lookup("draftKey", draftKey).delete();
+}
+
+export function createDmChannelTx(input: {
+  channelId?: string;
+  createdAt?: InstantDate;
+  creatorId: string;
+  name: string;
+  otherUserId: string;
+  slug: string;
+  workspaceId: string;
+}) {
+  const channelId = input.channelId ?? id();
+  const createdAt = toInstantDate(input.createdAt);
+  const dmKey = createDmChannelKey(input.workspaceId, input.creatorId, input.otherUserId);
+  const creatorMembershipId = id();
+  const otherMembershipId = id();
+
+  const transactions = [
+    tx.channels[channelId]
+      .create({
+        archivedAt: undefined,
+        createdAt,
+        dmKey,
+        name: input.name,
+        scopedSlug: createChannelScopedSlug(input.workspaceId, input.slug),
+        slug: input.slug,
+        topic: undefined,
+        visibility: "dm",
+      })
+      .link({
+        createdBy: input.creatorId,
+        workspace: input.workspaceId,
+      }),
+    tx.channelMembers[creatorMembershipId]
+      .create({
+        joinedAt: createdAt,
+        membershipKey: createChannelMembershipKey(channelId, input.creatorId),
+      })
+      .link({
+        channel: channelId,
+        $user: input.creatorId,
+      }),
+  ];
+
+  if (input.otherUserId !== input.creatorId) {
+    transactions.push(
+      tx.channelMembers[otherMembershipId]
+        .create({
+          joinedAt: createdAt,
+          membershipKey: createChannelMembershipKey(channelId, input.otherUserId),
+        })
+        .link({
+          channel: channelId,
+          $user: input.otherUserId,
+        }),
+    );
+  }
+
+  return {
+    channelId,
+    dmKey,
+    tx: transactions,
+  };
 }

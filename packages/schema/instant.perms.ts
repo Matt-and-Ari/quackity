@@ -132,7 +132,7 @@ const rules = {
   },
   channels: {
     allow: {
-      create: "isCreator && isWorkspaceManager && validVisibility",
+      create: "isCreator && (isWorkspaceManager || isDmChannel) && validVisibility",
       delete: "isWorkspaceManager",
       update: "isWorkspaceManager && validUpdatedVisibility",
       view: "canViewChannel",
@@ -145,9 +145,10 @@ const rules = {
         workspaceOwnerIds: "data.ref('workspace.owner.id')",
       }),
       isCreator: "auth.id != null && auth.id in data.ref('createdBy.id')",
+      isDmChannel: "data.visibility == 'dm' && isWorkspaceViewer",
       validUpdatedVisibility:
         "!('visibility' in request.modifiedFields) || newData.visibility in ['public', 'private']",
-      validVisibility: "data.visibility in ['public', 'private']",
+      validVisibility: "data.visibility in ['public', 'private', 'dm']",
     },
   },
   channelDrafts: {
@@ -169,7 +170,8 @@ const rules = {
   },
   channelMembers: {
     allow: {
-      create: "isWorkspaceManager || (isSelf && isPublicChannel && isWorkspaceViewer)",
+      create:
+        "isWorkspaceManager || (isSelf && isPublicChannel && isWorkspaceViewer) || isDmChannelCreator",
       delete: "isWorkspaceManager || isSelf",
       update: "false",
       view: "canViewChannel",
@@ -181,6 +183,8 @@ const rules = {
         workspaceId: "data.ref('channel.workspace.id')[0]",
         workspaceOwnerIds: "data.ref('channel.workspace.owner.id')",
       }),
+      isDmChannelCreator:
+        "data.ref('channel.visibility')[0] == 'dm' && auth.id != null && auth.id in data.ref('channel.createdBy.id')",
       isPublicChannel: "data.ref('channel.visibility')[0] == 'public'",
       isSelf: "auth.id != null && auth.id in data.ref('$user.id')",
     },

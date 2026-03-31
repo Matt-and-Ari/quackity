@@ -156,11 +156,7 @@
 
   * {
     scrollbar-width: thin;
-    scrollbar-color: transparent transparent;
-  }
-
-  *:hover {
-    scrollbar-color: rgba(217, 119, 6, 0.2) transparent;
+    scrollbar-color: rgba(217, 119, 6, 0.18) transparent;
   }
 
   *::-webkit-scrollbar {
@@ -173,13 +169,8 @@
   }
 
   *::-webkit-scrollbar-thumb {
-    background: transparent;
-    border-radius: 9999px;
-    transition: background 0.2s;
-  }
-
-  *:hover::-webkit-scrollbar-thumb {
     background: rgba(217, 119, 6, 0.18);
+    border-radius: 9999px;
   }
 
   *::-webkit-scrollbar-thumb:hover {
