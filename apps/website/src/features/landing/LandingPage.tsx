@@ -33,7 +33,7 @@ export function LandingPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    document.title = "Quackity";
+    document.title = "Quackity — Team chat, made simple";
   }, []);
 
   useEffect(() => {
