@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 
 import clsx from "clsx";
@@ -30,6 +30,11 @@ export function DirectoryPanel(props: DirectoryPanelProps) {
   const [tab, setTab] = useState<DirectoryTab>("channels");
   const [search, setSearch] = useState("");
   const [, navigate] = useLocation();
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    searchRef.current?.focus();
+  }, [tab]);
 
   const query = search.toLowerCase().trim();
 
@@ -102,6 +107,8 @@ export function DirectoryPanel(props: DirectoryPanelProps) {
 
         <div className="mt-3">
           <input
+            ref={searchRef}
+            autoFocus
             className="w-full rounded-xl border border-amber-200/70 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-colors duration-100 placeholder:text-slate-400 focus:border-amber-400"
             onChange={(event) => setSearch(event.target.value)}
             placeholder={tab === "channels" ? "Search channels..." : "Search members..."}

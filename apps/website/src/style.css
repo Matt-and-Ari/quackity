@@ -223,6 +223,10 @@
   @apply text-cyan-600 underline decoration-cyan-300 underline-offset-2;
 }
 
+.tiptap-wrapper .ProseMirror .mention {
+  @apply rounded-md bg-amber-100/70 px-1 py-0.5 text-amber-800 font-medium;
+}
+
 /* ── Tiptap prose (rendered message body) ── */
 
 .tiptap-prose {
@@ -295,4 +299,12 @@
 
 .tiptap-prose a {
   @apply text-cyan-600 underline decoration-cyan-300 underline-offset-2;
+}
+
+.tiptap-prose .mention {
+  @apply rounded-md bg-amber-100/70 px-1 py-0.5 text-amber-800 font-medium;
+}
+
+.tiptap-prose .mention-self {
+  @apply bg-amber-200/80 text-amber-900;
 }

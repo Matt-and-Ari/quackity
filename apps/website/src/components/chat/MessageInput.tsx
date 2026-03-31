@@ -7,11 +7,13 @@ import type { StagedFile } from "../../hooks/useFileUpload";
 import { HoverTooltip } from "../ui/HoverTooltip";
 import { AttachGlyph } from "./chat-glyphs";
 import { createFileList } from "./chat-date-utils";
+import type { MentionSuggestionItem } from "./MentionList";
 import { StagedFileChip } from "./message-utils";
 import { RichTextEditor, clearEditor } from "./RichTextEditor";
 
 interface MessageInputProps {
   editorRef?: React.RefObject<Editor | null>;
+  members?: MentionSuggestionItem[];
   onAddFiles?: (files: FileList) => void;
   onFocus?: () => void;
   onKeyDown?: (event: KeyboardEvent) => boolean | void;
@@ -156,6 +158,7 @@ export function MessageInput(props: MessageInputProps) {
         <RichTextEditor
           className={clsx("w-full bg-transparent px-3 py-3 pr-12", !props.onAddFiles && "pl-4")}
           editorRef={editorRef}
+          members={props.members}
           onKeyDown={props.onKeyDown}
           onPaste={handlePaste}
           onSubmit={handleSubmit}

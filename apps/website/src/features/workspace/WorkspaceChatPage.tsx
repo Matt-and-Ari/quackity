@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "wouter";
 
 import type { Editor } from "@tiptap/react";
+import { tx } from "@instantdb/core";
 
 import { ResizeHandle } from "../../components/chat/ResizeHandle";
 import { ThreadPanel } from "../../components/chat/ThreadPanel";
@@ -12,8 +13,10 @@ import { GlobalContextMenu } from "../../components/ui/GlobalContextMenu";
 import { EmojiMenu } from "../../components/ui/EmojiMenu";
 import { SearchCommandMenu } from "../../components/ui/SearchCommandMenu";
 import { anchorFromPoint } from "../../components/ui/floating";
+import { instantDB } from "../../lib/instant";
 import { useChannelDrafts } from "../../hooks/useChannelDrafts";
 import { useFileUpload } from "../../hooks/useFileUpload";
+import { useMentionCounts } from "../../hooks/useMentionCounts";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { useMessageKeyboardNav } from "../../hooks/useMessageKeyboardNav";
 import { useResizeHandle } from "../../hooks/useResizeHandle";
@@ -156,6 +159,20 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
   const openSearch = useCallback(() => setIsSearchOpen(true), []);
   const closeSearch = useCallback(() => setIsSearchOpen(false), []);
 
+  const mentionMembers = useMemo(() => {
+    const items: Array<{ displayName: string; id: string; imageUrl?: string }> = [];
+    for (const [userId, member] of app.workspaceMembersByUserId) {
+      items.push({
+        displayName: member.displayName ?? member.$user?.email ?? userId,
+        id: userId,
+        imageUrl: member.$user?.avatar?.url ?? member.$user?.imageURL ?? undefined,
+      });
+    }
+    return items;
+  }, [app.workspaceMembersByUserId]);
+
+  const mentionCounts = useMentionCounts({ userId: props.user.id });
+
   const workspaceId = app.workspace?.id ?? "";
   channelDrafts.updateWorkspaceId(workspaceId);
   const threadUpload = useFileUpload({ workspaceId });
@@ -181,6 +198,34 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     const channelName = app.activeChannel?.name;
     document.title = channelName ? `${channelName} | Quackity` : "Quackity";
   }, [app.activeChannel?.name]);
+
+  useEffect(() => {
+    const channelId = app.activeChannel?.id;
+    if (!channelId) return;
+
+    const count = mentionCounts.get(channelId) ?? 0;
+    if (count === 0) return;
+
+    instantDB
+      .queryOnce({
+        mentions: {
+          $: {
+            where: {
+              "$user.id": props.user.id,
+              channelId,
+              read: false,
+            },
+          },
+        },
+      })
+      .then((result) => {
+        const unread = result.data?.mentions ?? [];
+        if (unread.length === 0) return;
+        const txs = unread.map((m) => tx.mentions[m.id].update({ read: true }));
+        void instantDB.transact(txs);
+      })
+      .catch(() => {});
+  }, [app.activeChannel?.id, mentionCounts, props.user.id]);
 
   useEffect(() => {
     function handleGlobalKeyDown(event: KeyboardEvent) {
@@ -384,6 +429,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     currentUserMember: app.currentUserMember,
     isDirectoryOpen,
     memberships: props.memberships,
+    mentionCounts,
     onChannelContextMenu: contextMenus.handleChannelContextMenu,
     onChannelNavigate: () => {
       setIsDirectoryOpen(false);
@@ -413,6 +459,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     currentUserId: props.user.id,
     editingDraft: app.editingDraft,
     editingMessageId: app.editingMessageId,
+    members: mentionMembers,
     onAddFiles: threadUpload.addFiles,
     onAlsoSendToChannelChange: setAlsoSendToChannel,
     onCancelEdit: app.cancelEditingMessage,
@@ -599,6 +646,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                 channelName={app.activeChannel.name}
                 draft={app.channelDraft}
                 editorRef={channelInputRef}
+                members={mentionMembers}
                 onAddFiles={(files: FileList) => {
                   channelDrafts.addFiles(app.activeChannel!.id, files);
                 }}

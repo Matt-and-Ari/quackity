@@ -91,7 +91,7 @@ export function WorkspaceSwitcher(props: WorkspaceSwitcherProps) {
   return (
     <div className="min-w-0 flex-1" ref={triggerRef}>
       <button
-        className="group flex min-w-0 flex-1 cursor-pointer items-center gap-3"
+        className="group flex min-w-0 max-w-full cursor-pointer items-center gap-3"
         onClick={() => {
           setIsOpen((value) => {
             if (!value) {

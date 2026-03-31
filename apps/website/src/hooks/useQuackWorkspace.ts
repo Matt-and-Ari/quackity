@@ -14,10 +14,11 @@ import {
   workspaceBySlugQuery,
   type ChannelVisibility,
 } from "@quack/data";
-import { tx } from "@instantdb/core";
+import { id, tx } from "@instantdb/core";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 
+import { extractMentionUserIds } from "../components/chat/RichTextEditor";
 import { instantDB } from "../lib/instant";
 import { asArray, slugifyChannelName, toErrorMessage } from "../lib/ui";
 import type { UploadedFile } from "./useFileUpload";
@@ -535,8 +536,15 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
 
     setOptimisticMessages((prev) => [...prev, optimistic]);
 
+    const mentionTxs = buildMentionTxs({
+      body: trimmedBody,
+      channelId: activeChannel.id,
+      messageId: nextMessage.messageId,
+      senderId: props.user.id,
+    });
+
     clearChannelDraft();
-    instantDB.transact([nextMessage.tx, ...attachmentTxs]).catch((error) => {
+    instantDB.transact([nextMessage.tx, ...attachmentTxs, ...mentionTxs]).catch((error) => {
       setOptimisticMessages((prev) => prev.filter((m) => m.id !== nextMessage.messageId));
       setNotice(toErrorMessage(error, "Could not send the message."));
     });
@@ -574,6 +582,14 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
     );
 
     const allTxs = [reply.tx, ...attachmentTxs];
+
+    const mentionTxs = buildMentionTxs({
+      body: trimmedBody,
+      channelId: activeChannel.id,
+      messageId: reply.messageId,
+      senderId: props.user.id,
+    });
+    allTxs.push(...mentionTxs);
 
     let optimisticChannelMessageId: string | undefined;
 
@@ -857,6 +873,34 @@ function collectMessageUsers(
       }
     }
   }
+}
+
+function buildMentionTxs(input: {
+  body: string;
+  channelId: string;
+  messageId: string;
+  senderId: string;
+}) {
+  const mentionedUserIds = extractMentionUserIds(input.body).filter(
+    (uid) => uid !== input.senderId,
+  );
+
+  return mentionedUserIds.map((userId) => {
+    const mentionId = id();
+    const mentionKey = `${input.messageId}:${userId}`;
+    return tx.mentions[mentionId]
+      .update({
+        channelId: input.channelId,
+        createdAt: new Date().toISOString(),
+        mentionKey,
+        read: false,
+      })
+      .link({
+        $user: userId,
+        message: input.messageId,
+        sender: input.senderId,
+      });
+  });
 }
 
 function createUniqueChannelSlug(props: {

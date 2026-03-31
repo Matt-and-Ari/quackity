@@ -1,18 +1,23 @@
 import { useEffect, useRef } from "react";
 
-import { EditorContent, useEditor, type Editor } from "@tiptap/react";
+import { EditorContent, ReactRenderer, useEditor, type Editor } from "@tiptap/react";
 import type { EditorView } from "@tiptap/pm/view";
 import type { ResolvedPos } from "@tiptap/pm/model";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Link from "@tiptap/extension-link";
 import Underline from "@tiptap/extension-underline";
+import Mention from "@tiptap/extension-mention";
+import type { SuggestionProps, SuggestionKeyDownProps } from "@tiptap/suggestion";
 import clsx from "clsx";
+
+import { MentionList, type MentionSuggestionItem } from "./MentionList";
 
 interface RichTextEditorProps {
   autoFocus?: boolean;
   className?: string;
   editorRef?: React.RefObject<Editor | null>;
+  members?: MentionSuggestionItem[];
   onKeyDown?: (event: KeyboardEvent) => boolean | void;
   onPaste?: (event: ClipboardEvent) => void;
   onSubmit?: () => void;
@@ -26,6 +31,8 @@ export function RichTextEditor(props: RichTextEditorProps) {
   propsRef.current = props;
 
   const lastEmittedValue = useRef(props.value ?? "");
+  const membersRef = useRef(props.members ?? []);
+  membersRef.current = props.members ?? [];
 
   const editor = useEditor({
     extensions: [
@@ -42,6 +49,10 @@ export function RichTextEditor(props: RichTextEditorProps) {
         openOnClick: false,
         autolink: true,
         linkOnPaste: true,
+      }),
+      Mention.configure({
+        HTMLAttributes: { class: "mention" },
+        suggestion: buildMentionSuggestion(membersRef),
       }),
     ],
     content: parseContent(props.value),
@@ -70,6 +81,7 @@ export function RichTextEditor(props: RichTextEditorProps) {
 
         if (event.key === "Enter" && !event.shiftKey && p.onSubmit) {
           if (shouldDeferEnterToTiptap(view)) return false;
+          if (isSuggestionActive(view)) return false;
 
           const isEmpty = view.state.doc.textContent.trim().length === 0;
           if (!isEmpty) {
@@ -134,6 +146,10 @@ function shouldDeferEnterToTiptap(view: EditorView): boolean {
   if (isInsideList($from)) return true;
 
   return false;
+}
+
+function isSuggestionActive(view: EditorView): boolean {
+  return view.dom.querySelector(".suggestion") !== null;
 }
 
 function isInsideList($from: ResolvedPos): boolean {
@@ -235,7 +251,110 @@ interface TiptapDoc {
 }
 
 function extractPlainText(node: TiptapDoc): string {
+  if (node.type === "mention") return `@${node.attrs?.label ?? ""}`;
   if (node.text) return node.text;
   if (!node.content) return "";
   return node.content.map(extractPlainText).join(node.type === "doc" ? "\n" : "");
+}
+
+export function extractMentionUserIds(body: string): string[] {
+  if (!body || !body.startsWith("{")) return [];
+
+  try {
+    const doc = JSON.parse(body) as TiptapDoc;
+    const ids: string[] = [];
+    collectMentionIds(doc, ids);
+    return [...new Set(ids)];
+  } catch {
+    return [];
+  }
+}
+
+function collectMentionIds(node: TiptapDoc, ids: string[]) {
+  if (node.type === "mention" && node.attrs?.id) {
+    ids.push(String(node.attrs.id));
+  }
+  if (node.content) {
+    for (const child of node.content) {
+      collectMentionIds(child, ids);
+    }
+  }
+}
+
+interface MentionRef {
+  onKeyDown: (props: { event: KeyboardEvent }) => boolean;
+}
+
+function buildMentionSuggestion(membersRef: React.RefObject<MentionSuggestionItem[]>) {
+  return {
+    items({ query }: { query: string }): MentionSuggestionItem[] {
+      const q = query.toLowerCase();
+      return (membersRef.current ?? [])
+        .filter((m) => m.displayName.toLowerCase().includes(q))
+        .slice(0, 8);
+    },
+    render() {
+      let component: ReactRenderer<MentionRef> | null = null;
+      let popup: HTMLDivElement | null = null;
+
+      return {
+        onStart(suggestionProps: SuggestionProps) {
+          component = new ReactRenderer(MentionList, {
+            props: suggestionProps,
+            editor: suggestionProps.editor,
+          }) as ReactRenderer<MentionRef>;
+
+          popup = document.createElement("div");
+          popup.style.position = "absolute";
+          popup.style.zIndex = "50";
+          document.body.appendChild(popup);
+          if (component) popup.appendChild(component.element);
+
+          if (suggestionProps.clientRect) {
+            positionPopup(popup, suggestionProps.clientRect);
+          }
+        },
+        onUpdate(suggestionProps: SuggestionProps) {
+          component?.updateProps(suggestionProps);
+
+          if (popup && suggestionProps.clientRect) {
+            positionPopup(popup, suggestionProps.clientRect);
+          }
+        },
+        onKeyDown(suggestionProps: SuggestionKeyDownProps) {
+          if (suggestionProps.event.key === "Escape") {
+            popup?.remove();
+            popup = null;
+            component?.destroy();
+            component = null;
+            return true;
+          }
+          return component?.ref?.onKeyDown(suggestionProps) ?? false;
+        },
+        onExit() {
+          popup?.remove();
+          popup = null;
+          component?.destroy();
+          component = null;
+        },
+      };
+    },
+  };
+}
+
+function positionPopup(popup: HTMLDivElement, clientRect: (() => DOMRect | null) | null) {
+  if (!clientRect) return;
+  const rect = clientRect();
+  if (!rect) return;
+
+  popup.style.left = `${rect.left + window.scrollX}px`;
+  popup.style.top = `${rect.top + window.scrollY - popup.offsetHeight - 4}px`;
+
+  requestAnimationFrame(() => {
+    if (!popup) return;
+    const popupRect = popup.getBoundingClientRect();
+    if (popupRect.top < 0) {
+      popup.style.top = `${rect.bottom + window.scrollY + 4}px`;
+    }
+  });
 }

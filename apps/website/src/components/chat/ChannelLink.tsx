@@ -12,6 +12,7 @@ interface ChannelLinkProps {
   href: string;
   isActive: boolean;
   isRenaming: boolean;
+  mentionCount?: number;
   onCancelRename: () => void;
   onClick?: () => void;
   onContextMenu: (event: React.MouseEvent, channel: ChannelRecord) => void;
@@ -83,7 +84,16 @@ export function ChannelLink(props: ChannelLinkProps) {
         </span>
       </HoverTooltip>
       <span className="truncate">{props.channel.name}</span>
-      {props.hasDraft ? (
+      {(props.mentionCount ?? 0) > 0 ? (
+        <span
+          className={clsx(
+            "ml-auto inline-flex size-5 shrink-0 items-center justify-center rounded-full text-[0.6rem] font-bold",
+            props.isActive ? "bg-white/25 text-white" : "bg-amber-500 text-white",
+          )}
+        >
+          {props.mentionCount}
+        </span>
+      ) : props.hasDraft ? (
         <HoverTooltip content="Draft">
           <span
             className={clsx(

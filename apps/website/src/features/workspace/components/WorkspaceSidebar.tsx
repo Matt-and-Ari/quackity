@@ -29,6 +29,7 @@ interface SidebarContentProps {
   currentUserMember?: WorkspaceMemberRecord;
   isDirectoryOpen: boolean;
   memberships: WorkspaceMemberRecord[];
+  mentionCounts?: Map<string, number>;
   onBrowse: () => void;
   onChannelContextMenu: (event: React.MouseEvent, channel: ChannelRecord) => void;
   onChannelNavigate?: () => void;
@@ -56,14 +57,16 @@ export function SidebarContent(props: SidebarContentProps) {
           workspaceImageUrl={props.workspace.imageUrl}
           workspaceName={props.workspace.name}
         />
-        <SidebarMenuButton
-          onCreateChannel={props.canManageChannels ? props.onCreateChannel : undefined}
-          onInvite={props.onInvite}
-          onSettings={props.onSettings}
-        />
+        <div className="shrink-0">
+          <SidebarMenuButton
+            onCreateChannel={props.canManageChannels ? props.onCreateChannel : undefined}
+            onInvite={props.onInvite}
+            onSettings={props.onSettings}
+          />
+        </div>
         {props.onClose ? (
           <button
-            className="flex size-7 items-center justify-center rounded-lg text-slate-400 transition-colors duration-100 hover:bg-amber-100/60 hover:text-slate-600 md:hidden"
+            className="flex size-7 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors duration-100 hover:bg-amber-100/60 hover:text-slate-600 md:hidden"
             onClick={props.onClose}
             type="button"
           >
@@ -127,6 +130,7 @@ export function SidebarContent(props: SidebarContentProps) {
             isActive={channel.id === props.app.activeChannel?.id && !props.isDirectoryOpen}
             isRenaming={channel.id === props.app.renamingChannelId}
             key={channel.id}
+            mentionCount={props.mentionCounts?.get(channel.id)}
             onCancelRename={props.app.cancelRenamingChannel}
             onClick={props.onChannelNavigate}
             onContextMenu={props.onChannelContextMenu}

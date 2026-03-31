@@ -152,6 +152,7 @@ export function useContextMenus(props: UseContextMenusProps) {
       const threadTargetMessageId = message.parentMessage?.id ?? message.id;
       entries.push({
         hint: message.parentMessage ? "Jump back to the thread" : "Open the conversation drawer",
+        hotkey: "t",
         icon: <ReplyGlyph />,
         id: "reply-thread",
         label: "Reply in thread",
@@ -163,6 +164,7 @@ export function useContextMenus(props: UseContextMenusProps) {
       {
         disabled: isDeleted,
         hint: isDeleted ? "Unavailable for deleted messages" : "Browse the full emoji menu",
+        hotkey: "r",
         icon: <ReactionGlyph />,
         id: "add-reaction",
         label: "Add reaction",
@@ -175,6 +177,7 @@ export function useContextMenus(props: UseContextMenusProps) {
       {
         disabled: isDeleted || !message.body,
         hint: isDeleted ? "Unavailable for deleted messages" : "Copy the message text",
+        hotkey: "⌘C",
         icon: <CopyGlyph />,
         id: "copy-text",
         label: "Copy text",
@@ -192,6 +195,7 @@ export function useContextMenus(props: UseContextMenusProps) {
         {
           disabled: isDeleted,
           hint: isDeleted ? "Deleted messages cannot be edited" : "Open the inline editor",
+          hotkey: "e",
           icon: <EditGlyph />,
           id: "edit-message",
           label: "Edit message",
@@ -202,6 +206,7 @@ export function useContextMenus(props: UseContextMenusProps) {
           hint: isDeleted
             ? "This message is already deleted"
             : "Replace the body with a deleted state",
+          hotkey: "⌫",
           icon: <DeleteGlyph />,
           id: "delete-message",
           label: "Delete message",

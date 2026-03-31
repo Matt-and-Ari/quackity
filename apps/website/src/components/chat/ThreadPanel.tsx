@@ -10,6 +10,7 @@ import type {
 } from "../../types/quack";
 import type { FloatingAnchor } from "../ui/floating";
 import { MessageCard } from "./MessageCard";
+import type { MentionSuggestionItem } from "./MentionList";
 import { MessageInput } from "./MessageInput";
 import { ResizeHandle } from "./ResizeHandle";
 
@@ -21,6 +22,7 @@ interface ThreadPanelProps {
   editingDraft: string;
   editingMessageId: string | null;
   isMobile?: boolean;
+  members?: MentionSuggestionItem[];
   onAddFiles?: (files: FileList) => void;
   onAlsoSendToChannelChange: (value: boolean) => void;
   onCancelEdit: () => void;
@@ -166,6 +168,7 @@ export function ThreadPanel(props: ThreadPanelProps) {
         </label>
         <MessageInput
           editorRef={props.threadInputRef}
+          members={props.members}
           onAddFiles={props.onAddFiles}
           onRemoveFile={props.onRemoveFile}
           onSubmit={props.onReply}

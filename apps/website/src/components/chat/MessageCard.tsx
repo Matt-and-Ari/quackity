@@ -202,7 +202,11 @@ export function MessageCard(props: MessageCardProps) {
               This message was deleted.
             </p>
           ) : (
-            <MessageBody body={props.message.body ?? ""} className="mt-1" />
+            <MessageBody
+              body={props.message.body ?? ""}
+              className="mt-1"
+              currentUserId={props.currentUserId}
+            />
           )}
 
           {props.message.attachments && props.message.attachments.length > 0 ? (

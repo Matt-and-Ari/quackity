@@ -76,7 +76,8 @@ export function useMessageKeyboardNav(
     if (!editor) return;
 
     const { from, to } = editor.state.selection;
-    if (from !== 0 || to !== 0) return;
+    const isAtDocStart = from <= 1 && to <= 1;
+    if (!isAtDocStart) return;
 
     const msgs = visibleMessagesRef.current;
     const lastMessage = msgs[msgs.length - 1];

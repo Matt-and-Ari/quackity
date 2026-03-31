@@ -1,12 +1,14 @@
 import type { Editor } from "@tiptap/react";
 
 import { MessageInput } from "../../../components/chat/MessageInput";
+import type { MentionSuggestionItem } from "../../../components/chat/MentionList";
 import type { StagedFile } from "../../../hooks/useFileUpload";
 
 interface ChannelFooterProps {
   channelName: string;
   draft: string;
   editorRef: React.RefObject<Editor | null>;
+  members?: MentionSuggestionItem[];
   onAddFiles: (files: FileList) => void;
   onInputFocus?: () => void;
   onInputKeyDown?: (event: KeyboardEvent) => boolean | void;
@@ -22,6 +24,7 @@ export function ChannelFooter(props: ChannelFooterProps) {
       <div>
         <MessageInput
           editorRef={props.editorRef}
+          members={props.members}
           onAddFiles={props.onAddFiles}
           onKeyDown={props.onInputKeyDown}
           onRemoveFile={props.onRemoveFile}

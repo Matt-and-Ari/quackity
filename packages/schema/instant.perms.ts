@@ -263,6 +263,26 @@ const rules = {
       isActorOrWorkspaceManager: "isActor || isWorkspaceManager",
     },
   },
+  mentions: {
+    allow: {
+      create: "canViewChannel && isSender",
+      delete: "isSenderOrMentionedUser",
+      update: "isMentionedUser && onlyReadField",
+      view: "canViewChannel",
+    },
+    bind: {
+      ...buildChannelAccessBinds({
+        channelId: "data.ref('message.channel.id')[0]",
+        visibility: "data.ref('message.channel.visibility')[0]",
+        workspaceId: "data.ref('message.channel.workspace.id')[0]",
+        workspaceOwnerIds: "data.ref('message.channel.workspace.owner.id')",
+      }),
+      isMentionedUser: "auth.id != null && auth.id in data.ref('$user.id')",
+      isSender: "auth.id != null && auth.id in data.ref('sender.id')",
+      isSenderOrMentionedUser: "isSender || isMentionedUser",
+      onlyReadField: "request.modifiedFields.all(field, field in ['read'])",
+    },
+  },
 } satisfies InstantRules;
 
 export default rules;

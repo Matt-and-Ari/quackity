@@ -5,9 +5,12 @@ export { MessageCard } from "./MessageCard";
 export { MessageEditor } from "./MessageEditor";
 export { MessageInput } from "./MessageInput";
 export { ResizeHandle } from "./ResizeHandle";
+export { MentionList } from "./MentionList";
+export type { MentionSuggestionItem } from "./MentionList";
 export {
   RichTextEditor,
   clearEditor,
+  extractMentionUserIds,
   focusEditor,
   getEditorText,
   getEditorPlainText,

@@ -85,6 +85,12 @@ const _schema = i.schema({
       emoji: i.string().indexed(),
       reactionKey: i.string().unique().indexed(),
     }),
+    mentions: i.entity({
+      channelId: i.string().indexed(),
+      createdAt: i.date().indexed(),
+      mentionKey: i.string().unique().indexed(),
+      read: i.boolean().indexed(),
+    }),
   },
   links: {
     $streams$files: {
@@ -419,6 +425,45 @@ const _schema = i.schema({
         on: "$users",
         has: "many",
         label: "reactions",
+      },
+    },
+    mentionMessage: {
+      forward: {
+        on: "mentions",
+        has: "one",
+        label: "message",
+        required: true,
+      },
+      reverse: {
+        on: "messages",
+        has: "many",
+        label: "mentions",
+      },
+    },
+    mentionUser: {
+      forward: {
+        on: "mentions",
+        has: "one",
+        label: "$user",
+        required: true,
+      },
+      reverse: {
+        on: "$users",
+        has: "many",
+        label: "mentions",
+      },
+    },
+    mentionSender: {
+      forward: {
+        on: "mentions",
+        has: "one",
+        label: "sender",
+        required: true,
+      },
+      reverse: {
+        on: "$users",
+        has: "many",
+        label: "sentMentions",
       },
     },
   },
