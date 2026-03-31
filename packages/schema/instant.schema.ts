@@ -314,6 +314,18 @@ const _schema = i.schema({
         label: "threadReplies",
       },
     },
+    messageChannelPost: {
+      forward: {
+        on: "messages",
+        has: "one",
+        label: "channelPost",
+      },
+      reverse: {
+        on: "messages",
+        has: "one",
+        label: "threadSource",
+      },
+    },
     messageAttachmentMessage: {
       forward: {
         on: "messageAttachments",

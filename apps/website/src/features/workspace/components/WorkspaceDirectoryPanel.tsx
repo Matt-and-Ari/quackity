@@ -120,7 +120,7 @@ export function DirectoryPanel(props: DirectoryPanelProps) {
                 const isJoined = props.visibleChannelIds.has(channel.id);
                 return (
                   <div
-                    className="flex items-center gap-3 px-4 py-2.5 transition-colors duration-75 hover:bg-amber-50/50 sm:px-5"
+                    className="flex select-none items-center gap-3 px-4 py-2.5 transition-colors duration-75 hover:bg-amber-50/50 sm:px-5"
                     key={channel.id}
                   >
                     <span className="shrink-0 text-sm text-slate-400">
@@ -177,7 +177,7 @@ export function DirectoryPanel(props: DirectoryPanelProps) {
             ) : (
               filteredMembers.map((member) => (
                 <div
-                  className="flex items-center gap-3 px-4 py-2.5 transition-colors duration-75 hover:bg-amber-50/50 sm:px-5"
+                  className="flex select-none items-center gap-3 px-4 py-2.5 transition-colors duration-75 hover:bg-amber-50/50 sm:px-5"
                   key={member.id}
                 >
                   <UserAvatar

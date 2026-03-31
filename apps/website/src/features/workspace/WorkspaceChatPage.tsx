@@ -95,6 +95,8 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
   const channelScrollRef = useRef<HTMLElement>(null);
   const pendingFocusChannelIdRef = useRef<string | null>(null);
   const threadInputRef = useRef<HTMLTextAreaElement>(null);
+  const threadScrollRef = useRef<HTMLDivElement>(null);
+  const [alsoSendToChannel, setAlsoSendToChannel] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [emojiMenuState, setEmojiMenuState] = useState<{
     anchor: FloatingAnchor | null;
@@ -112,6 +114,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [pendingDeleteMessageId, setPendingDeleteMessageId] = useState<string | null>(null);
   const [pendingScrollToMessageId, setPendingScrollToMessageId] = useState<string | null>(null);
+  const [pendingThreadReplyId, setPendingThreadReplyId] = useState<string | null>(null);
 
   const {
     dismiss: dismissCall,
@@ -261,6 +264,18 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
   }, [app.selectedThreadMessage, app.closeThread]);
 
   useEffect(() => {
+    if (!pendingThreadReplyId || !app.selectedThreadMessage) return;
+
+    const allThreadMessages = [app.selectedThreadMessage, ...app.selectedThreadReplies];
+    const targetExists = allThreadMessages.some((m) => m.id === pendingThreadReplyId);
+    if (targetExists) {
+      requestAnimationFrame(() => {
+        setPendingThreadReplyId(null);
+      });
+    }
+  }, [pendingThreadReplyId, app.selectedThreadMessage, app.selectedThreadReplies]);
+
+  useEffect(() => {
     setContextMenu(null);
   }, [
     app.activeChannel?.id,
@@ -296,8 +311,20 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
 
   async function handleSendThreadReply() {
     const uploaded = threadUpload.hasFiles ? await threadUpload.uploadAll() : undefined;
-    await app.sendThreadReply(uploaded);
+    await app.sendThreadReply(uploaded, alsoSendToChannel);
     threadUpload.clearFiles();
+    if (alsoSendToChannel) {
+      requestAnimationFrame(() => {
+        if (channelScrollRef.current) {
+          channelScrollRef.current.scrollTop = 0;
+        }
+      });
+    }
+    requestAnimationFrame(() => {
+      if (threadScrollRef.current) {
+        threadScrollRef.current.scrollTop = threadScrollRef.current.scrollHeight;
+      }
+    });
   }
 
   function handleSearchSelect(result: SearchResult) {
@@ -610,18 +637,33 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     });
   }
 
+  function handleJumpToChannelPost(channelPostMessageId: string) {
+    keyboardNav.handleMessageClick(channelPostMessageId);
+  }
+
+  function handleJumpToThreadSource(threadReplyId: string, parentMessageId: string) {
+    app.openThread(parentMessageId);
+    setPendingThreadReplyId(threadReplyId);
+    requestAnimationFrame(() => threadInputRef.current?.focus());
+  }
+
   const threadPanelProps = {
+    alsoSendToChannel,
+    channelName: app.activeChannel?.name ?? "channel",
     currentUser: threadCurrentUser,
     currentUserId: props.user.id,
     editingDraft: app.editingDraft,
     editingMessageId: app.editingMessageId,
     onAddFiles: threadUpload.addFiles,
+    onAlsoSendToChannelChange: setAlsoSendToChannel,
     onCancelEdit: app.cancelEditingMessage,
     onClose: app.closeThread,
     onDeleteMessage: (messageId: string) => {
       setPendingDeleteMessageId(messageId);
     },
     onEditDraftChange: app.setEditingDraft,
+    onJumpToChannelPost: handleJumpToChannelPost,
+    onJumpToThreadSource: handleJumpToThreadSource,
     onMessageContextMenu: handleThreadMessageContextMenu,
     onOpenReactionMenu: (anchor: FloatingAnchor, messageId: string) => {
       openEmojiMenu(anchor, messageId);
@@ -640,10 +682,12 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     },
     replies: app.selectedThreadReplies,
     rootMessage: app.selectedThreadMessage,
+    selectedReplyId: pendingThreadReplyId,
     stagedFiles: threadUpload.stagedFiles,
     startThreadResize: thread.startResize,
     threadDraft: app.threadDraft,
     threadInputRef,
+    threadScrollRef,
     threadWidth: thread.width,
     usersById: app.usersById,
     workspaceMembersByUserId: app.workspaceMembersByUserId,
@@ -792,7 +836,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
 
               <section
                 ref={channelScrollRef}
-                className="min-h-0 flex-1 overflow-y-auto flex flex-col-reverse px-2 py-3 sm:px-4 sm:py-4"
+                className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden flex flex-col-reverse px-2 py-3 sm:px-4 sm:py-4"
               >
                 {app.isMessagesLoading ? (
                   <div className="flex flex-1 items-center justify-center py-12">
@@ -826,8 +870,12 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                               onContextMenu={handleMessageContextMenu}
                               onDelete={() => setPendingDeleteMessageId(message.id)}
                               onEditDraftChange={app.setEditingDraft}
+                              onJumpToThreadSource={handleJumpToThreadSource}
                               onOpenReactionMenu={(anchor) => openEmojiMenu(anchor, message.id)}
-                              onReply={() => app.openThread(message.id)}
+                              onReply={() => {
+                                app.openThread(message.id);
+                                requestAnimationFrame(() => threadInputRef.current?.focus());
+                              }}
                               onSaveEdit={() => {
                                 void app.saveEditingMessage();
                               }}

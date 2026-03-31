@@ -107,6 +107,8 @@ interface MessageCardProps {
   onContextMenu: (event: React.MouseEvent, message: MessageRecord) => void;
   onDelete: () => void;
   onEditDraftChange: (value: string) => void;
+  onJumpToChannelPost?: (channelPostMessageId: string) => void;
+  onJumpToThreadSource?: (threadReplyId: string, parentMessageId: string) => void;
   onOpenReactionMenu: (anchor: FloatingAnchor) => void;
   onReply: () => void;
   onSaveEdit: () => void;
@@ -130,16 +132,21 @@ interface MessageInputProps {
 }
 
 interface ThreadPanelProps {
+  alsoSendToChannel: boolean;
+  channelName: string;
   currentUser?: InstantUserEntity;
   currentUserId: string;
   editingDraft: string;
   editingMessageId: string | null;
   isMobile?: boolean;
   onAddFiles?: (files: FileList) => void;
+  onAlsoSendToChannelChange: (value: boolean) => void;
   onCancelEdit: () => void;
   onClose: () => void;
   onDeleteMessage: (messageId: string) => void;
   onEditDraftChange: (value: string) => void;
+  onJumpToChannelPost: (channelPostMessageId: string) => void;
+  onJumpToThreadSource: (threadReplyId: string, parentMessageId: string) => void;
   onMessageContextMenu: (event: React.MouseEvent, message: MessageRecord) => void;
   onOpenReactionMenu: (anchor: FloatingAnchor, messageId: string) => void;
   onRemoveFile?: (fileId: string) => void;
@@ -150,10 +157,12 @@ interface ThreadPanelProps {
   onThreadDraftChange: (value: string) => void;
   replies: MessageRecord[];
   rootMessage: MessageRecord | null;
+  selectedReplyId?: string | null;
   stagedFiles?: StagedFile[];
   startThreadResize: (event: React.MouseEvent) => void;
   threadDraft: string;
   threadInputRef?: React.RefObject<HTMLTextAreaElement | null>;
+  threadScrollRef?: React.RefObject<HTMLDivElement | null>;
   threadWidth: number;
   usersById: Map<string, InstantUserWithAvatar>;
   workspaceMembersByUserId: Map<string, WorkspaceMemberRecord>;
@@ -226,7 +235,7 @@ export function ChannelLink(props: ChannelLinkProps) {
   return (
     <Link
       className={clsx(
-        "flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-sm transition-colors duration-100",
+        "flex select-none items-center gap-2 rounded-xl px-2.5 py-1.5 text-sm transition-colors duration-100",
         props.isActive
           ? "bg-amber-500 font-medium text-white shadow-[0_8px_24px_rgba(245,158,11,0.24)]"
           : "text-slate-600 hover:bg-amber-100/60",
@@ -343,6 +352,40 @@ export function MessageCard(props: MessageCardProps) {
       <div className="flex gap-3">
         <Avatar user={sender} />
         <div className="min-w-0 flex-1">
+          {props.message.channelPost ? (
+            <button
+              className="mb-1 flex items-center gap-1 text-xs text-cyan-600 transition-colors duration-100 hover:text-cyan-700 hover:underline"
+              onClick={() => {
+                if (props.message.channelPost?.id) {
+                  props.onJumpToChannelPost?.(props.message.channelPost.id);
+                }
+              }}
+              type="button"
+            >
+              <ChannelHashGlyph />
+              <span>Also sent to #{props.message.channelPost.channel?.name ?? "channel"}</span>
+            </button>
+          ) : null}
+
+          {props.message.threadSource ? (
+            <button
+              className="mb-1 flex items-center gap-1 text-xs text-cyan-600 transition-colors duration-100 hover:text-cyan-700 hover:underline"
+              onClick={() => {
+                const parentId = props.message.threadSource?.parentMessage?.id;
+                if (parentId) {
+                  props.onJumpToThreadSource?.(props.message.threadSource!.id, parentId);
+                }
+              }}
+              type="button"
+            >
+              <ReplyGlyph className="size-3" />
+              <span className="truncate">
+                replied to a thread:{" "}
+                {truncateText(props.message.threadSource?.parentMessage?.body ?? "", 60)}
+              </span>
+            </button>
+          ) : null}
+
           <div className="flex select-none flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <span className="text-sm font-semibold text-slate-900">
               {senderMember?.displayName ?? nameFromEmail(sender?.email)}
@@ -367,7 +410,7 @@ export function MessageCard(props: MessageCardProps) {
           ) : (
             <p
               className={clsx(
-                "mt-1 whitespace-pre-wrap text-sm leading-relaxed",
+                "mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed",
                 isDeleted ? "italic text-slate-400" : "text-slate-700",
               )}
             >
@@ -613,11 +656,14 @@ export function ThreadPanel(props: ThreadPanelProps) {
       isActiveThread: false,
       isEditing: props.editingMessageId === message.id,
       isOwnMessage: message.sender?.id === props.currentUserId,
+      isSelected: props.selectedReplyId === message.id,
       message,
       onCancelEdit: props.onCancelEdit,
       onContextMenu: props.onMessageContextMenu,
       onDelete: () => props.onDeleteMessage(message.id),
       onEditDraftChange: props.onEditDraftChange,
+      onJumpToChannelPost: props.onJumpToChannelPost,
+      onJumpToThreadSource: props.onJumpToThreadSource,
       onOpenReactionMenu: (anchor: FloatingAnchor) => props.onOpenReactionMenu(anchor, message.id),
       onReply: () => {},
       onSaveEdit: () => props.onSaveEdit(),
@@ -673,7 +719,10 @@ export function ThreadPanel(props: ThreadPanelProps) {
         )}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-2 py-3 sm:px-3">
+      <div
+        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2 py-3 sm:px-3"
+        ref={props.threadScrollRef}
+      >
         <div className="flex flex-col gap-1">
           <MessageCard {...makeMessageCardProps(rootMessage)} />
 
@@ -696,6 +745,15 @@ export function ThreadPanel(props: ThreadPanelProps) {
       </div>
 
       <div className="border-t border-amber-100/70 px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <label className="mb-2 flex cursor-pointer select-none items-center gap-2 px-1 text-xs text-slate-500">
+          <input
+            checked={props.alsoSendToChannel}
+            className="size-3.5 accent-amber-500"
+            onChange={(event) => props.onAlsoSendToChannelChange(event.target.checked)}
+            type="checkbox"
+          />
+          Also send to <span className="font-medium text-slate-700">#{props.channelName}</span>
+        </label>
         <MessageInput
           onAddFiles={props.onAddFiles}
           onRemoveFile={props.onRemoveFile}
@@ -1035,6 +1093,25 @@ function createFileList(files: File[]): FileList {
     dt.items.add(file);
   }
   return dt.files;
+}
+
+function truncateText(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength).trimEnd() + "...";
+}
+
+function ChannelHashGlyph() {
+  return (
+    <svg className="size-3 shrink-0" fill="none" viewBox="0 0 12 12">
+      <path
+        d="M4.5 1.5 3.5 10.5M8.5 1.5 7.5 10.5M1.5 4h9M1.5 8h9"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.2"
+      />
+    </svg>
+  );
 }
 
 function AttachGlyph() {

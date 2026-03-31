@@ -14,6 +14,7 @@ import {
   workspaceByIdQuery,
   type ChannelVisibility,
 } from "@quack/data";
+import { tx } from "@instantdb/core";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 
@@ -75,7 +76,7 @@ export interface UseQuackWorkspaceResult {
   selectedThreadMessage: MessageRecord | null;
   selectedThreadReplies: MessageRecord[];
   sendChannelMessage: (files?: UploadedFile[]) => Promise<void>;
-  sendThreadReply: (files?: UploadedFile[]) => Promise<void>;
+  sendThreadReply: (files?: UploadedFile[], alsoSendToChannel?: boolean) => Promise<void>;
   setChannelDraft: (value: string) => void;
   setChannelRenameDraft: (value: string) => void;
   setEditingDraft: (value: string) => void;
@@ -457,7 +458,7 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
     }
   }
 
-  async function sendThreadReply(files?: UploadedFile[]) {
+  async function sendThreadReply(files?: UploadedFile[], alsoSendToChannel?: boolean) {
     if (!activeChannel || !selectedThreadMessage) {
       return;
     }
@@ -489,7 +490,19 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
           }).tx,
       );
 
-      await instantDB.transact([reply.tx, ...attachmentTxs]);
+      const allTxs = [reply.tx, ...attachmentTxs];
+
+      if (alsoSendToChannel) {
+        const channelMessage = createMessageTx({
+          body: trimmedBody || undefined,
+          channelId: activeChannel.id,
+          senderId: props.user.id,
+        });
+        allTxs.push(channelMessage.tx);
+        allTxs.push(tx.messages[reply.messageId].link({ channelPost: channelMessage.messageId }));
+      }
+
+      await instantDB.transact(allTxs);
       setThreadDraft("");
     } catch (error) {
       setNotice(toErrorMessage(error, "Could not send the thread reply."));

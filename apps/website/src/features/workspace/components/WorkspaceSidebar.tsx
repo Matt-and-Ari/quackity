@@ -100,7 +100,8 @@ export function WorkspaceIcon(props: {
     return (
       <img
         alt={props.label}
-        className={clsx("shrink-0 object-cover shadow-sm", sizeClass)}
+        className={clsx("shrink-0 select-none object-cover shadow-sm", sizeClass)}
+        draggable={false}
         src={props.imageUrl}
       />
     );
@@ -109,7 +110,7 @@ export function WorkspaceIcon(props: {
   return (
     <div
       className={clsx(
-        "flex shrink-0 items-center justify-center bg-gradient-to-br font-bold text-white shadow-sm",
+        "flex shrink-0 select-none items-center justify-center bg-gradient-to-br font-bold text-white shadow-sm",
         sizeClass,
         props.gradient,
       )}
@@ -127,7 +128,8 @@ export function UserAvatar(props: { imageUrl?: string | null; name: string; size
     return (
       <img
         alt={props.name}
-        className={clsx("shrink-0 rounded-full object-cover", sizeClass)}
+        className={clsx("shrink-0 select-none rounded-full object-cover", sizeClass)}
+        draggable={false}
         src={props.imageUrl}
       />
     );
@@ -136,7 +138,7 @@ export function UserAvatar(props: { imageUrl?: string | null; name: string; size
   return (
     <div
       className={clsx(
-        "flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 to-amber-500 font-semibold text-white",
+        "flex shrink-0 select-none items-center justify-center rounded-full bg-gradient-to-br from-amber-300 to-amber-500 font-semibold text-white",
         sizeClass,
       )}
     >

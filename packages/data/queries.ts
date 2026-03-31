@@ -47,6 +47,10 @@ const messageFields = {
   sender: userWithAvatar,
 } as const;
 
+const threadReplyChannelPostFields = {
+  channel: {},
+} as const;
+
 export function listWorkspacesQuery() {
   return {
     workspaces: {
@@ -334,7 +338,12 @@ export function messagesByChannelQuery(
           },
         },
         attachments: messageAttachmentFields,
+        channelPost: threadReplyChannelPostFields,
         reactions: reactionFields,
+        sender: userWithAvatar,
+      },
+      threadSource: {
+        parentMessage: {},
         sender: userWithAvatar,
       },
     },
@@ -362,7 +371,12 @@ export function messageByIdQuery(messageId: string) {
           },
         },
         attachments: messageAttachmentFields,
+        channelPost: threadReplyChannelPostFields,
         reactions: reactionFields,
+        sender: userWithAvatar,
+      },
+      threadSource: {
+        parentMessage: {},
         sender: userWithAvatar,
       },
     },
