@@ -1,11 +1,5 @@
 import type { User } from "@instantdb/react";
-import {
-  createWorkspaceMemberTx,
-  deleteWorkspaceInviteByKeyTx,
-  workspaceInvitesByEmailQuery,
-  workspaceMembershipsByUserQuery,
-  type WorkspaceRole,
-} from "@quack/data";
+import { workspaceInvitesByEmailQuery, workspaceMembershipsByUserQuery } from "@quack/data";
 import { useEffect, useMemo, useState } from "react";
 import { Link, Route, Switch, useLocation } from "wouter";
 
@@ -18,7 +12,10 @@ import { LandingPage } from "./features/landing/LandingPage";
 import { WorkspaceChatPage } from "./features/workspace/WorkspaceChatPage";
 import { instantDB } from "./lib/instant";
 import { asArray, toErrorMessage } from "./lib/ui";
-import { createWorkspaceInviteKey, normalizeEmail } from "./lib/workspaces";
+import {
+  acceptWorkspaceInvite as acceptWorkspaceInviteAction,
+  normalizeEmail,
+} from "./lib/workspaces";
 import type { WorkspaceInviteRecord, WorkspaceMemberRecord } from "./types/quack";
 
 type AuthenticatedUser = User;
@@ -277,42 +274,11 @@ function WorkspaceInviteAcceptPage(props: {
 }
 
 async function acceptWorkspaceInvite(invite: WorkspaceInviteRecord, user: AuthenticatedUser) {
-  if (!user.email || !invite.workspace) {
-    throw new Error("This account needs an email before it can accept workspace invites.");
-  }
-
-  const role = coerceWorkspaceRole(invite.role);
-  const membership = createWorkspaceMemberTx({
-    acceptedInviteKey: createWorkspaceInviteKey(invite.workspace.id, invite.email, role),
-    displayName: user.email.split("@")[0],
-    role,
-    userId: user.id,
-    workspaceId: invite.workspace.id,
-  });
-
-  await instantDB.transact(membership.tx);
-
-  await instantDB.transact(
-    deleteWorkspaceInviteByKeyTx({
-      email: invite.email,
-      role,
-      workspaceId: invite.workspace.id,
-    }),
-  );
-
-  return `/workspaces/${invite.workspace.id}`;
+  return await acceptWorkspaceInviteAction(invite, user);
 }
 
 function extractChannelSlug(rest: string | undefined): string | undefined {
   if (!rest) return undefined;
   const match = rest.match(/^channels\/([^/]+)/);
   return match?.[1];
-}
-
-function coerceWorkspaceRole(value: string): WorkspaceRole {
-  if (value === "admin" || value === "guest") {
-    return value;
-  }
-
-  return "member";
 }

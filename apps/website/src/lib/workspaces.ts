@@ -1,4 +1,13 @@
-import { createWorkspaceInviteKey, normalizeEmail } from "@quack/data";
+import {
+  createWorkspaceInviteKey,
+  createWorkspaceMemberTx,
+  deleteWorkspaceInviteByKeyTx,
+  normalizeEmail,
+  type WorkspaceRole,
+} from "@quack/data";
+
+import { instantDB } from "./instant";
+import type { AuthenticatedUser, WorkspaceInviteRecord } from "../types/quack";
 
 export { createWorkspaceInviteKey, normalizeEmail };
 
@@ -20,4 +29,42 @@ export function parseInviteEmails(value: string) {
         .filter(Boolean),
     ),
   );
+}
+
+export function coerceWorkspaceRole(value: string): WorkspaceRole {
+  if (value === "admin" || value === "guest") {
+    return value;
+  }
+
+  return "member";
+}
+
+export async function acceptWorkspaceInvite(
+  invite: WorkspaceInviteRecord,
+  user: AuthenticatedUser,
+): Promise<string> {
+  if (!user.email || !invite.workspace) {
+    throw new Error("This account needs an email before it can accept workspace invites.");
+  }
+
+  const role = coerceWorkspaceRole(invite.role);
+  const membership = createWorkspaceMemberTx({
+    acceptedInviteKey: createWorkspaceInviteKey(invite.workspace.id, invite.email, role),
+    displayName: user.email.split("@")[0],
+    role,
+    userId: user.id,
+    workspaceId: invite.workspace.id,
+  });
+
+  await instantDB.transact(membership.tx);
+
+  await instantDB.transact(
+    deleteWorkspaceInviteByKeyTx({
+      email: invite.email,
+      role,
+      workspaceId: invite.workspace.id,
+    }),
+  );
+
+  return `/workspaces/${invite.workspace.id}`;
 }

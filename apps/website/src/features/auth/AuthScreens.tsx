@@ -1,11 +1,4 @@
-import {
-  createChannelTx,
-  createWorkspaceInviteTx,
-  createWorkspaceMemberTx,
-  createWorkspaceTx,
-  deleteWorkspaceInviteByKeyTx,
-  type WorkspaceRole,
-} from "@quack/data";
+import { createChannelTx, createWorkspaceInviteTx, createWorkspaceTx } from "@quack/data";
 import { useState } from "react";
 import { useLocation } from "wouter";
 
@@ -14,7 +7,7 @@ import { api } from "../../lib/api";
 import { instantDB } from "../../lib/instant";
 import { toErrorMessage } from "../../lib/ui";
 import {
-  createWorkspaceInviteKey,
+  acceptWorkspaceInvite,
   normalizeEmail,
   parseInviteEmails,
   slugifyWorkspaceName,
@@ -373,29 +366,8 @@ function PendingInviteCard(props: PendingInviteCardProps) {
     setNotice(null);
 
     try {
-      const role = coerceWorkspaceRole(props.invite.role);
-      const membership = createWorkspaceMemberTx({
-        acceptedInviteKey: createWorkspaceInviteKey(
-          props.invite.workspace.id,
-          props.invite.email,
-          role,
-        ),
-        displayName: props.user.email.split("@")[0],
-        role,
-        userId: props.user.id,
-        workspaceId: props.invite.workspace.id,
-      });
-
-      await instantDB.transact([
-        membership.tx,
-        deleteWorkspaceInviteByKeyTx({
-          email: props.invite.email,
-          role,
-          workspaceId: props.invite.workspace.id,
-        }),
-      ]);
-
-      navigate(`/workspaces/${props.invite.workspace.id}`);
+      const destination = await acceptWorkspaceInvite(props.invite, props.user);
+      navigate(destination);
     } catch (error) {
       setNotice(toErrorMessage(error, "Could not accept the invite."));
     } finally {
@@ -428,12 +400,4 @@ function PendingInviteCard(props: PendingInviteCardProps) {
       </button>
     </div>
   );
-}
-
-function coerceWorkspaceRole(value: string): WorkspaceRole {
-  if (value === "admin" || value === "guest") {
-    return value;
-  }
-
-  return "member";
 }

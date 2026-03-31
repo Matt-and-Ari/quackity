@@ -36,6 +36,7 @@ interface ChannelLinkProps {
   isActive: boolean;
   isRenaming: boolean;
   onCancelRename: () => void;
+  onClick?: () => void;
   onContextMenu: (event: React.MouseEvent, channel: ChannelRecord) => void;
   onRenameValueChange: (value: string) => void;
   onSaveRename: () => void;
@@ -178,6 +179,7 @@ export function ChannelLink(props: ChannelLinkProps) {
           : "text-slate-600 hover:bg-amber-100/60",
       )}
       href={props.href}
+      onClick={props.onClick}
       onContextMenu={(event) => props.onContextMenu(event, props.channel)}
     >
       <HoverTooltip
