@@ -24,6 +24,7 @@ import { ChannelMessageList } from "./components/ChannelMessageList";
 import { DirectoryPanel } from "./components/WorkspaceDirectoryPanel";
 import {
   CreateChannelModal,
+  CreateWorkspaceModal,
   DeleteConfirmModal,
   EditChannelModal,
   InviteModal,
@@ -77,6 +78,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
   const [alsoSendToChannel, setAlsoSendToChannel] = useState(false);
   const [editingChannelId, setEditingChannelId] = useState<string | null>(null);
   const [isCreateChannelOpen, setIsCreateChannelOpen] = useState(false);
+  const [isCreateWorkspaceOpen, setIsCreateWorkspaceOpen] = useState(false);
   const [isDirectoryOpen, setIsDirectoryOpen] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -374,6 +376,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
       closeSidebar();
     },
     onCreateChannel: () => setIsCreateChannelOpen(true),
+    onCreateWorkspace: () => setIsCreateWorkspaceOpen(true),
     onInvite: () => setIsInviteOpen(true),
     onSearch: openSearch,
     onSettings: () => setIsSettingsOpen(true),
@@ -639,6 +642,10 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
           user={props.user}
           workspace={workspace}
         />
+      ) : null}
+
+      {isCreateWorkspaceOpen ? (
+        <CreateWorkspaceModal onClose={() => setIsCreateWorkspaceOpen(false)} user={props.user} />
       ) : null}
 
       <SearchCommandMenu

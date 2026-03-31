@@ -29,6 +29,7 @@ const WORKSPACE_GRADIENT_PAIRS = [
 interface WorkspaceSwitcherProps {
   currentWorkspaceId: string;
   memberships: WorkspaceMemberRecord[];
+  onCreateWorkspace: () => void;
   workspaceImageUrl?: string | null;
   workspaceName: string;
 }
@@ -53,6 +54,7 @@ interface SidebarContentProps {
   onChannelNavigate?: () => void;
   onClose?: () => void;
   onCreateChannel: () => void;
+  onCreateWorkspace: () => void;
   onInvite: () => void;
   onSearch?: () => void;
   onSettings: () => void;
@@ -154,6 +156,7 @@ export function SidebarContent(props: SidebarContentProps) {
         <WorkspaceSwitcher
           currentWorkspaceId={props.workspaceId}
           memberships={props.memberships}
+          onCreateWorkspace={props.onCreateWorkspace}
           workspaceImageUrl={props.workspace.imageUrl}
           workspaceName={props.workspace.name}
         />
@@ -294,7 +297,6 @@ function WorkspaceSwitcher(props: WorkspaceSwitcherProps) {
     (membership) =>
       membership.workspace?.id && membership.workspace.id !== props.currentWorkspaceId,
   );
-  const hasMultiple = otherWorkspaces.length > 0;
 
   function computePosition() {
     if (!triggerRef.current) {
@@ -350,16 +352,8 @@ function WorkspaceSwitcher(props: WorkspaceSwitcherProps) {
   return (
     <div className="min-w-0 flex-1" ref={triggerRef}>
       <button
-        className={clsx(
-          "flex min-w-0 flex-1 items-center gap-3",
-          hasMultiple && "group cursor-pointer",
-        )}
-        disabled={!hasMultiple}
+        className="group flex min-w-0 flex-1 cursor-pointer items-center gap-3"
         onClick={() => {
-          if (!hasMultiple) {
-            return;
-          }
-
           setIsOpen((value) => {
             if (!value) {
               setDropdownPos(computePosition());
@@ -378,26 +372,24 @@ function WorkspaceSwitcher(props: WorkspaceSwitcherProps) {
         <h1 className="min-w-0 flex-1 truncate text-left text-[0.95rem] font-semibold tracking-tight text-slate-900">
           {props.workspaceName}
         </h1>
-        {hasMultiple ? (
-          <svg
-            className={clsx(
-              "shrink-0 text-slate-400 transition-transform duration-150",
-              isOpen && "rotate-180",
-            )}
-            fill="none"
-            height="14"
-            viewBox="0 0 14 14"
-            width="14"
-          >
-            <path
-              d="M3.5 5.25 7 8.75l3.5-3.5"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="1.5"
-            />
-          </svg>
-        ) : null}
+        <svg
+          className={clsx(
+            "shrink-0 text-slate-400 transition-transform duration-150",
+            isOpen && "rotate-180",
+          )}
+          fill="none"
+          height="14"
+          viewBox="0 0 14 14"
+          width="14"
+        >
+          <path
+            d="M3.5 5.25 7 8.75l3.5-3.5"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="1.5"
+          />
+        </svg>
       </button>
 
       {isOpen && dropdownPos
@@ -443,6 +435,29 @@ function WorkspaceSwitcher(props: WorkspaceSwitcherProps) {
                     />
                   );
                 })}
+              </div>
+
+              <div className="mt-1 border-t border-amber-100/80 pt-1">
+                <button
+                  className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left transition-colors duration-100 hover:bg-amber-50/80"
+                  onClick={() => {
+                    setIsOpen(false);
+                    props.onCreateWorkspace();
+                  }}
+                  type="button"
+                >
+                  <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-dashed border-amber-300/80 bg-amber-50/60 text-amber-500">
+                    <svg fill="none" height="14" viewBox="0 0 14 14" width="14">
+                      <path
+                        d="M7 2v10M2 7h10"
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeWidth="1.5"
+                      />
+                    </svg>
+                  </div>
+                  <p className="text-sm font-medium text-slate-600">New workspace</p>
+                </button>
               </div>
             </div>,
             document.body,
