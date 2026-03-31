@@ -5,6 +5,7 @@ import { useLocation } from "wouter";
 import clsx from "clsx";
 
 import { ChannelLink } from "../../../components/chat/ChatPrimitives";
+import { nameFromEmail } from "../../../lib/ui";
 import { acceptWorkspaceInvite } from "../../../lib/workspaces";
 import type { UseQuackWorkspaceResult } from "../../../hooks/useQuackWorkspace";
 import type {
@@ -13,7 +14,6 @@ import type {
   WorkspaceInviteRecord,
   WorkspaceMemberRecord,
 } from "../../../types/quack";
-import { channelHasActiveCall } from "./workspaceUtils";
 
 const WORKSPACE_GRADIENT_PAIRS = [
   ["from-amber-400", "to-amber-500"],
@@ -43,10 +43,9 @@ interface WorkspaceSwitcherItemProps {
 }
 
 interface SidebarContentProps {
-  activeCallChannelIds: ReadonlySet<string>;
   app: UseQuackWorkspaceResult;
-  callChannelId: string | null;
   canManageChannels: boolean;
+  currentUserMember?: WorkspaceMemberRecord;
   isDirectoryOpen: boolean;
   memberships: WorkspaceMemberRecord[];
   onBrowse: () => void;
@@ -72,7 +71,6 @@ interface SidebarMenuButtonProps {
   onCreateChannel?: () => void;
   onInvite: () => void;
   onSettings: () => void;
-  onSignOut: () => void;
 }
 
 interface MenuRowProps {
@@ -160,7 +158,6 @@ export function SidebarContent(props: SidebarContentProps) {
           onCreateChannel={props.canManageChannels ? props.onCreateChannel : undefined}
           onInvite={props.onInvite}
           onSettings={props.onSettings}
-          onSignOut={props.onSignOut}
         />
         {props.onClose ? (
           <button
@@ -224,11 +221,6 @@ export function SidebarContent(props: SidebarContentProps) {
         {props.app.visibleChannels.map((channel) => (
           <ChannelLink
             channel={channel}
-            hasActiveCall={channelHasActiveCall(
-              channel,
-              props.callChannelId,
-              props.activeCallChannelIds,
-            )}
             href={`/workspaces/${props.workspaceId}/channels/${channel.slug}`}
             isActive={channel.id === props.app.activeChannel?.id && !props.isDirectoryOpen}
             isRenaming={channel.id === props.app.renamingChannelId}
@@ -260,6 +252,13 @@ export function SidebarContent(props: SidebarContentProps) {
           </div>
         </div>
       ) : null}
+
+      <SidebarUserCard
+        currentUserMember={props.currentUserMember}
+        onSettings={props.onSettings}
+        onSignOut={props.onSignOut}
+        user={props.user}
+      />
     </>
   );
 }
@@ -603,13 +602,109 @@ function SidebarMenuButton(props: SidebarMenuButtonProps) {
             }}
           />
           <MenuRow
-            label="Settings"
+            label="Workspace settings"
             onClick={() => {
               setIsOpen(false);
               props.onSettings();
             }}
           />
-          <div className="my-1 h-px bg-amber-100" />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function SidebarUserCard(props: {
+  currentUserMember?: WorkspaceMemberRecord;
+  onSettings: () => void;
+  onSignOut: () => void;
+  user: AuthenticatedUser;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const displayName =
+    props.currentUserMember?.displayName ??
+    nameFromEmail(props.user.email) ??
+    props.user.email ??
+    "Teammate";
+  const avatarUrl =
+    props.currentUserMember?.$user?.avatar?.url ??
+    props.currentUserMember?.$user?.imageURL ??
+    props.user.imageURL;
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    function handleClickOutside(event: MouseEvent) {
+      if (ref.current && !ref.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [isOpen]);
+
+  return (
+    <div className="relative border-t border-amber-200/50" ref={ref}>
+      <button
+        className={clsx(
+          "flex w-full items-center gap-3 px-4 py-3 transition-colors duration-100",
+          isOpen ? "bg-amber-100/50" : "hover:bg-amber-100/40",
+        )}
+        onClick={() => setIsOpen((v) => !v)}
+        type="button"
+      >
+        <UserAvatar imageUrl={avatarUrl} name={displayName} size="sm" />
+        <div className="min-w-0 flex-1 text-left">
+          <p className="truncate text-sm font-medium text-slate-800">{displayName}</p>
+          <p className="truncate text-[0.7rem] leading-tight text-slate-400">
+            {props.user.email ?? "No email"}
+          </p>
+        </div>
+        <svg
+          className={clsx(
+            "shrink-0 text-slate-400 transition-transform duration-150",
+            isOpen && "rotate-180",
+          )}
+          fill="none"
+          height="14"
+          viewBox="0 0 14 14"
+          width="14"
+        >
+          <path
+            d="M3.5 8.75 7 5.25l3.5 3.5"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="1.5"
+          />
+        </svg>
+      </button>
+
+      {isOpen ? (
+        <div className="absolute bottom-full left-2 right-2 z-30 mb-1 overflow-hidden rounded-xl border border-amber-200/80 bg-white/95 py-1 shadow-[0_-8px_24px_rgba(15,23,42,0.10)] backdrop-blur-xl">
+          <MenuRow
+            label="Profile settings"
+            onClick={() => {
+              setIsOpen(false);
+              props.onSettings();
+            }}
+          />
+          <div className="mx-2.5 my-0.5 h-px bg-amber-100" />
           <MenuRow
             label="Sign out"
             onClick={() => {

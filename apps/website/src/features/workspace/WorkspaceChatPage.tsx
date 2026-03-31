@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useLocation } from "wouter";
 
 import {
+  DateHeading,
   DeleteGlyph,
   EditGlyph,
   LeaveGlyph,
@@ -12,6 +13,7 @@ import {
   ReplyGlyph,
   ResizeHandle,
   ThreadPanel,
+  dateDayKey,
 } from "../../components/chat/ChatPrimitives";
 import { Navigate } from "../../components/layout/Navigate";
 import { Notice } from "../../components/ui/FormFields";
@@ -24,7 +26,6 @@ import { EmojiMenu } from "../../components/ui/EmojiMenu";
 import { HoverTooltip } from "../../components/ui/HoverTooltip";
 import { anchorFromPoint, type FloatingAnchor } from "../../components/ui/floating";
 import { useFileUpload } from "../../hooks/useFileUpload";
-import { useActiveCallChannels } from "../../hooks/useActiveCallChannels";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { useMessageKeyboardNav } from "../../hooks/useMessageKeyboardNav";
 import { useResizeHandle } from "../../hooks/useResizeHandle";
@@ -47,7 +48,6 @@ import {
   SettingsModal,
 } from "./components/WorkspaceModals";
 import { SidebarContent } from "./components/WorkspaceSidebar";
-import { channelHasActiveCall } from "./components/workspaceUtils";
 import type {
   AuthenticatedUser,
   ChannelRecord,
@@ -123,11 +123,6 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
   });
 
   const callChannelId = callSession?.channelId ?? null;
-  const activeCallChannelIds = useActiveCallChannels({
-    refreshToken: props.user.refresh_token,
-    serverUrl,
-    workspaceId: props.workspaceId,
-  });
 
   const closeSidebar = useCallback(() => setIsSidebarOpen(false), []);
 
@@ -296,40 +291,11 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     );
     const canLeaveChannel = canRemoveChannel && hasMembership;
 
-    const hasCall = channelHasActiveCall(channel, callChannelId, activeCallChannelIds);
     const isInCallOnThisChannel = isInCall && callChannelId === channel.id;
-    const isInCallOnDifferentChannel = isInCall && callChannelId !== channel.id;
 
     const entries: ContextMenuEntry[] = [];
 
-    if (hasCall && !isInCallOnThisChannel) {
-      entries.push({
-        disabled: false,
-        hint: isInCallOnDifferentChannel
-          ? "Leave your current call to join this one"
-          : "Join the active call in this channel",
-        icon: <CallGlyph />,
-        id: "join-call",
-        label: "Join call",
-        onSelect: () => {
-          if (isInCallOnDifferentChannel) {
-            void leave().then(() => {
-              if (channel.id !== app.activeChannel?.id) {
-                navigate(`/workspaces/${props.workspaceId}/channels/${channel.slug}`);
-              }
-              requestAnimationFrame(() => openPrejoin());
-            });
-          } else {
-            if (channel.id !== app.activeChannel?.id) {
-              navigate(`/workspaces/${props.workspaceId}/channels/${channel.slug}`);
-            }
-            requestAnimationFrame(() => openPrejoin());
-          }
-        },
-      });
-    }
-
-    if (!hasCall && !isInCall) {
+    if (!isInCall) {
       entries.push({
         disabled: !channel.id || !props.user.refresh_token,
         hint: "Start a new call in this channel",
@@ -481,10 +447,9 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
   }
 
   const sidebarContentProps = {
-    activeCallChannelIds,
     app,
-    callChannelId,
     canManageChannels: app.canManageChannels,
+    currentUserMember: app.currentUserMember,
     isDirectoryOpen,
     memberships: props.memberships,
     onChannelContextMenu: handleChannelContextMenu,
@@ -616,12 +581,12 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                         <HamburgerGlyph />
                       </button>
                     ) : null}
-                    <div className="min-w-0">
-                      <h2 className="truncate text-base font-semibold tracking-tight text-slate-900 sm:text-lg">
+                    <div className="flex min-w-0 items-baseline gap-2">
+                      <h2 className="shrink-0 truncate text-base font-semibold tracking-tight text-slate-900 sm:text-lg">
                         {app.activeChannel?.name ?? "channel"}
                       </h2>
                       {app.activeChannel?.topic && !isMobile ? (
-                        <p className="mt-0.5 truncate text-sm text-slate-500">
+                        <p className="min-w-0 truncate text-sm text-slate-400">
                           {app.activeChannel.topic}
                         </p>
                       ) : null}
@@ -687,7 +652,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
               </header>
 
               <section className="min-h-0 flex-1 overflow-y-auto px-2 py-3 sm:px-4 sm:py-4">
-                <div className="mx-auto flex max-w-3xl flex-col gap-1">
+                <div className="flex flex-col gap-1">
                   {app.isMessagesLoading ? (
                     <div className="flex flex-1 items-center justify-center py-12">
                       <div className="h-5 w-5 animate-spin rounded-full border-2 border-amber-300 border-t-amber-500" />
@@ -697,40 +662,49 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                   ) : (
                     app.messages
                       .filter((m) => !m.deletedAt)
-                      .map((message) => (
-                        <MessageCard
-                          currentUserId={props.user.id}
-                          editingDraft={app.editingDraft}
-                          isActiveThread={message.id === app.selectedThreadMessage?.id}
-                          isEditing={app.editingMessageId === message.id}
-                          isOwnMessage={isOwnMessage(message)}
-                          isSelected={keyboardNav.selectedMessageId === message.id}
-                          key={message.id}
-                          message={message}
-                          onCancelEdit={app.cancelEditingMessage}
-                          onClick={() => keyboardNav.handleMessageClick(message.id)}
-                          onContextMenu={handleMessageContextMenu}
-                          onDelete={() => setPendingDeleteMessageId(message.id)}
-                          onEditDraftChange={app.setEditingDraft}
-                          onOpenReactionMenu={(anchor) => openEmojiMenu(anchor, message.id)}
-                          onReply={() => app.openThread(message.id)}
-                          onSaveEdit={() => {
-                            void app.saveEditingMessage();
-                          }}
-                          onStartEdit={() => app.startEditingMessage(message.id)}
-                          onToggleReaction={(emoji) => {
-                            void app.toggleReaction(message.id, emoji);
-                          }}
-                          usersById={app.usersById}
-                          workspaceMembersByUserId={app.workspaceMembersByUserId}
-                        />
-                      ))
+                      .map((message, index, filtered) => {
+                        const prevMessage = index > 0 ? filtered[index - 1] : null;
+                        const showDateHeading =
+                          !prevMessage ||
+                          dateDayKey(message.createdAt) !== dateDayKey(prevMessage.createdAt);
+
+                        return (
+                          <div key={message.id}>
+                            {showDateHeading ? <DateHeading timestamp={message.createdAt} /> : null}
+                            <MessageCard
+                              currentUserId={props.user.id}
+                              editingDraft={app.editingDraft}
+                              isActiveThread={message.id === app.selectedThreadMessage?.id}
+                              isEditing={app.editingMessageId === message.id}
+                              isOwnMessage={isOwnMessage(message)}
+                              isSelected={keyboardNav.selectedMessageId === message.id}
+                              message={message}
+                              onCancelEdit={app.cancelEditingMessage}
+                              onClick={() => keyboardNav.handleMessageClick(message.id)}
+                              onContextMenu={handleMessageContextMenu}
+                              onDelete={() => setPendingDeleteMessageId(message.id)}
+                              onEditDraftChange={app.setEditingDraft}
+                              onOpenReactionMenu={(anchor) => openEmojiMenu(anchor, message.id)}
+                              onReply={() => app.openThread(message.id)}
+                              onSaveEdit={() => {
+                                void app.saveEditingMessage();
+                              }}
+                              onStartEdit={() => app.startEditingMessage(message.id)}
+                              onToggleReaction={(emoji) => {
+                                void app.toggleReaction(message.id, emoji);
+                              }}
+                              usersById={app.usersById}
+                              workspaceMembersByUserId={app.workspaceMembersByUserId}
+                            />
+                          </div>
+                        );
+                      })
                   )}
                 </div>
               </section>
 
               <footer className="border-t border-amber-100/70 px-2 py-2 sm:px-4 sm:py-3">
-                <div className="mx-auto max-w-3xl">
+                <div>
                   <MessageInput
                     onAddFiles={channelUpload.addFiles}
                     onKeyDown={keyboardNav.handleInputKeyDown}

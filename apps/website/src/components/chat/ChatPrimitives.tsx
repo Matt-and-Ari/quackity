@@ -24,6 +24,57 @@ const timeFormatter = new Intl.DateTimeFormat("en-US", {
   minute: "2-digit",
 });
 
+const dateHeadingFormatter = new Intl.DateTimeFormat("en-US", {
+  weekday: "long",
+  month: "long",
+  day: "numeric",
+});
+
+function dateDayKey(timestamp: string | number): string {
+  const d = new Date(timestamp);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+function formatDateHeading(timestamp: string | number): string {
+  const now = new Date();
+  const date = new Date(timestamp);
+  const today = dateDayKey(now.getTime());
+  const yesterday = dateDayKey(now.getTime() - 86_400_000);
+  const key = dateDayKey(timestamp);
+
+  if (key === today) return "Today";
+  if (key === yesterday) return "Yesterday";
+
+  const isSameYear = date.getFullYear() === now.getFullYear();
+  if (!isSameYear) {
+    return new Intl.DateTimeFormat("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    }).format(date);
+  }
+
+  return dateHeadingFormatter.format(date);
+}
+
+export function DateHeading(props: { timestamp: string | number }) {
+  return (
+    <div
+      className="relative flex items-center py-2 select-none"
+      aria-label={formatDateHeading(props.timestamp)}
+    >
+      <div className="flex-1 border-t border-amber-200/50" />
+      <span className="mx-3 shrink-0 rounded-full border border-amber-200/60 bg-white px-3 py-1 text-xs font-medium text-slate-500 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+        {formatDateHeading(props.timestamp)}
+      </span>
+      <div className="flex-1 border-t border-amber-200/50" />
+    </div>
+  );
+}
+
+export { dateDayKey };
+
 interface ResizeHandleProps {
   onMouseDown: (event: React.MouseEvent) => void;
   side: "left" | "right";
@@ -31,7 +82,6 @@ interface ResizeHandleProps {
 
 interface ChannelLinkProps {
   channel: ChannelRecord;
-  hasActiveCall: boolean;
   href: string;
   isActive: boolean;
   isRenaming: boolean;
@@ -190,24 +240,6 @@ export function ChannelLink(props: ChannelLinkProps) {
         </span>
       </HoverTooltip>
       <span className="truncate">{props.channel.name}</span>
-      {props.hasActiveCall ? (
-        <HoverTooltip content="Call in progress">
-          <span
-            className={clsx(
-              "ml-auto flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[0.6rem] font-semibold",
-              props.isActive ? "bg-white/20 text-white" : "bg-emerald-500/15 text-emerald-600",
-            )}
-          >
-            <span
-              className={clsx(
-                "size-1.5 animate-pulse rounded-full",
-                props.isActive ? "bg-white" : "bg-emerald-500",
-              )}
-            />
-            Live
-          </span>
-        </HoverTooltip>
-      ) : null}
     </Link>
   );
 }

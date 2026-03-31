@@ -2,6 +2,10 @@
 
 Quackity is a real-time team chat app built on InstantDB. It combines workspace-based messaging, threads, reactions, file attachments, invite-based onboarding, and channel calls in a single product.
 
+This repository is the home for the project featured in the latest Matt and Ari video tutorial, where we build a software product from scratch. Since filming, the project has been refactored and polished beyond what appears in the tutorial.
+
+If you want to explore the exact code and functionality from the 4-hour filmed build, see the tagged GitHub release [`Built While Filming`](https://github.com/Matt-and-Ari/quackity/releases/tag/built-while-filming).
+
 ## Project Overview
 
 This repository is a pnpm monorepo with three main app layers:

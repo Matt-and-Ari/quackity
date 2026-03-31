@@ -66,7 +66,7 @@ export function SettingsPage(props: SettingsPageProps) {
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <nav className="flex w-44 shrink-0 flex-col gap-0.5 border-r border-amber-100/70 px-2 py-3">
+        <nav className="flex w-48 shrink-0 flex-col gap-0.5 border-r border-amber-100/70 px-3 py-4">
           {visibleTabs.map((tab) => (
             <button
               className={clsx(
@@ -84,7 +84,7 @@ export function SettingsPage(props: SettingsPageProps) {
           ))}
         </nav>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+        <div className="min-h-0 flex-1 overflow-y-auto px-8 py-6">
           {activeTab === "profile" ? (
             <ProfileSettings
               currentUserMember={props.currentUserMember}
@@ -207,50 +207,49 @@ function ProfileSettings(props: ProfileSettingsProps) {
   const initial = (displayName || props.user.email || "U").charAt(0).toUpperCase();
 
   return (
-    <div className="max-w-md">
+    <div className="max-w-2xl">
       <h3 className="text-base font-semibold text-slate-900">Your profile</h3>
       <p className="mt-1 text-sm text-slate-500">
         This is how you appear to others in this workspace.
       </p>
 
-      <div className="mt-6 flex items-center gap-4">
-        <button
-          className="group relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-amber-200/60 bg-gradient-to-br from-amber-100 to-amber-200/80 shadow-sm transition-opacity duration-100 hover:opacity-90"
-          onClick={() => fileInputRef.current?.click()}
-          type="button"
-        >
-          {displayedImage ? (
-            <img alt="Profile" className="size-full object-cover" src={displayedImage} />
-          ) : (
-            <span className="text-lg font-bold text-amber-600">{initial}</span>
-          )}
-          <div className="absolute inset-0 flex items-center justify-center bg-slate-900/0 transition-colors duration-100 group-hover:bg-slate-900/30">
-            <CameraGlyph className="text-white opacity-0 transition-opacity duration-100 group-hover:opacity-100" />
-          </div>
-        </button>
-        <div>
-          <p className="text-sm font-medium text-slate-700">Profile photo</p>
-          <p className="text-xs text-slate-400">Click to upload. Max 5 MB.</p>
+      <div className="mt-6 grid grid-cols-[auto_1fr] items-start gap-x-8 gap-y-5">
+        <div className="flex flex-col items-center gap-2">
+          <button
+            className="group relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-amber-200/60 bg-gradient-to-br from-amber-100 to-amber-200/80 shadow-sm transition-opacity duration-100 hover:opacity-90"
+            onClick={() => fileInputRef.current?.click()}
+            type="button"
+          >
+            {displayedImage ? (
+              <img alt="Profile" className="size-full object-cover" src={displayedImage} />
+            ) : (
+              <span className="text-xl font-bold text-amber-600">{initial}</span>
+            )}
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-900/0 transition-colors duration-100 group-hover:bg-slate-900/30">
+              <CameraGlyph className="text-white opacity-0 transition-opacity duration-100 group-hover:opacity-100" />
+            </div>
+          </button>
+          <p className="text-xs text-slate-400">Max 5 MB</p>
+          <input
+            accept="image/*"
+            className="hidden"
+            onChange={handleImageSelect}
+            ref={fileInputRef}
+            type="file"
+          />
         </div>
-        <input
-          accept="image/*"
-          className="hidden"
-          onChange={handleImageSelect}
-          ref={fileInputRef}
-          type="file"
-        />
-      </div>
 
-      <div className="mt-5 space-y-4">
-        <InputField
-          label="Display name"
-          onChange={setDisplayName}
-          placeholder="Your name"
-          value={displayName}
-        />
-        <div>
-          <span className="text-sm font-medium text-slate-600">Email</span>
-          <p className="mt-1.5 text-sm text-slate-500">{props.user.email ?? "No email"}</p>
+        <div className="space-y-4">
+          <InputField
+            label="Display name"
+            onChange={setDisplayName}
+            placeholder="Your name"
+            value={displayName}
+          />
+          <div>
+            <span className="text-sm font-medium text-slate-600">Email</span>
+            <p className="mt-1.5 text-sm text-slate-500">{props.user.email ?? "No email"}</p>
+          </div>
         </div>
       </div>
 
@@ -365,45 +364,44 @@ function WorkspaceSettings(props: WorkspaceSettingsProps) {
   const initial = (name || "W").trim().charAt(0).toUpperCase();
 
   return (
-    <div className="max-w-md">
+    <div className="max-w-2xl">
       <h3 className="text-base font-semibold text-slate-900">Workspace</h3>
       <p className="mt-1 text-sm text-slate-500">General settings for this workspace.</p>
 
-      <div className="mt-6 flex items-center gap-4">
-        <button
-          className="group relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-amber-200/60 bg-gradient-to-br from-amber-400 to-amber-500 shadow-sm transition-opacity duration-100 hover:opacity-90"
-          onClick={() => fileInputRef.current?.click()}
-          type="button"
-        >
-          {imagePreview ? (
-            <img alt="Workspace" className="size-full object-cover" src={imagePreview} />
-          ) : (
-            <span className="text-lg font-bold text-white">{initial}</span>
-          )}
-          <div className="absolute inset-0 flex items-center justify-center bg-slate-900/0 transition-colors duration-100 group-hover:bg-slate-900/30">
-            <CameraGlyph className="text-white opacity-0 transition-opacity duration-100 group-hover:opacity-100" />
-          </div>
-        </button>
-        <div>
-          <p className="text-sm font-medium text-slate-700">Workspace icon</p>
-          <p className="text-xs text-slate-400">Click to upload. Max 5 MB.</p>
+      <div className="mt-6 grid grid-cols-[auto_1fr] items-start gap-x-8 gap-y-5">
+        <div className="flex flex-col items-center gap-2">
+          <button
+            className="group relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-amber-200/60 bg-gradient-to-br from-amber-400 to-amber-500 shadow-sm transition-opacity duration-100 hover:opacity-90"
+            onClick={() => fileInputRef.current?.click()}
+            type="button"
+          >
+            {imagePreview ? (
+              <img alt="Workspace" className="size-full object-cover" src={imagePreview} />
+            ) : (
+              <span className="text-xl font-bold text-white">{initial}</span>
+            )}
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-900/0 transition-colors duration-100 group-hover:bg-slate-900/30">
+              <CameraGlyph className="text-white opacity-0 transition-opacity duration-100 group-hover:opacity-100" />
+            </div>
+          </button>
+          <p className="text-xs text-slate-400">Max 5 MB</p>
+          <input
+            accept="image/*"
+            className="hidden"
+            onChange={handleImageSelect}
+            ref={fileInputRef}
+            type="file"
+          />
         </div>
-        <input
-          accept="image/*"
-          className="hidden"
-          onChange={handleImageSelect}
-          ref={fileInputRef}
-          type="file"
-        />
-      </div>
 
-      <div className="mt-5 space-y-4">
-        <InputField
-          label="Workspace name"
-          onChange={setName}
-          placeholder="My workspace"
-          value={name}
-        />
+        <div className="space-y-4">
+          <InputField
+            label="Workspace name"
+            onChange={setName}
+            placeholder="My workspace"
+            value={name}
+          />
+        </div>
       </div>
 
       {notice ? (
@@ -495,7 +493,7 @@ function MembersSettings(props: MembersSettingsProps) {
   }
 
   return (
-    <div className="max-w-lg">
+    <div className="max-w-2xl">
       <h3 className="text-base font-semibold text-slate-900">Members</h3>
       <p className="mt-1 text-sm text-slate-500">Manage who has access to this workspace.</p>
 
