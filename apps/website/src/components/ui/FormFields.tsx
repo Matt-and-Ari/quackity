@@ -15,6 +15,7 @@ interface InputFieldProps {
 }
 
 interface TextareaFieldProps {
+  autoFocus?: boolean;
   label: string;
   onChange: (value: string) => void;
   placeholder?: string;
@@ -56,6 +57,7 @@ export function TextareaField(props: TextareaFieldProps) {
     <label className="block space-y-1.5">
       <span className="text-sm font-medium text-slate-600">{props.label}</span>
       <textarea
+        autoFocus={props.autoFocus}
         className="min-h-24 w-full rounded-xl border border-amber-200/70 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors duration-100 placeholder:text-slate-400 focus:border-amber-400"
         onChange={(event) => props.onChange(event.target.value)}
         placeholder={props.placeholder}

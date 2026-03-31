@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { createWorkspaceInviteTx, type WorkspaceRole } from "@quack/data";
 
 import { ActionModal } from "./ActionModal";
 import { ModalButtonRow } from "./ModalPrimitives";
 import { Notice, TextareaField } from "../../../components/ui/FormFields";
+import { SelectField } from "../../../components/ui/SelectField";
 import { api } from "../../../lib/api";
 import { instantDB } from "../../../lib/instant";
-import { buildInviteUrl, coerceWorkspaceRole, parseInviteEmails } from "../../../lib/workspaces";
+import { buildInviteUrl, parseInviteEmails } from "../../../lib/workspaces";
 
 interface InviteModalProps {
   inviterName: string;
@@ -26,6 +27,20 @@ export function InviteModal(props: InviteModalProps) {
   const [role, setRole] = useState<WorkspaceRole>("member");
   const [notice, setNotice] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  const roleOptions: { label: string; value: WorkspaceRole }[] = [
+    ...(props.isOwner ? [{ label: "Admin", value: "admin" as const }] : []),
+    { label: "Member", value: "member" as const },
+    { label: "Guest", value: "guest" as const },
+  ];
+
+  function handleKeyDown(event: React.KeyboardEvent) {
+    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault();
+      formRef.current?.requestSubmit();
+    }
+  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -92,25 +107,15 @@ export function InviteModal(props: InviteModalProps) {
 
   return (
     <ActionModal onClose={props.onClose} title="Invite teammates">
-      <form className="space-y-4" onSubmit={handleSubmit}>
+      <form className="space-y-4" onKeyDown={handleKeyDown} onSubmit={handleSubmit} ref={formRef}>
         <TextareaField
+          autoFocus
           label="Emails"
           onChange={setEmails}
           placeholder={"sam@quackity.chat\npat@quackity.chat"}
           value={emails}
         />
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-slate-600">Role</span>
-          <select
-            className="w-full rounded-xl border border-amber-200/80 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-amber-400"
-            onChange={(event) => setRole(coerceWorkspaceRole(event.target.value))}
-            value={role}
-          >
-            {props.isOwner ? <option value="admin">Admin</option> : null}
-            <option value="member">Member</option>
-            <option value="guest">Guest</option>
-          </select>
-        </label>
+        <SelectField label="Role" onChange={setRole} options={roleOptions} value={role} />
         {notice ? <Notice message={notice} tone="error" /> : null}
         <ModalButtonRow
           isDisabled={isSubmitting || !emails.trim()}

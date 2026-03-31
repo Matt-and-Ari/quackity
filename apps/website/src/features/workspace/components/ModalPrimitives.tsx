@@ -1,6 +1,12 @@
 import type { ChannelVisibility } from "@quack/data";
 
 import { InputField } from "../../../components/ui/FormFields";
+import { SelectField } from "../../../components/ui/SelectField";
+
+const visibilityOptions: { label: string; value: ChannelVisibility }[] = [
+  { label: "Public", value: "public" },
+  { label: "Private", value: "private" },
+];
 
 interface ChannelFormFieldsProps {
   name: string;
@@ -28,17 +34,12 @@ export function ChannelFormFields(props: ChannelFormFieldsProps) {
         placeholder={props.topicPlaceholder ?? "Optional description"}
         value={props.topic}
       />
-      <label className="block space-y-1.5">
-        <span className="text-sm font-medium text-slate-600">Visibility</span>
-        <select
-          className="w-full rounded-xl border border-amber-200/80 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors duration-100 focus:border-amber-400"
-          onChange={(event) => props.onVisibilityChange(event.target.value as ChannelVisibility)}
-          value={props.visibility}
-        >
-          <option value="public">Public</option>
-          <option value="private">Private</option>
-        </select>
-      </label>
+      <SelectField
+        label="Visibility"
+        onChange={props.onVisibilityChange}
+        options={visibilityOptions}
+        value={props.visibility}
+      />
     </>
   );
 }

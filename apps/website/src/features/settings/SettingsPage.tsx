@@ -11,13 +11,14 @@ import {
 } from "@quack/data";
 import { id as instantId, tx } from "@instantdb/react";
 import clsx from "clsx";
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import { InputField, Notice } from "../../components/ui/FormFields";
+import { SelectField } from "../../components/ui/SelectField";
 import { api } from "../../lib/api";
 import { instantDB } from "../../lib/instant";
 import { toErrorMessage } from "../../lib/ui";
-import { buildInviteUrl, coerceWorkspaceRole, parseInviteEmails } from "../../lib/workspaces";
+import { buildInviteUrl, parseInviteEmails } from "../../lib/workspaces";
 import type {
   AuthenticatedUser,
   WorkspaceInviteRecord,
@@ -462,6 +463,10 @@ function MembersSettings(props: MembersSettingsProps) {
   const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
   const [isInviteSubmitting, setIsInviteSubmitting] = useState(false);
 
+  const inviteEmailsRef = useCallback((el: HTMLTextAreaElement | null) => {
+    el?.focus();
+  }, []);
+
   const memberEmailSet = new Set(
     members
       .map((m) => m.$user?.email)
@@ -597,7 +602,15 @@ function MembersSettings(props: MembersSettingsProps) {
       </div>
 
       {isInviting ? (
-        <div className="mt-4 rounded-xl border border-amber-200/80 bg-amber-50/40 p-4">
+        <div
+          className="mt-4 rounded-xl border border-amber-200/80 bg-amber-50/40 p-4"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              void handleSendInvites();
+            }
+          }}
+        >
           <h4 className="text-sm font-semibold text-slate-800">Invite teammates</h4>
           <div className="mt-3 space-y-3">
             <div>
@@ -605,7 +618,7 @@ function MembersSettings(props: MembersSettingsProps) {
                 Email addresses
               </label>
               <textarea
-                autoFocus
+                ref={inviteEmailsRef}
                 className="mt-1.5 w-full rounded-xl border border-amber-200/80 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition-colors duration-100 focus:border-amber-400"
                 id="invite-emails"
                 onChange={(e) => {
@@ -621,21 +634,16 @@ function MembersSettings(props: MembersSettingsProps) {
                 Separate multiple emails with commas or new lines.
               </p>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-600" htmlFor="invite-role">
-                Role
-              </label>
-              <select
-                className="mt-1.5 w-full rounded-xl border border-amber-200/80 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors duration-100 focus:border-amber-400"
-                id="invite-role"
-                onChange={(e) => setInviteRole(coerceWorkspaceRole(e.target.value))}
-                value={inviteRole}
-              >
-                {isOwner ? <option value="admin">Admin</option> : null}
-                <option value="member">Member</option>
-                <option value="guest">Guest</option>
-              </select>
-            </div>
+            <SelectField
+              label="Role"
+              onChange={setInviteRole}
+              options={[
+                ...(isOwner ? [{ label: "Admin", value: "admin" as const }] : []),
+                { label: "Member", value: "member" as const },
+                { label: "Guest", value: "guest" as const },
+              ]}
+              value={inviteRole}
+            />
             {inviteNotice ? <Notice message={inviteNotice} tone="error" /> : null}
             {inviteSuccess ? <Notice message={inviteSuccess} tone="info" /> : null}
             <div className="flex items-center justify-end gap-2">
@@ -710,18 +718,19 @@ function MembersSettings(props: MembersSettingsProps) {
                 </span>
               ) : canModify ? (
                 <div className="flex shrink-0 items-center gap-2">
-                  <select
-                    className="rounded-lg border border-amber-200/60 bg-white px-2 py-1 text-xs text-slate-700 outline-none transition-colors duration-100 focus:border-amber-400"
+                  <SelectField
                     disabled={pendingAction === member.id}
-                    onChange={(event) => {
-                      void handleRoleChange(member, event.target.value as WorkspaceRole);
+                    onChange={(value) => {
+                      void handleRoleChange(member, value);
                     }}
-                    value={member.role}
-                  >
-                    <option value="admin">Admin</option>
-                    <option value="member">Member</option>
-                    <option value="guest">Guest</option>
-                  </select>
+                    options={[
+                      { label: "Admin", value: "admin" },
+                      { label: "Member", value: "member" },
+                      { label: "Guest", value: "guest" },
+                    ]}
+                    size="compact"
+                    value={(member.role as WorkspaceRole) ?? "member"}
+                  />
                   <button
                     className="rounded-lg px-2 py-1 text-xs text-rose-500 transition-colors duration-100 hover:bg-rose-50 disabled:opacity-50"
                     disabled={pendingAction === member.id}

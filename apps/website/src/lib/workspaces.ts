@@ -64,7 +64,12 @@ export async function acceptWorkspaceInvite(
     workspaceId: invite.workspace.id,
   });
 
-  await instantDB.transact(membership.tx);
+  try {
+    await instantDB.transact(membership.tx);
+  } catch (error) {
+    const isDuplicate = error instanceof Error && error.message.includes("record-not-unique");
+    if (!isDuplicate) throw error;
+  }
 
   await instantDB.transact(
     deleteWorkspaceInviteByKeyTx({

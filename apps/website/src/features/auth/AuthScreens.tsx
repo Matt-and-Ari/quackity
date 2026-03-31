@@ -224,7 +224,8 @@ export function JoinPage(props: JoinPageProps) {
               {inviterName ? (
                 <p className="mt-1.5 text-sm text-slate-500">
                   <span className="font-medium text-slate-700">{inviterName}</span> invited you to
-                  join <span className="font-medium text-slate-700">{workspaceName}</span> on Quack.
+                  join <span className="font-medium text-slate-700">{workspaceName}</span> on
+                  Quackity.
                 </p>
               ) : null}
             </>
