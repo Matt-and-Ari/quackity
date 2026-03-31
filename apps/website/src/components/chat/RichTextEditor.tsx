@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import type { EditorView } from "@tiptap/pm/view";
+import type { ResolvedPos } from "@tiptap/pm/model";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Link from "@tiptap/extension-link";
@@ -54,6 +55,17 @@ export function RichTextEditor(props: RichTextEditorProps) {
         if (p.onKeyDown) {
           const handled = p.onKeyDown(event);
           if (handled) return true;
+        }
+
+        if (event.key === "Enter" && event.shiftKey) {
+          const { $from } = view.state.selection;
+          if (isInsideList($from)) {
+            event.preventDefault();
+            const ed = propsRef.current.editorRef?.current;
+            if (ed) ed.commands.splitListItem("listItem");
+            return true;
+          }
+          return false;
         }
 
         if (event.key === "Enter" && !event.shiftKey && p.onSubmit) {
@@ -119,8 +131,16 @@ function shouldDeferEnterToTiptap(view: EditorView): boolean {
 
   if (node.type.name === "codeBlock") return true;
   if (node.type.name === "paragraph" && node.textContent.startsWith("```")) return true;
-  if (node.type.name === "listItem") return true;
+  if (isInsideList($from)) return true;
 
+  return false;
+}
+
+function isInsideList($from: ResolvedPos): boolean {
+  for (let depth = $from.depth; depth >= 0; depth--) {
+    const name = $from.node(depth).type.name;
+    if (name === "listItem" || name === "bulletList" || name === "orderedList") return true;
+  }
   return false;
 }
 
