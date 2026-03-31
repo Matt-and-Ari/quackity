@@ -1,9 +1,11 @@
 import { useEffect, useRef } from "react";
 
 import { instantDB } from "../lib/instant";
+import { playQuackSound } from "../lib/quack-sound";
 
 interface UseMentionNotificationsProps {
   channelNamesById: Map<string, string>;
+  dmChannelIds: Set<string>;
   userId: string;
 }
 
@@ -22,6 +24,7 @@ export function useMentionNotifications(props: UseMentionNotificationsProps) {
         order: { createdAt: "desc" },
         limit: 50,
       },
+      message: {},
       sender: {},
     },
   });
@@ -56,43 +59,86 @@ export function useMentionNotifications(props: UseMentionNotificationsProps) {
 
     if (newMentions.length === 0) return;
 
+    playQuackSound();
+
     if (Notification.permission === "default") {
       void Notification.requestPermission().then((perm) => {
         if (perm === "granted") {
-          fireNotifications(newMentions, props.channelNamesById);
+          fireNotifications(newMentions, props.channelNamesById, props.dmChannelIds);
         }
       });
     } else if (Notification.permission === "granted") {
-      fireNotifications(newMentions, props.channelNamesById);
+      fireNotifications(newMentions, props.channelNamesById, props.dmChannelIds);
     }
-  }, [mentions, props.channelNamesById]);
+  }, [mentions, props.channelNamesById, props.dmChannelIds]);
 }
 
 interface MentionRecord {
   channelId: string;
   id: string;
+  message?: { body?: string } | null;
   sender?: { email?: string } | null;
 }
 
-function fireNotifications(mentions: MentionRecord[], channelNamesById: Map<string, string>) {
-  if (mentions.length === 1) {
-    const mention = mentions[0];
+function fireNotifications(
+  mentions: MentionRecord[],
+  channelNamesById: Map<string, string>,
+  dmChannelIds: Set<string>,
+) {
+  for (const mention of mentions) {
     const senderName = mention.sender?.email ?? "Someone";
-    const channelName = channelNamesById.get(mention.channelId) ?? "a channel";
+    const isDm = dmChannelIds.has(mention.channelId);
+    const bodyPreview = extractPlainText(mention.message?.body);
 
-    new Notification(`${senderName} mentioned you`, {
-      body: `in #${channelName}`,
-      tag: `mention-${mention.id}`,
-    });
+    if (isDm) {
+      new Notification(senderName, {
+        body: bodyPreview || "Sent you a message",
+        tag: `mention-${mention.id}`,
+      });
+    } else {
+      const channelName = channelNamesById.get(mention.channelId) ?? "a channel";
+      new Notification(`${senderName} in #${channelName}`, {
+        body: bodyPreview || "Mentioned you",
+        tag: `mention-${mention.id}`,
+      });
+    }
+  }
+}
+
+interface TiptapNode {
+  attrs?: Record<string, unknown>;
+  content?: TiptapNode[];
+  text?: string;
+  type?: string;
+}
+
+function extractPlainText(body: string | undefined | null): string {
+  if (!body) return "";
+
+  if (!body.startsWith("{")) return body.slice(0, 200);
+
+  try {
+    const doc = JSON.parse(body) as TiptapNode;
+    const parts: string[] = [];
+    collectText(doc, parts);
+    return parts.join("").slice(0, 200);
+  } catch {
+    return body.slice(0, 200);
+  }
+}
+
+function collectText(node: TiptapNode, parts: string[]) {
+  if (node.type === "mention" && node.attrs?.label) {
+    parts.push(`@${node.attrs.label}`);
     return;
   }
-
-  const channelNames = [
-    ...new Set(mentions.map((m) => channelNamesById.get(m.channelId) ?? "a channel")),
-  ];
-
-  new Notification(`${mentions.length} new mentions`, {
-    body: `in ${channelNames.map((n) => `#${n}`).join(", ")}`,
-    tag: `mention-batch-${Date.now()}`,
-  });
+  if (node.text) {
+    parts.push(node.text);
+    return;
+  }
+  if (node.content) {
+    for (const child of node.content) {
+      collectText(child, parts);
+    }
+  }
 }

@@ -57,9 +57,26 @@ export function MessageCard(props: MessageCardProps) {
   const messageRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    if (props.isSelected && messageRef.current) {
-      messageRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    const el = messageRef.current;
+    if (!props.isSelected || !el) return;
+
+    let parent = el.parentElement;
+    while (parent && parent !== document.documentElement) {
+      const { overflowY } = getComputedStyle(parent);
+      if (overflowY === "auto" || overflowY === "scroll") break;
+      parent = parent.parentElement;
     }
+
+    if (parent && parent !== document.documentElement) {
+      const elBottom = el.offsetTop + el.offsetHeight;
+      const remaining = parent.scrollHeight - elBottom;
+      if (remaining < parent.clientHeight / 2) {
+        parent.scrollTo({ top: parent.scrollHeight, behavior: "smooth" });
+        return;
+      }
+    }
+
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [props.isSelected]);
 
   function handleOpenReactionMenu(event: React.MouseEvent<HTMLButtonElement>) {

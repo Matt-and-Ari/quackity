@@ -15,6 +15,7 @@ export type SearchResult =
   | { type: "channel"; channel: ChannelRecord };
 
 interface UseSearchMessagesProps {
+  dmChannels: ChannelRecord[];
   visibleChannels: ChannelRecord[];
   workspaceId: string;
 }
@@ -29,10 +30,14 @@ export interface UseSearchMessagesResult {
 export function useSearchMessages(props: UseSearchMessagesProps): UseSearchMessagesResult {
   const [query, setQuery] = useState("");
 
-  const channelIds = props.visibleChannels.map((c) => c.id);
+  const allSearchableChannels = useMemo(() => {
+    return [...props.visibleChannels, ...props.dmChannels];
+  }, [props.visibleChannels, props.dmChannels]);
+
+  const channelIds = allSearchableChannels.map((c) => c.id);
   const channelsById = useMemo(() => {
-    return new Map(props.visibleChannels.map((c) => [c.id, c]));
-  }, [props.visibleChannels]);
+    return new Map(allSearchableChannels.map((c) => [c.id, c]));
+  }, [allSearchableChannels]);
 
   const messagesState = instantDB.useQuery(
     channelIds.length > 0 && props.workspaceId
@@ -67,7 +72,7 @@ export function useSearchMessages(props: UseSearchMessagesProps): UseSearchMessa
     const matched: SearchResult[] = [];
 
     const matchedChannelIds = new Set<string>();
-    for (const channel of props.visibleChannels) {
+    for (const channel of allSearchableChannels) {
       const nameLower = channel.name.toLowerCase();
       const allMatch = terms.every((term) => nameLower.includes(term));
       if (allMatch) {
@@ -100,7 +105,7 @@ export function useSearchMessages(props: UseSearchMessagesProps): UseSearchMessa
     }
 
     return matched;
-  }, [query, allMessages, channelsById, props.visibleChannels]);
+  }, [query, allMessages, channelsById, allSearchableChannels]);
 
   return {
     isLoading: messagesState.isLoading,

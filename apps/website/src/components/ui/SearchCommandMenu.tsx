@@ -92,7 +92,7 @@ export function SearchCommandMenu(props: SearchCommandMenuProps) {
             autoComplete="off"
             className="min-w-0 flex-1 bg-transparent text-base text-slate-900 outline-none placeholder:text-slate-400"
             onChange={(event) => props.search.setQuery(event.target.value)}
-            placeholder="Search messages and channels..."
+            placeholder="Search messages, channels, and DMs..."
             ref={inputRef}
             spellCheck={false}
             type="text"
@@ -103,32 +103,30 @@ export function SearchCommandMenu(props: SearchCommandMenuProps) {
           </kbd>
         </div>
 
-        <div className="max-h-[min(60vh,520px)] overflow-y-auto overscroll-contain" ref={listRef}>
-          {props.search.isLoading && hasQuery ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="h-5 w-5 animate-spin rounded-full border-2 border-amber-300 border-t-amber-500" />
-            </div>
-          ) : hasQuery && !hasResults ? (
-            <div className="px-5 py-12 text-center text-sm text-slate-400">No results found</div>
-          ) : hasResults ? (
-            <div className="py-2">
-              {props.search.results.map((result, index) => (
-                <SearchResultRow
-                  isActive={index === activeIndex}
-                  key={resultKey(result)}
-                  onMouseEnter={() => setActiveIndex(index)}
-                  onSelect={() => props.onSelectResult(result)}
-                  query={props.search.query}
-                  result={result}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="px-5 py-12 text-center text-sm text-slate-400">
-              Search messages, threads, and channels
-            </div>
-          )}
-        </div>
+        {hasQuery ? (
+          <div className="max-h-[min(60vh,520px)] overflow-y-auto overscroll-contain" ref={listRef}>
+            {props.search.isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-amber-300 border-t-amber-500" />
+              </div>
+            ) : hasResults ? (
+              <div className="py-2">
+                {props.search.results.map((result, index) => (
+                  <SearchResultRow
+                    isActive={index === activeIndex}
+                    key={resultKey(result)}
+                    onMouseEnter={() => setActiveIndex(index)}
+                    onSelect={() => props.onSelectResult(result)}
+                    query={props.search.query}
+                    result={result}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="px-5 py-12 text-center text-sm text-slate-400">No results found</div>
+            )}
+          </div>
+        ) : null}
       </div>
     </div>,
     document.body,
@@ -149,6 +147,8 @@ interface SearchResultRowProps {
 }
 
 function SearchResultRow(props: SearchResultRowProps) {
+  const isDm = props.result.channel.visibility === "dm";
+
   if (props.result.type === "channel") {
     return (
       <button
@@ -162,7 +162,7 @@ function SearchResultRow(props: SearchResultRowProps) {
         type="button"
       >
         <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-amber-100/60 text-amber-600">
-          <ChannelGlyph />
+          {isDm ? <DmGlyph /> : <ChannelGlyph />}
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-[0.9rem] font-medium text-slate-800">
@@ -172,7 +172,7 @@ function SearchResultRow(props: SearchResultRowProps) {
             <p className="truncate text-xs text-slate-400">{props.result.channel.topic}</p>
           ) : null}
         </div>
-        <span className="text-[0.65rem] text-slate-300">Channel</span>
+        <span className="text-[0.65rem] text-slate-300">{isDm ? "DM" : "Channel"}</span>
       </button>
     );
   }
@@ -197,7 +197,9 @@ function SearchResultRow(props: SearchResultRowProps) {
       type="button"
     >
       <div className="flex items-center gap-2">
-        <span className="text-xs font-medium text-amber-600">#{channelName}</span>
+        <span className="text-xs font-medium text-amber-600">
+          {isDm ? channelName : `#${channelName}`}
+        </span>
         {isThread ? (
           <span className="rounded bg-amber-100/60 px-1.5 py-0.5 text-[0.6rem] font-medium text-amber-600/80">
             thread
@@ -253,6 +255,20 @@ function SearchGlyph() {
     <svg className="shrink-0 text-slate-400" fill="none" height="18" viewBox="0 0 16 16" width="18">
       <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.4" />
       <path d="M10.5 10.5 14 14" stroke="currentColor" strokeLinecap="round" strokeWidth="1.4" />
+    </svg>
+  );
+}
+
+function DmGlyph() {
+  return (
+    <svg fill="none" height="14" viewBox="0 0 14 14" width="14">
+      <circle cx="7" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.3" />
+      <path
+        d="M2.5 12.5c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.3"
+      />
     </svg>
   );
 }

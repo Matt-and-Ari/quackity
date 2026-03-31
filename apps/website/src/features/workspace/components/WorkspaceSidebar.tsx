@@ -80,7 +80,7 @@ export function SidebarContent(props: SidebarContentProps) {
       <div className="flex flex-col gap-0.5 border-b border-amber-200/50 px-2 py-2">
         {props.onSearch ? (
           <button
-            className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-sm font-medium text-slate-500 transition-colors duration-100 hover:bg-amber-50/80 hover:text-slate-700"
+            className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-sm font-medium text-slate-600 transition-colors duration-100 hover:bg-amber-100/60"
             onClick={props.onSearch}
             type="button"
           >
@@ -93,10 +93,10 @@ export function SidebarContent(props: SidebarContentProps) {
         ) : null}
         <button
           className={clsx(
-            "flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-sm font-medium transition-colors duration-100",
+            "flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-sm font-medium transition-colors duration-100",
             props.isDirectoryOpen
               ? "bg-amber-100/70 text-amber-700"
-              : "text-slate-500 hover:bg-amber-50/80 hover:text-slate-700",
+              : "text-slate-600 hover:bg-amber-100/60",
           )}
           onClick={props.onBrowse}
           type="button"
@@ -149,6 +149,7 @@ export function SidebarContent(props: SidebarContentProps) {
           allWorkspaceMembers={props.app.allWorkspaceMembers}
           dmChannels={props.app.dmChannels}
           isDirectoryOpen={props.isDirectoryOpen}
+          mentionCounts={props.mentionCounts}
           onDmNavigate={props.onDmNavigate}
           user={props.user}
           workspaceMembersByUserId={props.app.workspaceMembersByUserId}
@@ -187,6 +188,7 @@ interface DirectMessagesListProps {
   allWorkspaceMembers: WorkspaceMemberRecord[];
   dmChannels: ChannelRecord[];
   isDirectoryOpen: boolean;
+  mentionCounts?: Map<string, number>;
   onDmNavigate?: (targetUserId: string) => void;
   user: AuthenticatedUser;
   workspaceMembersByUserId: Map<string, WorkspaceMemberRecord>;
@@ -224,6 +226,7 @@ function DirectMessagesList(props: DirectMessagesListProps) {
         const existingDm = dmChannelsByUserId.get(info.userId);
         const isActive =
           !props.isDirectoryOpen && existingDm != null && existingDm.id === props.activeChannelId;
+        const unreadCount = existingDm ? (props.mentionCounts?.get(existingDm.id) ?? 0) : 0;
 
         return (
           <button
@@ -231,7 +234,9 @@ function DirectMessagesList(props: DirectMessagesListProps) {
               "flex w-full select-none items-center gap-2 rounded-xl px-2.5 py-1.5 text-sm transition-colors duration-100",
               isActive
                 ? "bg-amber-500 font-medium text-white shadow-[0_8px_24px_rgba(245,158,11,0.24)]"
-                : "text-slate-600 hover:bg-amber-100/60",
+                : unreadCount > 0
+                  ? "font-medium text-slate-900 hover:bg-amber-100/60"
+                  : "text-slate-600 hover:bg-amber-100/60",
             )}
             key={info.userId}
             onClick={() => props.onDmNavigate?.(info.userId)}
@@ -248,6 +253,16 @@ function DirectMessagesList(props: DirectMessagesListProps) {
                 </span>
               ) : null}
             </span>
+            {unreadCount > 0 ? (
+              <span
+                className={clsx(
+                  "ml-auto inline-flex size-5 shrink-0 items-center justify-center rounded-full text-[0.6rem] font-bold",
+                  isActive ? "bg-white/25 text-white" : "bg-amber-500 text-white",
+                )}
+              >
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            ) : null}
           </button>
         );
       })}

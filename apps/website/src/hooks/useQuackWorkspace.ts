@@ -51,6 +51,14 @@ interface UseQuackWorkspaceProps {
   workspaceSlug: string;
 }
 
+export interface PendingDmInfo {
+  displayName: string;
+  imageUrl?: string;
+  isSelf: boolean;
+  role?: string;
+  slug: string;
+}
+
 export interface UseQuackWorkspaceResult {
   activeChannel: ChannelRecord | null;
   canManageChannels: boolean;
@@ -78,6 +86,7 @@ export interface UseQuackWorkspaceResult {
   notice: string | null;
   onlineMembers: WorkspaceMemberRecord[];
   openOrCreateDm: (targetUserId: string) => Promise<void>;
+  pendingDmInfo: PendingDmInfo | null;
   openThread: (messageId: string) => void;
   renamingChannelId: string | null;
   saveEditingMessage: () => void;
@@ -115,6 +124,7 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
   const [notice, setNotice] = useState<string | null>(null);
   const [optimisticMessages, setOptimisticMessages] = useState<MessageRecord[]>([]);
   const [renamingChannelId, setRenamingChannelId] = useState<string | null>(null);
+  const [pendingDmInfo, setPendingDmInfo] = useState<PendingDmInfo | null>(null);
   const [selectedThreadMessageId, setSelectedThreadMessageId] = useState<string | null>(null);
   const [threadDraft, setThreadDraft] = useState("");
 
@@ -178,6 +188,16 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
 
     return defaultChannel;
   }, [props.channelSlug, visibleChannels, dmChannels]);
+
+  useEffect(() => {
+    if (
+      pendingDmInfo &&
+      activeChannel?.visibility === "dm" &&
+      activeChannel.slug === pendingDmInfo.slug
+    ) {
+      setPendingDmInfo(null);
+    }
+  }, [activeChannel, pendingDmInfo]);
 
   const activeChannelId = activeChannel?.id ?? null;
 
@@ -511,6 +531,13 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
     cancelEditingMessage();
   }
 
+  function getDmRecipientUserId(): string | undefined {
+    if (activeChannel?.visibility !== "dm") return undefined;
+    const members = asArray(activeChannel.members);
+    const other = members.find((m) => m.$user?.id !== props.user.id);
+    return other?.$user?.id ?? undefined;
+  }
+
   function sendChannelMessage(files?: UploadedFile[]) {
     if (!activeChannel) {
       return;
@@ -558,6 +585,7 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
     const mentionTxs = buildMentionTxs({
       body: trimmedBody,
       channelId: activeChannel.id,
+      dmRecipientUserId: getDmRecipientUserId(),
       messageId: nextMessage.messageId,
       senderId: props.user.id,
     });
@@ -605,6 +633,7 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
     const mentionTxs = buildMentionTxs({
       body: trimmedBody,
       channelId: activeChannel.id,
+      dmRecipientUserId: getDmRecipientUserId(),
       messageId: reply.messageId,
       senderId: props.user.id,
     });
@@ -827,8 +856,20 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
     const currentName = currentUserMember?.displayName ?? props.user.email ?? "Me";
     const isSelf = targetUserId === props.user.id;
     const channelName = isSelf ? currentName : targetName;
+    const targetUser = targetMember?.$user;
+    const imageUrl = targetUser?.avatar?.url ?? targetUser?.imageURL ?? undefined;
 
     const slug = `dm-${Date.now().toString(36)}`;
+
+    setPendingDmInfo({
+      displayName: channelName,
+      imageUrl,
+      isSelf,
+      role: targetMember?.role,
+      slug,
+    });
+
+    navigate(`/workspaces/${props.workspaceSlug}/dms/${slug}`);
 
     try {
       const result = createDmChannelTx({
@@ -839,8 +880,8 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
         workspaceId: workspace.id,
       });
       await instantDB.transact(result.tx);
-      navigate(`/workspaces/${props.workspaceSlug}/dms/${slug}`);
     } catch (error) {
+      setPendingDmInfo(null);
       setNotice(toErrorMessage(error, "Could not open direct message."));
     }
   }
@@ -874,6 +915,7 @@ export function useQuackWorkspace(props: UseQuackWorkspaceProps): UseQuackWorksp
     onlineMembers,
     openOrCreateDm,
     openThread,
+    pendingDmInfo,
     renamingChannelId,
     saveEditingMessage,
     saveRenamingChannel,
@@ -933,12 +975,17 @@ function collectMessageUsers(
 function buildMentionTxs(input: {
   body: string;
   channelId: string;
+  dmRecipientUserId?: string;
   messageId: string;
   senderId: string;
 }) {
   const mentionedUserIds = extractMentionUserIds(input.body).filter(
     (uid) => uid !== input.senderId,
   );
+
+  if (input.dmRecipientUserId && !mentionedUserIds.includes(input.dmRecipientUserId)) {
+    mentionedUserIds.push(input.dmRecipientUserId);
+  }
 
   return mentionedUserIds.map((userId) => {
     const mentionId = id();

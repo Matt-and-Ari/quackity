@@ -20,7 +20,7 @@ At a high level, the website reads and writes most product data directly through
 
 ## Tech Stack
 
-- `pnpm` workspaces
+- `pnpm` workspaces + Vite Plus (`vp`) task runner
 - React 19
 - Vite Plus
 - Tailwind CSS 4
@@ -96,13 +96,13 @@ npx instant-cli init-without-files --title Quackity
 6. Push the local schema and permissions:
 
 ```bash
-pnpm instant:push
+pnpm run instant:push
 ```
 
 If the remote Instant app already exists and you want to pull its latest schema/perms into the repo:
 
 ```bash
-pnpm instant:pull
+pnpm run instant:pull
 ```
 
 ## Install Dependencies
@@ -118,11 +118,11 @@ pnpm install
 Run the website and server in separate terminals:
 
 ```bash
-pnpm dev
+vp run website#dev
 ```
 
 ```bash
-pnpm dev:server
+pnpm run dev:server
 ```
 
 By default:
@@ -137,7 +137,7 @@ This is the normal setup if you want to use sign-in, onboarding, invites, worksp
 If you are only working on frontend UI and do not need the local API:
 
 ```bash
-pnpm dev:website
+vp run website#dev
 ```
 
 Keep in mind that magic-code auth, invite emails, and call-related flows depend on the server.
@@ -147,39 +147,40 @@ Keep in mind that magic-code auth, invite emails, and call-related flows depend 
 There is also a separate playground app:
 
 ```bash
-pnpm dev:playground
+vp run playground#dev
 ```
 
 ## Common Commands
 
-Run the full repo readiness check:
+Run the full repo readiness check (fmt, lint, test, build):
 
 ```bash
-pnpm ready
+vp fmt && vp lint && vp run test -r && vp run build -r
 ```
 
 Run the website dev server:
 
 ```bash
-pnpm dev:website
+vp run website#dev
 ```
 
 Run the API server:
 
 ```bash
-pnpm dev:server
+pnpm run dev:server
 ```
 
 Build everything that participates in the workspace build graph:
 
 ```bash
-pnpm -r build
+vp run build -r
 ```
 
-Type-check the server only:
+Lint and format:
 
 ```bash
-pnpm --filter server check
+vp lint
+vp fmt
 ```
 
 ## Monorepo Layout
@@ -199,9 +200,8 @@ packages/
 
 ## Development Notes
 
-- The root `pnpm dev` command only starts the website.
-- The server is started separately with `pnpm dev:server`.
+- `vp run website#dev` starts the website dev server. The server is started separately with `pnpm run dev:server`.
 - The website loads env vars from the repo root because `apps/website/vite.config.ts` uses `envDir: "../.."`.
 - Most app state is stored in InstantDB, so schema or permission changes usually live in `packages/schema`.
-- If you change the Instant schema or permissions locally, run `pnpm instant:push` before testing those changes end to end.
+- If you change the Instant schema or permissions locally, run `pnpm run instant:push` before testing those changes end to end.
 - Workspace URLs use slugs (`/workspaces/:slug`) rather than raw IDs.

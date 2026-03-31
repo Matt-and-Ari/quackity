@@ -84,6 +84,7 @@ function MagicCodeForm(props: MagicCodeFormProps) {
             <span className="mb-1.5 block text-sm font-medium text-slate-600">Email address</span>
             <input
               autoComplete="email"
+              autoFocus
               className="w-full rounded-xl border border-amber-200/70 bg-white px-4 py-3 text-sm text-slate-900 outline-none ring-amber-400/40 transition-shadow duration-200 placeholder:text-slate-400 focus:border-amber-400 focus:ring-4"
               disabled={isSubmitting}
               onChange={(event) => setEmail(event.target.value)}
@@ -97,6 +98,7 @@ function MagicCodeForm(props: MagicCodeFormProps) {
             <span className="mb-1.5 block text-sm font-medium text-slate-600">Magic code</span>
             <input
               autoComplete="one-time-code"
+              autoFocus
               className="w-full rounded-xl border border-amber-200/70 bg-white px-4 py-3 text-center font-mono text-lg tracking-[0.3em] text-slate-900 outline-none ring-amber-400/40 transition-shadow duration-200 placeholder:text-slate-400 placeholder:tracking-normal placeholder:font-sans placeholder:text-sm focus:border-amber-400 focus:ring-4"
               disabled={isSubmitting}
               maxLength={6}
