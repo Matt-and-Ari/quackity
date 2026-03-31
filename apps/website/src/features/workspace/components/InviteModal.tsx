@@ -7,7 +7,7 @@ import { ModalButtonRow } from "./ModalPrimitives";
 import { Notice, TextareaField } from "../../../components/ui/FormFields";
 import { api } from "../../../lib/api";
 import { instantDB } from "../../../lib/instant";
-import { coerceWorkspaceRole, parseInviteEmails } from "../../../lib/workspaces";
+import { buildInviteUrl, coerceWorkspaceRole, parseInviteEmails } from "../../../lib/workspaces";
 
 interface InviteModalProps {
   inviterName: string;
@@ -55,10 +55,12 @@ export function InviteModal(props: InviteModalProps) {
 
       await instantDB.transact(txs);
 
+      const inviteUrl = buildInviteUrl(props.workspaceId, props.workspaceName, props.inviterName);
+
       console.log("[InviteModal] Sending invite emails", {
         emails: parsedEmails,
         inviterName: props.inviterName,
-        inviteUrl: window.location.origin,
+        inviteUrl,
         workspaceName: props.workspaceName,
         hasRefreshToken: Boolean(props.refreshToken),
       });
@@ -68,7 +70,7 @@ export function InviteModal(props: InviteModalProps) {
           {
             emails: parsedEmails,
             inviterName: props.inviterName,
-            inviteUrl: window.location.origin,
+            inviteUrl,
             workspaceName: props.workspaceName,
           },
           props.refreshToken,

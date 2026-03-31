@@ -1,6 +1,8 @@
 import {
+  createWorkspaceInviteTx,
   deleteWorkspaceInviteTx,
   deleteWorkspaceMemberTx,
+  normalizeEmail,
   setWorkspaceMemberRoleTx,
   updateWorkspaceMemberTx,
   updateWorkspaceTx,
@@ -12,8 +14,10 @@ import clsx from "clsx";
 import { useRef, useState } from "react";
 
 import { InputField, Notice } from "../../components/ui/FormFields";
+import { api } from "../../lib/api";
 import { instantDB } from "../../lib/instant";
 import { toErrorMessage } from "../../lib/ui";
+import { coerceWorkspaceRole, parseInviteEmails } from "../../lib/workspaces";
 import type {
   AuthenticatedUser,
   WorkspaceInviteRecord,
@@ -99,6 +103,9 @@ export function SettingsPage(props: SettingsPageProps) {
             <MembersSettings
               currentUserId={props.user.id}
               invites={props.invites}
+              inviterName={props.currentUserMember?.displayName ?? props.user.email ?? "Someone"}
+              isOwner={props.workspace.owner?.id === props.user.id}
+              refreshToken={props.user.refresh_token}
               workspace={props.workspace}
             />
           ) : null}
@@ -436,14 +443,82 @@ function WorkspaceSettings(props: WorkspaceSettingsProps) {
 interface MembersSettingsProps {
   currentUserId: string;
   invites: WorkspaceInviteRecord[];
+  inviterName: string;
+  isOwner: boolean;
+  refreshToken: string;
   workspace: WorkspaceSummary;
 }
 
 function MembersSettings(props: MembersSettingsProps) {
   const members = props.workspace.members ?? [];
-  const isOwner = props.workspace.owner?.id === props.currentUserId;
+  const isOwner = props.isOwner;
   const [notice, setNotice] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
+
+  const [isInviting, setIsInviting] = useState(false);
+  const [inviteEmails, setInviteEmails] = useState("");
+  const [inviteRole, setInviteRole] = useState<WorkspaceRole>("member");
+  const [inviteNotice, setInviteNotice] = useState<string | null>(null);
+  const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
+  const [isInviteSubmitting, setIsInviteSubmitting] = useState(false);
+
+  const memberEmailSet = new Set(
+    members
+      .map((m) => m.$user?.email)
+      .filter((e): e is string => Boolean(e))
+      .map(normalizeEmail),
+  );
+  const pendingEmailSet = new Set(props.invites.map((invite) => normalizeEmail(invite.email)));
+
+  async function handleSendInvites() {
+    const parsed = parseInviteEmails(inviteEmails).filter(
+      (email) => !memberEmailSet.has(email) && !pendingEmailSet.has(email),
+    );
+
+    if (!parsed.length) {
+      setInviteNotice("Add at least one email not already a member or pending invite.");
+      return;
+    }
+
+    setInviteNotice(null);
+    setInviteSuccess(null);
+    setIsInviteSubmitting(true);
+
+    try {
+      const txs = parsed.map(
+        (email) =>
+          createWorkspaceInviteTx({
+            email,
+            invitedById: props.currentUserId,
+            role: inviteRole,
+            workspaceId: props.workspace.id,
+          }).tx,
+      );
+
+      await instantDB.transact(txs);
+
+      api
+        .sendInviteEmails(
+          {
+            emails: parsed,
+            inviterName: props.inviterName,
+            inviteUrl: window.location.origin,
+            workspaceName: props.workspace.name,
+          },
+          props.refreshToken,
+        )
+        .catch((err: unknown) => {
+          console.error("[MembersSettings] sendInviteEmails failed", err);
+        });
+
+      setInviteSuccess(`Invited ${parsed.length} ${parsed.length === 1 ? "person" : "people"}.`);
+      setInviteEmails("");
+    } catch (error) {
+      setInviteNotice(toErrorMessage(error, "Could not send invites."));
+    } finally {
+      setIsInviteSubmitting(false);
+    }
+  }
 
   async function handleRoleChange(member: WorkspaceMemberRecord, newRole: WorkspaceRole) {
     if (member.role === newRole) return;
@@ -494,8 +569,108 @@ function MembersSettings(props: MembersSettingsProps) {
 
   return (
     <div className="max-w-2xl">
-      <h3 className="text-base font-semibold text-slate-900">Members</h3>
-      <p className="mt-1 text-sm text-slate-500">Manage who has access to this workspace.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-base font-semibold text-slate-900">Members</h3>
+          <p className="mt-1 text-sm text-slate-500">Manage who has access to this workspace.</p>
+        </div>
+        {!isInviting ? (
+          <button
+            className="flex items-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2 text-sm font-medium text-white transition-colors duration-100 hover:bg-amber-600"
+            onClick={() => {
+              setIsInviting(true);
+              setInviteSuccess(null);
+            }}
+            type="button"
+          >
+            <svg fill="none" height="16" viewBox="0 0 16 16" width="16">
+              <path
+                d="M8 3v10M3 8h10"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeWidth="1.5"
+              />
+            </svg>
+            Invite people
+          </button>
+        ) : null}
+      </div>
+
+      {isInviting ? (
+        <div className="mt-4 rounded-xl border border-amber-200/80 bg-amber-50/40 p-4">
+          <h4 className="text-sm font-semibold text-slate-800">Invite teammates</h4>
+          <div className="mt-3 space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-slate-600" htmlFor="invite-emails">
+                Email addresses
+              </label>
+              <textarea
+                autoFocus
+                className="mt-1.5 w-full rounded-xl border border-amber-200/80 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition-colors duration-100 focus:border-amber-400"
+                id="invite-emails"
+                onChange={(e) => {
+                  setInviteEmails(e.target.value);
+                  setInviteNotice(null);
+                  setInviteSuccess(null);
+                }}
+                placeholder={"sam@example.com, pat@example.com"}
+                rows={3}
+                value={inviteEmails}
+              />
+              <p className="mt-1 text-xs text-slate-400">
+                Separate multiple emails with commas or new lines.
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-600" htmlFor="invite-role">
+                Role
+              </label>
+              <select
+                className="mt-1.5 w-full rounded-xl border border-amber-200/80 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors duration-100 focus:border-amber-400"
+                id="invite-role"
+                onChange={(e) => setInviteRole(coerceWorkspaceRole(e.target.value))}
+                value={inviteRole}
+              >
+                {isOwner ? <option value="admin">Admin</option> : null}
+                <option value="member">Member</option>
+                <option value="guest">Guest</option>
+              </select>
+            </div>
+            {inviteNotice ? <Notice message={inviteNotice} tone="error" /> : null}
+            {inviteSuccess ? <Notice message={inviteSuccess} tone="info" /> : null}
+            <div className="flex items-center justify-end gap-2">
+              <button
+                className="rounded-xl px-4 py-2 text-sm font-medium text-slate-600 transition-colors duration-100 hover:bg-slate-100"
+                onClick={() => {
+                  setIsInviting(false);
+                  setInviteEmails("");
+                  setInviteNotice(null);
+                  setInviteSuccess(null);
+                }}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-medium text-white transition-colors duration-100 hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isInviteSubmitting || !inviteEmails.trim()}
+                onClick={() => {
+                  void handleSendInvites();
+                }}
+                type="button"
+              >
+                {isInviteSubmitting ? "Sending..." : "Send invites"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {inviteSuccess && !isInviting ? (
+        <div className="mt-4">
+          <Notice message={inviteSuccess} tone="info" />
+        </div>
+      ) : null}
 
       {notice ? (
         <div className="mt-4">

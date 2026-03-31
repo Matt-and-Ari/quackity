@@ -11,6 +11,14 @@ import type { AuthenticatedUser, WorkspaceInviteRecord } from "../types/quack";
 
 export { createWorkspaceInviteKey, normalizeEmail };
 
+export function buildInviteUrl(workspaceId: string, workspaceName: string, inviterName: string) {
+  const params = new URLSearchParams({
+    workspace: workspaceName,
+    inviter: inviterName,
+  });
+  return `${window.location.origin}/join/${workspaceId}?${params.toString()}`;
+}
+
 export function slugifyWorkspaceName(value: string) {
   return value
     .trim()

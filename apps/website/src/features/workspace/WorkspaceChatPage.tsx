@@ -502,14 +502,52 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
               visibleChannelIds={new Set(app.visibleChannels.map((c) => c.id))}
               workspaceSlug={props.workspaceSlug}
             />
+          ) : !app.activeChannel ? (
+            <main className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center overflow-hidden rounded-2xl md:rounded-[1.45rem] border border-amber-200/60 bg-white/82 shadow-[0_18px_50px_rgba(15,23,42,0.07)]">
+              {app.isLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-amber-300 border-t-amber-500" />
+                </div>
+              ) : (
+                <div className="flex max-w-xs flex-col items-center text-center px-4">
+                  <div className="flex size-16 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-100 to-amber-200/80 shadow-[0_8px_24px_rgba(217,119,6,0.12)]">
+                    <svg fill="none" height="28" viewBox="0 0 24 24" width="28">
+                      <path
+                        className="text-amber-500"
+                        d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10Z"
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="1.5"
+                      />
+                    </svg>
+                  </div>
+                  <p className="mt-4 text-sm font-semibold text-slate-900">No channels yet</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-400">
+                    {app.canManageChannels
+                      ? "Create a channel to get the conversation started."
+                      : "Channels will appear here once an admin creates one."}
+                  </p>
+                  {app.canManageChannels ? (
+                    <button
+                      className="mt-4 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-medium text-white transition-colors duration-100 hover:bg-amber-600"
+                      onClick={() => setIsCreateChannelOpen(true)}
+                      type="button"
+                    >
+                      Create a channel
+                    </button>
+                  ) : null}
+                </div>
+              )}
+            </main>
           ) : (
             <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl md:rounded-[1.45rem] border border-amber-200/60 bg-white/82 shadow-[0_18px_50px_rgba(15,23,42,0.07)]">
               <ChannelHeader
                 callError={callError}
                 canManageChannels={app.canManageChannels}
-                channelId={app.activeChannel?.id}
-                channelName={app.activeChannel?.name ?? "channel"}
-                channelTopic={app.activeChannel?.topic}
+                channelId={app.activeChannel.id}
+                channelName={app.activeChannel.name}
+                channelTopic={app.activeChannel.topic}
                 errorMessage={app.errorMessage}
                 hasRefreshToken={Boolean(props.user.refresh_token)}
                 isInCall={isInCall}
@@ -525,7 +563,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
 
               <ChannelMessageList
                 activeThreadMessageId={app.selectedThreadMessage?.id}
-                channelName={app.activeChannel?.name ?? "channel"}
+                channelName={app.activeChannel.name}
                 currentUserId={props.user.id}
                 editingDraft={app.editingDraft}
                 editingMessageId={app.editingMessageId}
@@ -556,27 +594,21 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
               />
 
               <ChannelFooter
-                channelName={app.activeChannel?.name ?? "channel"}
+                channelName={app.activeChannel.name}
                 draft={app.channelDraft}
                 onAddFiles={(files: FileList) => {
-                  if (app.activeChannel?.id) {
-                    channelDrafts.addFiles(app.activeChannel.id, files);
-                  }
+                  channelDrafts.addFiles(app.activeChannel!.id, files);
                 }}
                 onInputFocus={keyboardNav.handleInputFocus}
                 onInputKeyDown={keyboardNav.handleInputKeyDown}
                 onRemoveFile={(fileId: string) => {
-                  if (app.activeChannel?.id) {
-                    channelDrafts.removeFile(app.activeChannel.id, fileId);
-                  }
+                  channelDrafts.removeFile(app.activeChannel!.id, fileId);
                 }}
                 onSubmit={() => {
                   void handleSendChannelMessage();
                 }}
                 onValueChange={app.setChannelDraft}
-                stagedFiles={
-                  app.activeChannel?.id ? channelDrafts.getStagedFiles(app.activeChannel.id) : []
-                }
+                stagedFiles={channelDrafts.getStagedFiles(app.activeChannel.id)}
                 textareaRef={channelInputRef}
               />
             </main>

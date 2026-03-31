@@ -8,13 +8,18 @@ import { instantDB } from "../../lib/instant";
 import { toErrorMessage } from "../../lib/ui";
 import {
   acceptWorkspaceInvite,
+  buildInviteUrl,
   normalizeEmail,
   parseInviteEmails,
   slugifyWorkspaceName,
 } from "../../lib/workspaces";
 import type { AuthenticatedUser, WorkspaceInviteRecord } from "../../types/quack";
 
-export function LoggedOutPage() {
+interface MagicCodeFormProps {
+  navigateTo: string;
+}
+
+function MagicCodeForm(props: MagicCodeFormProps) {
   const [, navigate] = useLocation();
   const [code, setCode] = useState("");
   const [email, setEmail] = useState("");
@@ -52,7 +57,7 @@ export function LoggedOutPage() {
       }
 
       await instantDB.auth.signInWithToken(response.data.token);
-      navigate("/");
+      navigate(props.navigateTo);
     } catch (error) {
       setNotice(toErrorMessage(error, "Something went wrong during sign in."));
     } finally {
@@ -61,144 +66,175 @@ export function LoggedOutPage() {
   }
 
   return (
-    <section className="flex min-h-0 flex-1 items-center justify-center px-4 py-16 sm:py-20">
-      <div className="relative w-full max-w-sm">
-        {/* Decorative glow */}
-        <div className="absolute -inset-3 rounded-[2rem] bg-gradient-to-b from-amber-200/30 to-amber-100/10 blur-2xl" />
+    <>
+      <p className="mt-1.5 text-sm leading-relaxed text-slate-500">
+        {step === "email" ? (
+          "Enter your email below and we\u2019ll send you a magic code to sign in."
+        ) : (
+          <>
+            We sent a 6-digit code to <span className="font-medium text-slate-700">{email}</span>
+          </>
+        )}
+      </p>
 
-        <div className="relative rounded-[1.45rem] border border-amber-200/60 bg-white/85 p-6 shadow-[0_24px_80px_rgba(217,119,6,0.1)] backdrop-blur-xl sm:p-8">
-          {/* Logo + heading */}
-          <div className="mb-6 text-center">
-            <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-100 to-amber-50 shadow-sm">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" className="size-10">
-                <circle cx="32" cy="32" r="30" fill="#FCD34D" />
-                <ellipse cx="32" cy="38" rx="18" ry="16" fill="#FBBF24" />
-                <circle cx="32" cy="24" r="14" fill="#FCD34D" />
-                <circle cx="26" cy="21" r="2.5" fill="#1E293B" />
-                <circle cx="38" cy="21" r="2.5" fill="#1E293B" />
-                <circle cx="27" cy="20" r="0.8" fill="#FFF" />
-                <circle cx="39" cy="20" r="0.8" fill="#FFF" />
-                <ellipse cx="32" cy="27" rx="6" ry="3.5" fill="#F97316" />
-                <ellipse cx="32" cy="26.5" rx="4" ry="2" fill="#FB923C" />
-                <ellipse
-                  cx="20"
-                  cy="40"
-                  rx="8"
-                  ry="5"
-                  fill="#FBBF24"
-                  transform="rotate(-15 20 40)"
+      <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
+        {step === "email" ? (
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-slate-600">Email address</span>
+            <input
+              autoComplete="email"
+              className="w-full rounded-xl border border-amber-200/70 bg-white px-4 py-3 text-sm text-slate-900 outline-none ring-amber-400/40 transition-shadow duration-200 placeholder:text-slate-400 focus:border-amber-400 focus:ring-4"
+              disabled={isSubmitting}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="you@quackity.chat"
+              type="email"
+              value={email}
+            />
+          </label>
+        ) : (
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-slate-600">Magic code</span>
+            <input
+              autoComplete="one-time-code"
+              className="w-full rounded-xl border border-amber-200/70 bg-white px-4 py-3 text-center font-mono text-lg tracking-[0.3em] text-slate-900 outline-none ring-amber-400/40 transition-shadow duration-200 placeholder:text-slate-400 placeholder:tracking-normal placeholder:font-sans placeholder:text-sm focus:border-amber-400 focus:ring-4"
+              disabled={isSubmitting}
+              maxLength={6}
+              onChange={(event) => setCode(event.target.value)}
+              placeholder="Enter 6-digit code"
+              value={code}
+            />
+          </label>
+        )}
+
+        {notice ? <Notice message={notice} /> : null}
+
+        <button
+          className="w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/10 transition-all duration-200 hover:bg-slate-800 hover:shadow-xl hover:shadow-slate-900/15 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+          disabled={isSubmitting || !email || (step === "code" && !code)}
+          type="submit"
+        >
+          {isSubmitting ? (
+            <span className="inline-flex items-center gap-2">
+              <svg className="size-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
                 />
-                <ellipse
-                  cx="44"
-                  cy="40"
-                  rx="8"
-                  ry="5"
-                  fill="#FBBF24"
-                  transform="rotate(15 44 40)"
+                <path
+                  className="opacity-75"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                  fill="currentColor"
                 />
               </svg>
-            </div>
-            <h1 className="text-xl font-bold tracking-tight text-slate-900">
-              {step === "email" ? "Welcome back" : "Check your inbox"}
-            </h1>
-            <p className="mt-1.5 text-sm leading-relaxed text-slate-500">
-              {step === "email" ? (
-                "Enter your email below and we'll send you a magic code to sign in."
-              ) : (
-                <>
-                  We sent a 6-digit code to{" "}
-                  <span className="font-medium text-slate-700">{email}</span>
-                </>
-              )}
-            </p>
+              Working...
+            </span>
+          ) : step === "email" ? (
+            "Continue with email"
+          ) : (
+            "Verify and sign in"
+          )}
+        </button>
+
+        {step === "code" ? (
+          <button
+            className="w-full rounded-xl px-4 py-2.5 text-sm font-medium text-slate-500 transition-colors duration-200 hover:bg-slate-50 hover:text-slate-700"
+            disabled={isSubmitting}
+            onClick={() => {
+              setCode("");
+              setNotice(null);
+              setStep("email");
+            }}
+            type="button"
+          >
+            Use a different email
+          </button>
+        ) : null}
+      </form>
+
+      <div className="mt-6 border-t border-amber-100/60 pt-5 text-center">
+        <p className="text-xs leading-relaxed text-slate-400">
+          By continuing, you agree to Quackity&rsquo;s terms of service and privacy policy.
+        </p>
+      </div>
+    </>
+  );
+}
+
+function QuackLogo() {
+  return (
+    <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-100 to-amber-50 shadow-sm">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" className="size-10">
+        <circle cx="32" cy="32" r="30" fill="#FCD34D" />
+        <ellipse cx="32" cy="38" rx="18" ry="16" fill="#FBBF24" />
+        <circle cx="32" cy="24" r="14" fill="#FCD34D" />
+        <circle cx="26" cy="21" r="2.5" fill="#1E293B" />
+        <circle cx="38" cy="21" r="2.5" fill="#1E293B" />
+        <circle cx="27" cy="20" r="0.8" fill="#FFF" />
+        <circle cx="39" cy="20" r="0.8" fill="#FFF" />
+        <ellipse cx="32" cy="27" rx="6" ry="3.5" fill="#F97316" />
+        <ellipse cx="32" cy="26.5" rx="4" ry="2" fill="#FB923C" />
+        <ellipse cx="20" cy="40" rx="8" ry="5" fill="#FBBF24" transform="rotate(-15 20 40)" />
+        <ellipse cx="44" cy="40" rx="8" ry="5" fill="#FBBF24" transform="rotate(15 44 40)" />
+      </svg>
+    </div>
+  );
+}
+
+export function LoggedOutPage() {
+  return (
+    <section className="flex min-h-0 flex-1 items-center justify-center px-4 py-16 sm:py-20">
+      <div className="relative w-full max-w-sm">
+        <div className="absolute -inset-3 rounded-[2rem] bg-gradient-to-b from-amber-200/30 to-amber-100/10 blur-2xl" />
+        <div className="relative rounded-[1.45rem] border border-amber-200/60 bg-white/85 p-6 shadow-[0_24px_80px_rgba(217,119,6,0.1)] backdrop-blur-xl sm:p-8">
+          <div className="text-center">
+            <QuackLogo />
+            <h1 className="text-xl font-bold tracking-tight text-slate-900">Welcome back</h1>
           </div>
+          <MagicCodeForm navigateTo="/" />
+        </div>
+      </div>
+    </section>
+  );
+}
 
-          <form className="space-y-4" onSubmit={handleSubmit}>
-            {step === "email" ? (
-              <label className="block">
-                <span className="mb-1.5 block text-sm font-medium text-slate-600">
-                  Email address
-                </span>
-                <input
-                  autoComplete="email"
-                  className="w-full rounded-xl border border-amber-200/70 bg-white px-4 py-3 text-sm text-slate-900 outline-none ring-amber-400/40 transition-shadow duration-200 placeholder:text-slate-400 focus:border-amber-400 focus:ring-4"
-                  disabled={isSubmitting}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="you@quackity.chat"
-                  type="email"
-                  value={email}
-                />
-              </label>
-            ) : (
-              <label className="block">
-                <span className="mb-1.5 block text-sm font-medium text-slate-600">Magic code</span>
-                <input
-                  autoComplete="one-time-code"
-                  className="w-full rounded-xl border border-amber-200/70 bg-white px-4 py-3 text-center font-mono text-lg tracking-[0.3em] text-slate-900 outline-none ring-amber-400/40 transition-shadow duration-200 placeholder:text-slate-400 placeholder:tracking-normal placeholder:font-sans placeholder:text-sm focus:border-amber-400 focus:ring-4"
-                  disabled={isSubmitting}
-                  maxLength={6}
-                  onChange={(event) => setCode(event.target.value)}
-                  placeholder="Enter 6-digit code"
-                  value={code}
-                />
-              </label>
-            )}
+interface JoinPageProps {
+  workspaceId: string;
+}
 
-            {notice ? <Notice message={notice} /> : null}
+export function JoinPage(props: JoinPageProps) {
+  const params = new URLSearchParams(window.location.search);
+  const workspaceName = params.get("workspace");
+  const inviterName = params.get("inviter");
 
-            <button
-              className="w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/10 transition-all duration-200 hover:bg-slate-800 hover:shadow-xl hover:shadow-slate-900/15 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
-              disabled={isSubmitting || !email || (step === "code" && !code)}
-              type="submit"
-            >
-              {isSubmitting ? (
-                <span className="inline-flex items-center gap-2">
-                  <svg className="size-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      className="opacity-75"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                      fill="currentColor"
-                    />
-                  </svg>
-                  Working...
-                </span>
-              ) : step === "email" ? (
-                "Continue with email"
-              ) : (
-                "Verify and sign in"
-              )}
-            </button>
-
-            {step === "code" ? (
-              <button
-                className="w-full rounded-xl px-4 py-2.5 text-sm font-medium text-slate-500 transition-colors duration-200 hover:bg-slate-50 hover:text-slate-700"
-                disabled={isSubmitting}
-                onClick={() => {
-                  setCode("");
-                  setNotice(null);
-                  setStep("email");
-                }}
-                type="button"
-              >
-                Use a different email
-              </button>
-            ) : null}
-          </form>
-
-          {/* Footer */}
-          <div className="mt-6 border-t border-amber-100/60 pt-5 text-center">
-            <p className="text-xs leading-relaxed text-slate-400">
-              By continuing, you agree to Quackity&rsquo;s terms of service and privacy policy.
-            </p>
-          </div>
+  return (
+    <section className="flex min-h-0 flex-1 items-center justify-center px-4 py-16 sm:py-20">
+      <div className="relative w-full max-w-sm">
+        <div className="absolute -inset-3 rounded-[2rem] bg-gradient-to-b from-amber-200/30 to-amber-100/10 blur-2xl" />
+        <div className="relative rounded-[1.45rem] border border-amber-200/60 bg-white/85 p-6 text-center shadow-[0_24px_80px_rgba(217,119,6,0.1)] backdrop-blur-xl sm:p-8">
+          <QuackLogo />
+          {workspaceName ? (
+            <>
+              <h1 className="text-xl font-bold tracking-tight text-slate-900">
+                Join {workspaceName}
+              </h1>
+              {inviterName ? (
+                <p className="mt-1.5 text-sm text-slate-500">
+                  <span className="font-medium text-slate-700">{inviterName}</span> invited you to
+                  join <span className="font-medium text-slate-700">{workspaceName}</span> on Quack.
+                </p>
+              ) : null}
+            </>
+          ) : (
+            <h1 className="text-xl font-bold tracking-tight text-slate-900">Accept your invite</h1>
+          )}
+          {!workspaceName ? (
+            <p className="mt-2 text-sm text-slate-500">Sign in or create an account to continue.</p>
+          ) : null}
+          <MagicCodeForm navigateTo={`/join/${props.workspaceId}${window.location.search}`} />
         </div>
       </div>
     </section>
@@ -263,11 +299,16 @@ export function OnboardingPage(props: OnboardingPageProps) {
       await instantDB.transact([...workspace.tx, ...generalChannel.tx, ...inviteTransactions]);
 
       if (emails.length > 0 && props.user.refresh_token) {
+        const inviterDisplayName = displayName.trim() || props.user.email || "Someone";
         void api.sendInviteEmails(
           {
             emails,
-            inviterName: displayName.trim() || props.user.email || "Someone",
-            inviteUrl: window.location.origin,
+            inviterName: inviterDisplayName,
+            inviteUrl: buildInviteUrl(
+              workspace.workspaceId,
+              workspaceName.trim(),
+              inviterDisplayName,
+            ),
             workspaceName: workspaceName.trim(),
           },
           props.user.refresh_token,

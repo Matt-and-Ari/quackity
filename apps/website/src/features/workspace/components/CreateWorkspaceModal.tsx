@@ -13,7 +13,12 @@ import { InputField, Notice, TextareaField } from "../../../components/ui/FormFi
 import { CloseGlyph } from "./WorkspaceGlyphs";
 import { api } from "../../../lib/api";
 import { instantDB } from "../../../lib/instant";
-import { normalizeEmail, parseInviteEmails, slugifyWorkspaceName } from "../../../lib/workspaces";
+import {
+  buildInviteUrl,
+  normalizeEmail,
+  parseInviteEmails,
+  slugifyWorkspaceName,
+} from "../../../lib/workspaces";
 import { toErrorMessage } from "../../../lib/ui";
 import type { AuthenticatedUser } from "../../../types/quack";
 
@@ -153,11 +158,16 @@ export function CreateWorkspaceModal(props: CreateWorkspaceModalProps) {
       await instantDB.transact([...workspaceTx.tx, ...generalChannel.tx, ...inviteTransactions]);
 
       if (emails.length > 0 && props.user.refresh_token) {
+        const inviterDisplayName = displayName.trim() || props.user.email || "Someone";
         void api.sendInviteEmails(
           {
             emails,
-            inviterName: displayName.trim() || props.user.email || "Someone",
-            inviteUrl: window.location.origin,
+            inviterName: inviterDisplayName,
+            inviteUrl: buildInviteUrl(
+              workspaceTx.workspaceId,
+              workspaceName.trim(),
+              inviterDisplayName,
+            ),
             workspaceName: workspaceName.trim(),
           },
           props.user.refresh_token,

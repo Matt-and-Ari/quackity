@@ -7,7 +7,7 @@ import { AppFrame } from "./components/layout/AppFrame";
 import { Navigate } from "./components/layout/Navigate";
 import { WorkspaceShellLoading } from "./components/layout/WorkspaceShellLoading";
 import { Notice } from "./components/ui/FormFields";
-import { LoggedOutPage, OnboardingPage } from "./features/auth/AuthScreens";
+import { JoinPage, LoggedOutPage, OnboardingPage } from "./features/auth/AuthScreens";
 import { LandingPage } from "./features/landing/LandingPage";
 import { WorkspaceChatPage } from "./features/workspace/WorkspaceChatPage";
 import { instantDB } from "./lib/instant";
@@ -41,9 +41,11 @@ export default function App() {
         </Route>
 
         <Route path="/join/:workspaceId">
-          <AppFrame statusLabel="Sign in">
-            <LoggedOutPage />
-          </AppFrame>
+          {(params) => (
+            <AppFrame statusLabel="Accept invite">
+              <JoinPage workspaceId={params.workspaceId} />
+            </AppFrame>
+          )}
         </Route>
 
         <Route>
@@ -158,6 +160,9 @@ function WorkspaceInviteAcceptPage(props: {
   const invite =
     props.pendingInvites.find((entry) => entry.workspace?.id === props.workspaceId) ?? null;
 
+  const queryParams = new URLSearchParams(window.location.search);
+  const workspaceNameHint = invite?.workspace?.name ?? queryParams.get("workspace");
+
   useEffect(() => {
     if (!invite || isSubmitting || hasAttempted) {
       return;
@@ -192,21 +197,48 @@ function WorkspaceInviteAcceptPage(props: {
   }, [hasAttempted, invite, isSubmitting, navigate, props.user]);
 
   if (!invite) {
+    async function handleSignOut() {
+      await instantDB.auth.signOut();
+    }
+
     return (
       <AppFrame statusLabel="Invite not found">
         <section className="flex flex-1 items-center justify-center px-4 py-14">
           <div className="w-full max-w-md rounded-[1.45rem] border border-amber-200/60 bg-white/82 p-5 shadow-[0_18px_50px_rgba(217,119,6,0.08)] sm:p-6">
             <p className="text-lg font-semibold text-slate-900">Invite not found</p>
             <p className="mt-2 text-sm text-slate-500">
-              This account does not have a pending invite for that workspace. Sign in with the
-              invited email address or ask the workspace owner to send a new invite.
+              {workspaceNameHint ? (
+                <>
+                  No pending invite for{" "}
+                  <span className="font-medium text-slate-700">{workspaceNameHint}</span> was found
+                  for this account.
+                </>
+              ) : (
+                "No pending invite was found for this account."
+              )}
             </p>
-            <Link
-              className="mt-4 inline-block rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-medium text-white transition-colors duration-100 hover:bg-amber-600"
-              href="/"
-            >
-              Back to Quackity
-            </Link>
+            <p className="mt-1.5 text-sm text-slate-500">
+              You&rsquo;re signed in as{" "}
+              <span className="font-medium text-slate-700">{props.user.email}</span>. If the invite
+              was sent to a different email, sign out and try again.
+            </p>
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <button
+                className="rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-medium text-white transition-colors duration-100 hover:bg-amber-600"
+                onClick={() => {
+                  void handleSignOut();
+                }}
+                type="button"
+              >
+                Sign out &amp; use another account
+              </button>
+              <Link
+                className="rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors duration-100 hover:bg-slate-100"
+                href="/"
+              >
+                Back to Quackity
+              </Link>
+            </div>
           </div>
         </section>
       </AppFrame>
