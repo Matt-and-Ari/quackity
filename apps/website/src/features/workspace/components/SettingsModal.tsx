@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+
 import { SettingsPage } from "../../settings/SettingsPage";
 import type {
   AuthenticatedUser,
@@ -15,6 +17,17 @@ interface SettingsModalProps {
 }
 
 export function SettingsModal(props: SettingsModalProps) {
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        props.onClose();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [props.onClose]);
+
   return (
     <div
       className="fixed inset-0 z-40 flex items-end justify-center bg-slate-950/20 backdrop-blur-sm sm:items-center sm:px-4"

@@ -6,6 +6,7 @@ interface NoticeProps {
 }
 
 interface InputFieldProps {
+  autoFocus?: boolean;
   disabled?: boolean;
   label: string;
   onChange: (value: string) => void;
@@ -41,6 +42,7 @@ export function InputField(props: InputFieldProps) {
       <span className="text-sm font-medium text-slate-600">{props.label}</span>
       <input
         autoComplete={props.type === "email" ? "email" : undefined}
+        autoFocus={props.autoFocus}
         className="w-full rounded-xl border border-amber-200/70 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors duration-100 placeholder:text-slate-400 focus:border-amber-400"
         disabled={props.disabled}
         onChange={(event) => props.onChange(event.target.value)}

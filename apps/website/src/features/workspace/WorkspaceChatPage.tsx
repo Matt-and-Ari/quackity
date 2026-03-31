@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "wouter";
 
+import type { Editor } from "@tiptap/react";
+
 import { ResizeHandle } from "../../components/chat/ResizeHandle";
 import { ThreadPanel } from "../../components/chat/ThreadPanel";
 import { Navigate } from "../../components/layout/Navigate";
@@ -78,10 +80,10 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     minWidth: 260,
     side: "left",
   });
-  const channelInputRef = useRef<HTMLTextAreaElement>(null);
+  const channelInputRef = useRef<Editor | null>(null);
   const channelScrollRef = useRef<HTMLElement>(null);
   const pendingFocusChannelIdRef = useRef<string | null>(null);
-  const threadInputRef = useRef<HTMLTextAreaElement>(null);
+  const threadInputRef = useRef<Editor | null>(null);
   const threadScrollRef = useRef<HTMLDivElement>(null);
   const [alsoSendToChannel, setAlsoSendToChannel] = useState(false);
   const [editingChannelId, setEditingChannelId] = useState<string | null>(null);
@@ -212,7 +214,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     function tryFocus() {
       if (pendingFocusChannelIdRef.current !== app.activeChannel?.id) return;
       if (channelInputRef.current) {
-        channelInputRef.current.focus();
+        channelInputRef.current.commands.focus();
         pendingFocusChannelIdRef.current = null;
         return;
       }
@@ -235,11 +237,11 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     previousThreadIdRef.current = nextThreadId;
 
     if (nextThreadId && !previousThreadId) {
-      requestAnimationFrame(() => threadInputRef.current?.focus());
+      requestAnimationFrame(() => threadInputRef.current?.commands.focus());
     }
 
     if (!nextThreadId && previousThreadId) {
-      channelInputRef.current?.focus();
+      channelInputRef.current?.commands.focus();
     }
   }, [app.selectedThreadMessage?.id]);
 
@@ -249,10 +251,10 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
     function handleEscapeForThread(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
 
-      const isThreadInputFocused = document.activeElement === threadInputRef.current;
+      const isThreadInputFocused = threadInputRef.current?.isFocused ?? false;
 
       if (isThreadInputFocused) {
-        threadInputRef.current?.blur();
+        threadInputRef.current?.commands.blur();
         event.preventDefault();
         return;
       }
@@ -372,7 +374,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
   function handleJumpToThreadSource(threadReplyId: string, parentMessageId: string) {
     app.openThread(parentMessageId);
     setPendingThreadReplyId(threadReplyId);
-    requestAnimationFrame(() => threadInputRef.current?.focus());
+    requestAnimationFrame(() => threadInputRef.current?.commands.focus());
   }
 
   const sidebarContentProps = {
@@ -578,7 +580,7 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                 onOpenReactionMenu={emojiMenu.openEmojiMenu}
                 onReply={(messageId) => {
                   app.openThread(messageId);
-                  requestAnimationFrame(() => threadInputRef.current?.focus());
+                  requestAnimationFrame(() => threadInputRef.current?.commands.focus());
                 }}
                 onSaveEdit={() => {
                   app.saveEditingMessage();
@@ -596,10 +598,10 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
               <ChannelFooter
                 channelName={app.activeChannel.name}
                 draft={app.channelDraft}
+                editorRef={channelInputRef}
                 onAddFiles={(files: FileList) => {
                   channelDrafts.addFiles(app.activeChannel!.id, files);
                 }}
-                onInputFocus={keyboardNav.handleInputFocus}
                 onInputKeyDown={keyboardNav.handleInputKeyDown}
                 onRemoveFile={(fileId: string) => {
                   channelDrafts.removeFile(app.activeChannel!.id, fileId);
@@ -609,7 +611,6 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
                 }}
                 onValueChange={app.setChannelDraft}
                 stagedFiles={channelDrafts.getStagedFiles(app.activeChannel.id)}
-                textareaRef={channelInputRef}
               />
             </main>
           )}

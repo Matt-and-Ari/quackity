@@ -36,6 +36,7 @@ export function CreateChannelModal(props: CreateChannelModalProps) {
     <ActionModal onClose={props.onClose} title="New channel">
       <form className="space-y-4" onSubmit={handleSubmit}>
         <ChannelFormFields
+          autoFocusName
           name={name}
           namePlaceholder="design-crit"
           onNameChange={setName}

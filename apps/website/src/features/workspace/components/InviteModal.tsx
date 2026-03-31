@@ -72,14 +72,6 @@ export function InviteModal(props: InviteModalProps) {
 
       const inviteUrl = buildInviteUrl(props.workspaceId, props.workspaceName, props.inviterName);
 
-      console.log("[InviteModal] Sending invite emails", {
-        emails: parsedEmails,
-        inviterName: props.inviterName,
-        inviteUrl,
-        workspaceName: props.workspaceName,
-        hasRefreshToken: Boolean(props.refreshToken),
-      });
-
       api
         .sendInviteEmails(
           {
@@ -90,12 +82,7 @@ export function InviteModal(props: InviteModalProps) {
           },
           props.refreshToken,
         )
-        .then((res: unknown) => {
-          console.log("[InviteModal] sendInviteEmails response", res);
-        })
-        .catch((err: unknown) => {
-          console.error("[InviteModal] sendInviteEmails failed", err);
-        });
+        .catch(() => {});
 
       props.onClose();
     } catch (error) {

@@ -4,11 +4,6 @@ import { serverEnv } from "../env";
 
 const resend = serverEnv.resendApiKey ? new Resend(serverEnv.resendApiKey) : null;
 
-console.log(
-  "[email] Resend client initialized:",
-  resend ? "yes" : "NO — RESEND_API_KEY is missing",
-);
-
 const FROM_ADDRESS = "Quack <noreply@invite.quackity.io>";
 
 interface SendInviteEmailInput {
@@ -19,16 +14,7 @@ interface SendInviteEmailInput {
 }
 
 export async function sendInviteEmail(input: SendInviteEmailInput) {
-  console.log("[email.sendInviteEmail] Called with:", {
-    recipientEmail: input.recipientEmail,
-    inviterName: input.inviterName,
-    workspaceName: input.workspaceName,
-    inviteUrl: input.inviteUrl,
-    hasResendClient: Boolean(resend),
-  });
-
   if (!resend) {
-    console.warn("[email.sendInviteEmail] Skipping — no Resend client (RESEND_API_KEY not set)");
     return;
   }
 
@@ -69,16 +55,12 @@ export async function sendInviteEmail(input: SendInviteEmailInput) {
 </div>
   `.trim();
 
-  console.log("[email.sendInviteEmail] Calling resend.emails.send for:", input.recipientEmail);
-
   const result = await resend.emails.send({
     from: FROM_ADDRESS,
     html,
     subject,
     to: input.recipientEmail,
   });
-
-  console.log("[email.sendInviteEmail] Resend response:", JSON.stringify(result));
 
   if (result.error) {
     throw new Error(`Resend error (${result.error.name}): ${result.error.message}`);

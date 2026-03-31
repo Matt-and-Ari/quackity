@@ -9,6 +9,7 @@ const visibilityOptions: { label: string; value: ChannelVisibility }[] = [
 ];
 
 interface ChannelFormFieldsProps {
+  autoFocusName?: boolean;
   name: string;
   onNameChange: (value: string) => void;
   onTopicChange: (value: string) => void;
@@ -23,6 +24,7 @@ export function ChannelFormFields(props: ChannelFormFieldsProps) {
   return (
     <>
       <InputField
+        autoFocus={props.autoFocusName}
         label="Name"
         onChange={props.onNameChange}
         placeholder={props.namePlaceholder ?? "general"}

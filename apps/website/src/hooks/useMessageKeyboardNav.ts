@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import type { Editor } from "@tiptap/react";
+
 import type { MessageRecord } from "../types/quack";
 
 interface UseMessageKeyboardNavProps {
   activeChannelId: string | null;
   canEditOrDelete: (message: MessageRecord) => boolean;
-  channelInputRef: React.RefObject<HTMLTextAreaElement | null>;
+  channelInputRef: React.RefObject<Editor | null>;
   messages: MessageRecord[];
   onDelete: (messageId: string) => void;
   onOpenReactionMenu: (messageId: string) => void;
@@ -16,7 +18,7 @@ interface UseMessageKeyboardNavProps {
 export interface UseMessageKeyboardNavResult {
   clearSelection: () => void;
   handleInputFocus: () => void;
-  handleInputKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  handleInputKeyDown: (event: KeyboardEvent) => boolean | void;
   handleMessageClick: (messageId: string) => void;
   selectedMessageId: string | null;
 }
@@ -56,22 +58,25 @@ export function useMessageKeyboardNav(
 
   useEffect(() => {
     if (selectedMessageId) {
-      props.channelInputRef.current?.blur();
+      props.channelInputRef.current?.commands.blur();
     }
   }, [selectedMessageId, props.channelInputRef]);
 
   function selectMessage(messageId: string | null) {
     setSelectedMessageId(messageId);
     if (messageId) {
-      propsRef.current.channelInputRef.current?.blur();
+      propsRef.current.channelInputRef.current?.commands.blur();
     }
   }
 
-  function handleInputKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+  function handleInputKeyDown(event: KeyboardEvent): boolean | void {
     if (event.key !== "ArrowUp") return;
 
-    const textarea = event.currentTarget;
-    if (textarea.selectionStart !== 0 || textarea.selectionEnd !== 0) return;
+    const editor = propsRef.current.channelInputRef.current;
+    if (!editor) return;
+
+    const { from, to } = editor.state.selection;
+    if (from !== 0 || to !== 0) return;
 
     const msgs = visibleMessagesRef.current;
     const lastMessage = msgs[msgs.length - 1];
@@ -79,6 +84,7 @@ export function useMessageKeyboardNav(
 
     event.preventDefault();
     selectMessage(lastMessage.id);
+    return true;
   }
 
   function handleMessageClick(messageId: string) {
@@ -137,14 +143,14 @@ export function useMessageKeyboardNav(
             selectMessage(msgs[selectedIndex + 1].id);
           } else {
             setSelectedMessageId(null);
-            p.channelInputRef.current?.focus();
+            p.channelInputRef.current?.commands.focus();
           }
           break;
         }
         case "Escape": {
           event.preventDefault();
           setSelectedMessageId(null);
-          p.channelInputRef.current?.focus();
+          p.channelInputRef.current?.commands.focus();
           break;
         }
         case "e": {

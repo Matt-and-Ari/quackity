@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 
 import clsx from "clsx";
 
+import { getEditorPlainText } from "../chat/RichTextEditor";
 import { nameFromEmail } from "../../lib/ui";
 import type { SearchResult, UseSearchMessagesResult } from "../../hooks/useSearchMessages";
 
@@ -180,7 +181,7 @@ function SearchResultRow(props: SearchResultRowProps) {
     ? nameFromEmail(props.result.message.sender.email)
     : "Unknown";
   const channelName = props.result.channel.name;
-  const body = props.result.message.body ?? "";
+  const body = getEditorPlainText(props.result.message.body ?? "");
   const timestamp = props.result.message.createdAt;
   const isThread = props.result.type === "thread";
 

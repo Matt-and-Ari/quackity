@@ -1,8 +1,13 @@
 import { useMemo, useState } from "react";
 
+import { getEditorPlainText } from "../components/chat/RichTextEditor";
 import { instantDB } from "../lib/instant";
 import { asArray } from "../lib/ui";
 import type { ChannelRecord, MessageRecord } from "../types/quack";
+
+function getPlainText(body: string): string {
+  return getEditorPlainText(body);
+}
 
 export type SearchResult =
   | { type: "message"; channel: ChannelRecord; message: MessageRecord }
@@ -80,7 +85,7 @@ export function useSearchMessages(props: UseSearchMessagesProps): UseSearchMessa
       const channel = channelsById.get(channelId);
       if (!channel) continue;
 
-      const bodyLower = message.body.toLowerCase();
+      const bodyLower = getPlainText(message.body).toLowerCase();
       const allMatch = terms.every((term) => bodyLower.includes(term));
       if (!allMatch) continue;
 

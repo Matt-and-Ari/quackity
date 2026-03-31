@@ -11,7 +11,9 @@ import type {
 import { HoverTooltip } from "../ui/HoverTooltip";
 import { anchorFromElement, type FloatingAnchor } from "../ui/floating";
 import { Avatar } from "./Avatar";
+import { MessageBody } from "./MessageBody";
 import { MessageEditor } from "./MessageEditor";
+import { getEditorPlainText } from "./RichTextEditor";
 import { ChannelHashGlyph, DeleteGlyph, EditGlyph, ReactionGlyph, ReplyGlyph } from "./chat-glyphs";
 import { timeFormatter, truncateText } from "./chat-date-utils";
 import { AttachmentDisplay, ReactionPills, ToolbarBtn, summarizeReactions } from "./message-utils";
@@ -166,7 +168,10 @@ export function MessageCard(props: MessageCardProps) {
               <ReplyGlyph className="size-3" />
               <span className="truncate">
                 replied to a thread:{" "}
-                {truncateText(props.message.threadSource?.parentMessage?.body ?? "", 60)}
+                {truncateText(
+                  getEditorPlainText(props.message.threadSource?.parentMessage?.body ?? ""),
+                  60,
+                )}
               </span>
             </button>
           ) : null}
@@ -192,15 +197,12 @@ export function MessageCard(props: MessageCardProps) {
                 value={props.editingDraft}
               />
             </div>
-          ) : (
-            <p
-              className={clsx(
-                "mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed",
-                isDeleted ? "italic text-slate-400" : "text-slate-700",
-              )}
-            >
-              {isDeleted ? "This message was deleted." : props.message.body}
+          ) : isDeleted ? (
+            <p className="mt-1 whitespace-pre-wrap break-words text-sm italic leading-relaxed text-slate-400">
+              This message was deleted.
             </p>
+          ) : (
+            <MessageBody body={props.message.body ?? ""} className="mt-1" />
           )}
 
           {props.message.attachments && props.message.attachments.length > 0 ? (

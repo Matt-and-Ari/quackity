@@ -1,3 +1,4 @@
+import type { Editor } from "@tiptap/react";
 import clsx from "clsx";
 
 import type { StagedFile } from "../../hooks/useFileUpload";
@@ -42,7 +43,7 @@ interface ThreadPanelProps {
   stagedFiles?: StagedFile[];
   startThreadResize: (event: React.MouseEvent) => void;
   threadDraft: string;
-  threadInputRef?: React.RefObject<HTMLTextAreaElement | null>;
+  threadInputRef?: React.RefObject<Editor | null>;
   threadScrollRef?: React.RefObject<HTMLDivElement | null>;
   threadWidth: number;
   usersById: Map<string, InstantUserWithAvatar>;
@@ -164,13 +165,13 @@ export function ThreadPanel(props: ThreadPanelProps) {
           Also send to <span className="font-medium text-slate-700">#{props.channelName}</span>
         </label>
         <MessageInput
+          editorRef={props.threadInputRef}
           onAddFiles={props.onAddFiles}
           onRemoveFile={props.onRemoveFile}
           onSubmit={props.onReply}
           onValueChange={props.onThreadDraftChange}
           placeholder="Reply in thread..."
           stagedFiles={props.stagedFiles}
-          textareaRef={props.threadInputRef}
           value={props.threadDraft}
         />
       </div>

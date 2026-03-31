@@ -8,6 +8,7 @@ import {
   ReactionGlyph,
   ReplyGlyph,
 } from "../../../components/chat/chat-glyphs";
+import { getEditorPlainText } from "../../../components/chat/RichTextEditor";
 import type { ContextMenuEntry, ContextMenuState } from "../../../components/ui/GlobalContextMenu";
 import { anchorFromPoint, type FloatingAnchor } from "../../../components/ui/floating";
 import { CallGlyph, HangUpGlyph } from "../components/WorkspaceGlyphs";
@@ -179,7 +180,7 @@ export function useContextMenus(props: UseContextMenusProps) {
         label: "Copy text",
         onSelect: () => {
           if (message.body) {
-            void navigator.clipboard.writeText(message.body);
+            void navigator.clipboard.writeText(getEditorPlainText(message.body));
           }
         },
       },

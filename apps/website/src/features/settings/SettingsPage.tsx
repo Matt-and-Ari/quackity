@@ -512,9 +512,7 @@ function MembersSettings(props: MembersSettingsProps) {
           },
           props.refreshToken,
         )
-        .catch((err: unknown) => {
-          console.error("[MembersSettings] sendInviteEmails failed", err);
-        });
+        .catch(() => {});
 
       setInviteSuccess(`Invited ${parsed.length} ${parsed.length === 1 ? "person" : "people"}.`);
       setInviteEmails("");

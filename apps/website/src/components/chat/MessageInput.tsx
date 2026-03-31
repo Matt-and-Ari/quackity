@@ -1,56 +1,41 @@
-import { useLayoutEffect, useRef, type KeyboardEvent } from "react";
+import { useRef } from "react";
 
+import type { Editor } from "@tiptap/react";
 import clsx from "clsx";
 
 import type { StagedFile } from "../../hooks/useFileUpload";
 import { HoverTooltip } from "../ui/HoverTooltip";
 import { AttachGlyph } from "./chat-glyphs";
 import { createFileList } from "./chat-date-utils";
-import { MAX_INPUT_HEIGHT, StagedFileChip } from "./message-utils";
+import { StagedFileChip } from "./message-utils";
+import { RichTextEditor, clearEditor } from "./RichTextEditor";
 
 interface MessageInputProps {
+  editorRef?: React.RefObject<Editor | null>;
   onAddFiles?: (files: FileList) => void;
   onFocus?: () => void;
-  onKeyDown?: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
+  onKeyDown?: (event: KeyboardEvent) => boolean | void;
   onRemoveFile?: (fileId: string) => void;
   onSubmit: () => void;
   onValueChange: (value: string) => void;
   placeholder: string;
   stagedFiles?: StagedFile[];
-  textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
   value: string;
 }
 
 export function MessageInput(props: MessageInputProps) {
-  const fallbackRef = useRef<HTMLTextAreaElement>(null);
-  const textareaRef = props.textareaRef ?? fallbackRef;
+  const fallbackEditorRef = useRef<Editor | null>(null);
+  const editorRef = props.editorRef ?? fallbackEditorRef;
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const hasContent = props.value.trim().length > 0 || (props.stagedFiles ?? []).length > 0;
   const isDraggingRef = useRef(false);
   const dragCounterRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  useLayoutEffect(() => {
-    const textarea = textareaRef.current;
+  const hasContent = props.value.trim().length > 0 || (props.stagedFiles ?? []).length > 0;
 
-    if (!textarea) {
-      return;
-    }
-
-    textarea.style.height = "auto";
-    const nextHeight = Math.min(textarea.scrollHeight, MAX_INPUT_HEIGHT);
-    textarea.style.height = `${nextHeight}px`;
-    textarea.style.overflowY = textarea.scrollHeight > MAX_INPUT_HEIGHT ? "auto" : "hidden";
-  }, [props.value, textareaRef]);
-
-  function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    props.onKeyDown?.(event);
-    if (event.defaultPrevented) return;
-
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      props.onSubmit();
-    }
+  function handleSubmit() {
+    props.onSubmit();
+    clearEditor(editorRef.current);
   }
 
   function handleFileInputChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -102,10 +87,11 @@ export function MessageInput(props: MessageInputProps) {
     }
   }
 
-  function handlePaste(event: React.ClipboardEvent<HTMLTextAreaElement>) {
-    const items = event.clipboardData.items;
-    const files: File[] = [];
+  function handlePaste(event: ClipboardEvent) {
+    const items = event.clipboardData?.items;
+    if (!items) return;
 
+    const files: File[] = [];
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       if (item.kind === "file") {
@@ -115,6 +101,7 @@ export function MessageInput(props: MessageInputProps) {
     }
 
     if (files.length > 0 && props.onAddFiles) {
+      event.preventDefault();
       props.onAddFiles(createFileList(files));
     }
   }
@@ -166,18 +153,14 @@ export function MessageInput(props: MessageInputProps) {
           </>
         ) : null}
 
-        <textarea
-          className={clsx(
-            "w-full resize-none bg-transparent px-3 py-3 pr-12 text-sm leading-6 text-slate-700 outline-none placeholder:text-slate-400",
-            !props.onAddFiles && "pl-4",
-          )}
-          onChange={(event) => props.onValueChange(event.target.value)}
-          onFocus={props.onFocus}
-          onKeyDown={handleKeyDown}
+        <RichTextEditor
+          className={clsx("w-full bg-transparent px-3 py-3 pr-12", !props.onAddFiles && "pl-4")}
+          editorRef={editorRef}
+          onKeyDown={props.onKeyDown}
           onPaste={handlePaste}
+          onSubmit={handleSubmit}
+          onValueChange={props.onValueChange}
           placeholder={props.placeholder}
-          ref={textareaRef}
-          rows={1}
           value={props.value}
         />
 
@@ -190,7 +173,7 @@ export function MessageInput(props: MessageInputProps) {
               : "bg-amber-50 text-slate-300",
           )}
           disabled={!hasContent}
-          onClick={props.onSubmit}
+          onClick={handleSubmit}
           type="button"
         >
           <svg fill="none" height="14" viewBox="0 0 16 16" width="14">

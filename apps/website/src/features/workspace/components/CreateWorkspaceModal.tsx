@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 
 import {
@@ -43,6 +43,29 @@ export function CreateWorkspaceModal(props: CreateWorkspaceModalProps) {
   const [notice, setNotice] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        props.onClose();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [props.onClose]);
+
+  const normalizedSlug = slugifyWorkspaceName(workspaceSlug || workspaceName);
+  const slugQuery = useMemo(
+    () => ({
+      workspaces: normalizedSlug
+        ? { $: { where: { slug: normalizedSlug }, limit: 1 } }
+        : { $: { where: { slug: "__never_match__" }, limit: 1 } },
+    }),
+    [normalizedSlug],
+  );
+  const { data: slugData, isLoading: isSlugLoading } = instantDB.useQuery(slugQuery);
+  const isSlugTaken = !isSlugLoading && (slugData?.workspaces?.length ?? 0) > 0;
+
   function handleImageSelect(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -66,13 +89,16 @@ export function CreateWorkspaceModal(props: CreateWorkspaceModalProps) {
     setNotice(null);
 
     if (step === "details") {
-      const slug = slugifyWorkspaceName(workspaceSlug || workspaceName);
-      if (!workspaceName.trim() || !slug) {
+      if (!workspaceName.trim() || !normalizedSlug) {
         setNotice("Workspace name is required.");
         return;
       }
+      if (isSlugTaken) {
+        setNotice("That slug is already taken. Please choose a different one.");
+        return;
+      }
       if (!slugEdited) {
-        setWorkspaceSlug(slug);
+        setWorkspaceSlug(normalizedSlug);
       }
       setStep("image");
       return;
@@ -94,9 +120,14 @@ export function CreateWorkspaceModal(props: CreateWorkspaceModalProps) {
   }
 
   async function handleCreate() {
-    const slug = slugifyWorkspaceName(workspaceSlug || workspaceName);
+    const slug = normalizedSlug;
     if (!workspaceName.trim() || !slug) {
       setNotice("Workspace name and slug are required.");
+      return;
+    }
+
+    if (isSlugTaken) {
+      setNotice("That slug is already taken. Please choose a different one.");
       return;
     }
 
@@ -232,6 +263,7 @@ export function CreateWorkspaceModal(props: CreateWorkspaceModalProps) {
           {step === "details" ? (
             <div className="space-y-4">
               <InputField
+                autoFocus
                 label="Workspace name"
                 onChange={(value) => {
                   setWorkspaceName(value);
@@ -242,15 +274,35 @@ export function CreateWorkspaceModal(props: CreateWorkspaceModalProps) {
                 placeholder="Quackity HQ"
                 value={workspaceName}
               />
-              <InputField
-                label="Workspace slug"
-                onChange={(value) => {
-                  setSlugEdited(true);
-                  setWorkspaceSlug(value);
-                }}
-                placeholder="quackity-hq"
-                value={workspaceSlug}
-              />
+              <div className="space-y-1.5">
+                <InputField
+                  label="Workspace slug"
+                  onChange={(value) => {
+                    setSlugEdited(true);
+                    setWorkspaceSlug(value);
+                  }}
+                  placeholder="quackity-hq"
+                  value={workspaceSlug}
+                />
+                {normalizedSlug ? (
+                  <p
+                    className={clsx(
+                      "text-xs transition-opacity duration-150",
+                      isSlugLoading
+                        ? "text-slate-400"
+                        : isSlugTaken
+                          ? "text-rose-600"
+                          : "text-emerald-600",
+                    )}
+                  >
+                    {isSlugLoading
+                      ? "Checking availability..."
+                      : isSlugTaken
+                        ? `"${normalizedSlug}" is already taken`
+                        : `"${normalizedSlug}" is available`}
+                  </p>
+                ) : null}
+              </div>
               <InputField
                 label="Your display name"
                 onChange={setDisplayName}
@@ -361,7 +413,7 @@ export function CreateWorkspaceModal(props: CreateWorkspaceModalProps) {
               ) : (
                 <button
                   className="rounded-xl bg-amber-500 px-5 py-2.5 text-sm font-medium text-white transition-colors duration-100 hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={!workspaceName.trim()}
+                  disabled={!workspaceName.trim() || !normalizedSlug || isSlugTaken}
                   onClick={handleNext}
                   type="button"
                 >
