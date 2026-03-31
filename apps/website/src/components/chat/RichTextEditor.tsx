@@ -14,6 +14,7 @@ import clsx from "clsx";
 import emojiDataJson from "@emoji-mart/data/sets/15/native.json";
 import type { EmojiMartData } from "@emoji-mart/data";
 
+import { getPreferences } from "../../hooks/usePreferences";
 import { EmojiSuggestionList, type EmojiSuggestionItem } from "./EmojiSuggestionList";
 import { MentionList, type MentionSuggestionItem } from "./MentionList";
 
@@ -92,6 +93,8 @@ export function RichTextEditor(props: RichTextEditorProps) {
         }
 
         if (event.key === "Enter" && !event.shiftKey && p.onSubmit) {
+          const wantsEnterSend = getPreferences().enterToSend;
+          if (!wantsEnterSend && !event.metaKey && !event.ctrlKey) return false;
           if (shouldDeferEnterToTiptap(view)) return false;
           if (isSuggestionActive(view)) return false;
 

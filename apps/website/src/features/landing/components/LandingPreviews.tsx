@@ -22,7 +22,7 @@ import {
 
 export function ChatPreview() {
   return (
-    <div className="relative mx-auto w-full max-w-lg">
+    <div className="relative mx-auto w-full max-w-lg select-none">
       <div className="absolute -inset-4 rounded-3xl bg-gradient-to-b from-amber-200/40 to-amber-100/20 blur-2xl" />
       <div className="relative overflow-hidden rounded-[1.45rem] border border-amber-200/60 bg-white/90 shadow-[0_24px_80px_rgba(217,119,6,0.12)] backdrop-blur-xl">
         <div className="flex items-center gap-2 border-b border-amber-100/60 px-4 py-3">
@@ -166,7 +166,7 @@ function ChatMessage(props: {
 
 export function ThreadPreview() {
   return (
-    <div className="relative mx-auto w-full max-w-sm">
+    <div className="relative mx-auto w-full max-w-sm select-none">
       <div className="absolute -inset-3 rounded-3xl bg-gradient-to-br from-violet-200/30 to-amber-100/20 blur-2xl" />
       <div className="relative flex flex-col overflow-hidden rounded-[1.45rem] border border-amber-200/60 bg-white/90 shadow-[0_16px_60px_rgba(217,119,6,0.1)] backdrop-blur-xl">
         <div className="flex items-center justify-between border-b border-amber-100/60 px-4 py-3">
@@ -263,7 +263,7 @@ function ThreadMessage(props: {
 
 export function RichTextPreview() {
   return (
-    <div className="relative mx-auto w-full max-w-sm">
+    <div className="relative mx-auto w-full max-w-sm select-none">
       <div className="absolute -inset-3 rounded-3xl bg-gradient-to-br from-amber-200/30 to-orange-100/20 blur-2xl" />
       <div className="relative overflow-hidden rounded-xl border border-amber-200/70 bg-white shadow-[0_16px_60px_rgba(217,119,6,0.1)]">
         <div className="flex items-center gap-0.5 border-b border-amber-100/60 px-2 py-1">
@@ -351,7 +351,7 @@ export function RichTextPreview() {
 
 export function SearchPreview() {
   return (
-    <div className="relative mx-auto w-full max-w-sm">
+    <div className="relative mx-auto w-full max-w-sm select-none">
       <div className="absolute -inset-3 rounded-3xl bg-gradient-to-br from-sky-200/30 to-amber-100/20 blur-2xl" />
       <div className="relative overflow-hidden rounded-2xl border border-amber-200/60 bg-white/90 shadow-[0_16px_60px_rgba(217,119,6,0.1)] backdrop-blur-xl">
         <div className="px-4 pt-4 pb-3">

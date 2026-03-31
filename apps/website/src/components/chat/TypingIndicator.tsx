@@ -1,3 +1,4 @@
+import { usePreferences } from "../../hooks/usePreferences";
 import type { TypingPeer } from "../../hooks/useTypingIndicator";
 
 interface TypingIndicatorProps {
@@ -5,7 +6,9 @@ interface TypingIndicatorProps {
 }
 
 export function TypingIndicator(props: TypingIndicatorProps) {
-  if (props.activeTypers.length === 0) {
+  const { prefs } = usePreferences();
+
+  if (!prefs.showTypingIndicators || props.activeTypers.length === 0) {
     return <div className="h-5" />;
   }
 

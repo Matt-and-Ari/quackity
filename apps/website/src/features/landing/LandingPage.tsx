@@ -51,11 +51,15 @@ export function LandingPage() {
           scrolled ? "border-amber-200/60" : "border-transparent",
         )}
       >
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3 sm:px-8">
-          <div className="flex items-center gap-2.5">
+        <div className="flex items-center justify-between px-5 py-3 sm:px-8">
+          <button
+            className="flex items-center gap-2.5"
+            onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
+            type="button"
+          >
             <QuackLogo className="size-8" />
             <span className="text-base font-bold tracking-tight text-slate-900">Quackity</span>
-          </div>
+          </button>
           <div className="hidden items-center gap-6 sm:flex">
             <a
               className="text-sm font-medium text-slate-500 transition-colors duration-200 hover:text-slate-900"
@@ -383,7 +387,7 @@ export function LandingPage() {
         <div className="mx-auto max-w-6xl">
           <div className="flex flex-col items-center justify-between gap-8 sm:flex-row">
             <div className="flex items-center gap-2.5">
-              <QuackLogo className="size-7" />
+              <QuackLogo className="size-9" />
               <span className="text-sm font-bold text-slate-900">Quackity</span>
             </div>
 

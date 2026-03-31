@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 
 import { instantDB } from "../lib/instant";
+import { getPreferences } from "./usePreferences";
 import { playQuackSound } from "../lib/quack-sound";
 
 interface UseMentionNotificationsProps {
@@ -59,16 +60,22 @@ export function useMentionNotifications(props: UseMentionNotificationsProps) {
 
     if (newMentions.length === 0) return;
 
-    playQuackSound();
+    const prefs = getPreferences();
 
-    if (Notification.permission === "default") {
-      void Notification.requestPermission().then((perm) => {
-        if (perm === "granted") {
-          fireNotifications(newMentions, props.channelNamesById, props.dmChannelIds);
-        }
-      });
-    } else if (Notification.permission === "granted") {
-      fireNotifications(newMentions, props.channelNamesById, props.dmChannelIds);
+    if (prefs.soundEffects) {
+      playQuackSound();
+    }
+
+    if (prefs.desktopNotifications) {
+      if (Notification.permission === "default") {
+        void Notification.requestPermission().then((perm) => {
+          if (perm === "granted") {
+            fireNotifications(newMentions, props.channelNamesById, props.dmChannelIds);
+          }
+        });
+      } else if (Notification.permission === "granted") {
+        fireNotifications(newMentions, props.channelNamesById, props.dmChannelIds);
+      }
     }
   }, [mentions, props.channelNamesById, props.dmChannelIds]);
 }

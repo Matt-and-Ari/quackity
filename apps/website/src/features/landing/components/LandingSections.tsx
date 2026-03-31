@@ -121,10 +121,47 @@ export function QuackLogo(props: { className?: string }) {
       <circle cx="32" cy="32" r="30" fill="#FCD34D" />
       <ellipse cx="32" cy="38" rx="18" ry="16" fill="#FBBF24" />
       <circle cx="32" cy="24" r="14" fill="#FCD34D" />
-      <circle cx="26" cy="21" r="2.5" fill="#1E293B" />
-      <circle cx="38" cy="21" r="2.5" fill="#1E293B" />
-      <circle cx="27" cy="20" r="0.8" fill="#FFF" />
-      <circle cx="39" cy="20" r="0.8" fill="#FFF" />
+
+      {/* Left eye — blinks */}
+      <ellipse cx="26" cy="21" rx="2.5" ry="2.5" fill="#1E293B">
+        <animate
+          attributeName="ry"
+          values="2.5;0.15;2.5;2.5;0.15;2.5;2.5"
+          keyTimes="0;0.03;0.06;0.45;0.48;0.51;1"
+          dur="4s"
+          repeatCount="indefinite"
+        />
+      </ellipse>
+      <circle cx="27" cy="20" r="0.8" fill="#FFF">
+        <animate
+          attributeName="r"
+          values="0.8;0.05;0.8;0.8;0.05;0.8;0.8"
+          keyTimes="0;0.03;0.06;0.45;0.48;0.51;1"
+          dur="4s"
+          repeatCount="indefinite"
+        />
+      </circle>
+
+      {/* Right eye — blinks */}
+      <ellipse cx="38" cy="21" rx="2.5" ry="2.5" fill="#1E293B">
+        <animate
+          attributeName="ry"
+          values="2.5;0.15;2.5;2.5;0.15;2.5;2.5"
+          keyTimes="0;0.03;0.06;0.45;0.48;0.51;1"
+          dur="4s"
+          repeatCount="indefinite"
+        />
+      </ellipse>
+      <circle cx="39" cy="20" r="0.8" fill="#FFF">
+        <animate
+          attributeName="r"
+          values="0.8;0.05;0.8;0.8;0.05;0.8;0.8"
+          keyTimes="0;0.03;0.06;0.45;0.48;0.51;1"
+          dur="4s"
+          repeatCount="indefinite"
+        />
+      </circle>
+
       <ellipse cx="32" cy="27" rx="6" ry="3.5" fill="#F97316" />
       <ellipse cx="32" cy="26.5" rx="4" ry="2" fill="#FB923C" />
       <ellipse cx="20" cy="40" rx="8" ry="5" fill="#FBBF24" transform="rotate(-15 20 40)" />

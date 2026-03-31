@@ -8,10 +8,11 @@ import type {
   WorkspaceSummary,
 } from "../../types/quack";
 import { MembersSettings } from "./components/MembersSettings";
+import { PreferencesSettings } from "./components/PreferencesSettings";
 import { ProfileSettings } from "./components/ProfileSettings";
 import { WorkspaceSettings } from "./components/WorkspaceSettings";
 
-type SettingsTab = "profile" | "workspace" | "members";
+type SettingsTab = "profile" | "preferences" | "workspace" | "members";
 
 interface SettingsPageProps {
   currentUserMember: WorkspaceMemberRecord | undefined;
@@ -29,6 +30,7 @@ export function SettingsPage(props: SettingsPageProps) {
 
   const tabs: { id: SettingsTab; label: string; adminOnly?: boolean }[] = [
     { id: "profile", label: "Profile" },
+    { id: "preferences", label: "Preferences" },
     { id: "workspace", label: "Workspace", adminOnly: true },
     { id: "members", label: "Members", adminOnly: true },
   ];
@@ -82,6 +84,7 @@ export function SettingsPage(props: SettingsPageProps) {
               workspaceId={props.workspace.id}
             />
           ) : null}
+          {activeTab === "preferences" ? <PreferencesSettings /> : null}
           {activeTab === "workspace" && isAdmin ? (
             <WorkspaceSettings workspace={props.workspace} />
           ) : null}

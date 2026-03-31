@@ -67,7 +67,7 @@ export function SidebarMenuButton(props: SidebarMenuButtonProps) {
             }}
           />
           <MenuRow
-            label="Workspace settings"
+            label="Settings"
             onClick={() => {
               setIsOpen(false);
               props.onSettings();

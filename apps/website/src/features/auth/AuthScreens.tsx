@@ -1,6 +1,6 @@
 import { createChannelTx, createWorkspaceInviteTx, createWorkspaceTx } from "@quack/data";
 import clsx from "clsx";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 
 import { InputField, Notice, TextareaField } from "../../components/ui/FormFields";
@@ -22,11 +22,16 @@ interface MagicCodeFormProps {
 
 function MagicCodeForm(props: MagicCodeFormProps) {
   const [, navigate] = useLocation();
+  const inputRef = useRef<HTMLInputElement>(null);
   const [code, setCode] = useState("");
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [step, setStep] = useState<"code" | "email">("email");
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, [step]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -84,11 +89,11 @@ function MagicCodeForm(props: MagicCodeFormProps) {
             <span className="mb-1.5 block text-sm font-medium text-slate-600">Email address</span>
             <input
               autoComplete="email"
-              autoFocus
               className="w-full rounded-xl border border-amber-200/70 bg-white px-4 py-3 text-sm text-slate-900 outline-none ring-amber-400/40 transition-shadow duration-200 placeholder:text-slate-400 focus:border-amber-400 focus:ring-4"
               disabled={isSubmitting}
               onChange={(event) => setEmail(event.target.value)}
               placeholder="you@quackity.chat"
+              ref={inputRef}
               type="email"
               value={email}
             />
@@ -98,12 +103,12 @@ function MagicCodeForm(props: MagicCodeFormProps) {
             <span className="mb-1.5 block text-sm font-medium text-slate-600">Magic code</span>
             <input
               autoComplete="one-time-code"
-              autoFocus
               className="w-full rounded-xl border border-amber-200/70 bg-white px-4 py-3 text-center font-mono text-lg tracking-[0.3em] text-slate-900 outline-none ring-amber-400/40 transition-shadow duration-200 placeholder:text-slate-400 placeholder:tracking-normal placeholder:font-sans placeholder:text-sm focus:border-amber-400 focus:ring-4"
               disabled={isSubmitting}
               maxLength={6}
               onChange={(event) => setCode(event.target.value)}
               placeholder="Enter 6-digit code"
+              ref={inputRef}
               value={code}
             />
           </label>
@@ -174,10 +179,45 @@ function QuackLogo() {
         <circle cx="32" cy="32" r="30" fill="#FCD34D" />
         <ellipse cx="32" cy="38" rx="18" ry="16" fill="#FBBF24" />
         <circle cx="32" cy="24" r="14" fill="#FCD34D" />
-        <circle cx="26" cy="21" r="2.5" fill="#1E293B" />
-        <circle cx="38" cy="21" r="2.5" fill="#1E293B" />
-        <circle cx="27" cy="20" r="0.8" fill="#FFF" />
-        <circle cx="39" cy="20" r="0.8" fill="#FFF" />
+
+        <ellipse cx="26" cy="21" rx="2.5" ry="2.5" fill="#1E293B">
+          <animate
+            attributeName="ry"
+            values="2.5;0.15;2.5;2.5;0.15;2.5;2.5"
+            keyTimes="0;0.03;0.06;0.45;0.48;0.51;1"
+            dur="4s"
+            repeatCount="indefinite"
+          />
+        </ellipse>
+        <circle cx="27" cy="20" r="0.8" fill="#FFF">
+          <animate
+            attributeName="r"
+            values="0.8;0.05;0.8;0.8;0.05;0.8;0.8"
+            keyTimes="0;0.03;0.06;0.45;0.48;0.51;1"
+            dur="4s"
+            repeatCount="indefinite"
+          />
+        </circle>
+
+        <ellipse cx="38" cy="21" rx="2.5" ry="2.5" fill="#1E293B">
+          <animate
+            attributeName="ry"
+            values="2.5;0.15;2.5;2.5;0.15;2.5;2.5"
+            keyTimes="0;0.03;0.06;0.45;0.48;0.51;1"
+            dur="4s"
+            repeatCount="indefinite"
+          />
+        </ellipse>
+        <circle cx="39" cy="20" r="0.8" fill="#FFF">
+          <animate
+            attributeName="r"
+            values="0.8;0.05;0.8;0.8;0.05;0.8;0.8"
+            keyTimes="0;0.03;0.06;0.45;0.48;0.51;1"
+            dur="4s"
+            repeatCount="indefinite"
+          />
+        </circle>
+
         <ellipse cx="32" cy="27" rx="6" ry="3.5" fill="#F97316" />
         <ellipse cx="32" cy="26.5" rx="4" ry="2" fill="#FB923C" />
         <ellipse cx="20" cy="40" rx="8" ry="5" fill="#FBBF24" transform="rotate(-15 20 40)" />

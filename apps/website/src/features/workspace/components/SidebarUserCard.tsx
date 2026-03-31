@@ -83,7 +83,7 @@ export function SidebarUserCard(props: SidebarUserCardProps) {
       {isOpen ? (
         <div className="absolute bottom-full left-2 right-2 z-30 mb-1 overflow-hidden rounded-xl border border-amber-200/80 bg-white/95 py-1 shadow-[0_-8px_24px_rgba(15,23,42,0.10)] backdrop-blur-xl">
           <MenuRow
-            label="Profile settings"
+            label="Settings"
             onClick={() => {
               setIsOpen(false);
               props.onSettings();
