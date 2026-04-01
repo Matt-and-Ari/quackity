@@ -101,20 +101,6 @@ export function useContextMenus(props: UseContextMenusProps) {
         label: "Edit channel",
         onSelect: () => props.onEditChannel(channel.id),
       },
-      { id: "separator-channel-actions", type: "separator" },
-      {
-        disabled: !props.canManageChannels || !canRemoveChannel,
-        hint: !canRemoveChannel
-          ? "At least one channel must remain"
-          : props.canManageChannels
-            ? "Archive it from the sidebar"
-            : "Only workspace managers can delete channels",
-        icon: <DeleteGlyph />,
-        id: "delete-channel",
-        label: "Delete channel",
-        onSelect: () => props.onDeleteChannel(channel.id),
-        tone: "danger",
-      },
       {
         disabled: !canLeaveChannel,
         hint: !canRemoveChannel
@@ -126,6 +112,20 @@ export function useContextMenus(props: UseContextMenusProps) {
         id: "leave-channel",
         label: "Leave channel",
         onSelect: () => props.onLeaveChannel(channel.id),
+      },
+      { id: "separator-channel-actions", type: "separator" },
+      {
+        disabled: !props.canManageChannels || !canRemoveChannel,
+        hint: !canRemoveChannel
+          ? "At least one channel must remain"
+          : props.canManageChannels
+            ? "Permanently delete this channel and all its messages"
+            : "Only workspace managers can delete channels",
+        icon: <DeleteGlyph />,
+        id: "delete-channel",
+        label: "Delete channel",
+        onSelect: () => props.onDeleteChannel(channel.id),
+        tone: "danger",
       },
     );
 

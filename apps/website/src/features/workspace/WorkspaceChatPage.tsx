@@ -17,6 +17,7 @@ import { DirectoryPanel } from "./components/WorkspaceDirectoryPanel";
 import {
   CreateChannelModal,
   CreateWorkspaceModal,
+  DeleteChannelConfirmModal,
   DeleteConfirmModal,
   EditChannelModal,
   InviteModal,
@@ -518,6 +519,19 @@ export function WorkspaceChatPage(props: WorkspaceChatPageProps) {
             state.app.deleteMessage(state.pendingDeleteMessageId!);
             state.setPendingDeleteMessageId(null);
             state.keyboardNav.clearSelection();
+          }}
+        />
+      ) : null}
+
+      {state.pendingDeleteChannelId ? (
+        <DeleteChannelConfirmModal
+          channelName={
+            state.app.visibleChannels.find((c) => c.id === state.pendingDeleteChannelId)?.name ?? ""
+          }
+          onClose={() => state.setPendingDeleteChannelId(null)}
+          onConfirm={() => {
+            void state.app.deleteChannel(state.pendingDeleteChannelId!);
+            state.setPendingDeleteChannelId(null);
           }}
         />
       ) : null}

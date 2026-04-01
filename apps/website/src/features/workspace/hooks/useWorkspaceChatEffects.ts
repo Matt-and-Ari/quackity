@@ -74,6 +74,7 @@ export function useWorkspaceChatEffects(props: UseWorkspaceChatEffectsProps) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [pendingDeleteChannelId, setPendingDeleteChannelId] = useState<string | null>(null);
   const [pendingDeleteMessageId, setPendingDeleteMessageId] = useState<string | null>(null);
   const [pendingScrollToMessageId, setPendingScrollToMessageId] = useState<string | null>(null);
   const [pendingThreadReplyId, setPendingThreadReplyId] = useState<string | null>(null);
@@ -107,7 +108,7 @@ export function useWorkspaceChatEffects(props: UseWorkspaceChatEffectsProps) {
     isInCall,
     navigate: (to) => props.navigate(to),
     onDeleteChannel: (channelId) => {
-      void app.deleteChannel(channelId);
+      setPendingDeleteChannelId(channelId);
     },
     onEditChannel: (channelId) => setEditingChannelId(channelId),
     onLeaveCall: () => {
@@ -426,6 +427,7 @@ export function useWorkspaceChatEffects(props: UseWorkspaceChatEffectsProps) {
     mentionMembers,
     openPrejoin,
     openSearch,
+    pendingDeleteChannelId,
     pendingDeleteMessageId,
     pendingThreadReplyId,
     profileUserId,
@@ -439,6 +441,7 @@ export function useWorkspaceChatEffects(props: UseWorkspaceChatEffectsProps) {
     setIsSearchOpen,
     setIsSettingsOpen,
     setIsSidebarOpen,
+    setPendingDeleteChannelId,
     setPendingDeleteMessageId,
     setPendingScrollToMessageId,
     setPendingThreadReplyId,
