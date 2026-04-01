@@ -136,6 +136,16 @@ export function RichTextEditor(props: RichTextEditorProps) {
   }, [props.value, editor]);
 
   useEffect(() => {
+    if (!editor) return;
+    editor.extensionManager.extensions.forEach((ext) => {
+      if (ext.name === "placeholder") {
+        (ext.options as { placeholder: string }).placeholder = props.placeholder ?? "";
+        editor.view.dispatch(editor.state.tr);
+      }
+    });
+  }, [props.placeholder, editor]);
+
+  useEffect(() => {
     if (props.autoFocus && editor) {
       requestAnimationFrame(() => {
         editor.commands.focus("end");
