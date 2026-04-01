@@ -37,7 +37,7 @@ export function SettingsModal(props: SettingsModalProps) {
         }
       }}
     >
-      <div className="flex h-[min(92dvh,780px)] w-full max-w-5xl flex-col overflow-hidden rounded-t-2xl border border-amber-200/80 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.14)] sm:rounded-2xl">
+      <div className="flex h-[min(96dvh,780px)] w-full max-w-5xl flex-col overflow-hidden rounded-t-2xl border border-amber-200/80 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.14)] sm:h-[min(92dvh,780px)] sm:rounded-2xl">
         <SettingsPage
           currentUserMember={props.currentUserMember}
           invites={props.invites}

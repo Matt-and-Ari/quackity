@@ -4,7 +4,21 @@ export function asArray<T>(value: T[] | null | undefined) {
   return Array.isArray(value) ? value : [];
 }
 
-export function toErrorMessage(error: unknown, fallback: string) {
+function isPermissionError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+
+  const hint = (error as { hint?: unknown }).hint;
+  if (hint && typeof hint === "object" && "expected" in hint) return true;
+
+  const msg = error.message.toLowerCase();
+  return msg.includes("permission") || msg.includes("not allowed") || msg.includes("unauthorized");
+}
+
+export function toErrorMessage(error: unknown, fallback: string, permissionFallback?: string) {
+  if (isPermissionError(error)) {
+    return permissionFallback ?? "You don't have permission to perform this action.";
+  }
+
   if (error instanceof Error && error.message) {
     return error.message;
   }

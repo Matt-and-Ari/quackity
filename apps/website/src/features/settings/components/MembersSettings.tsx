@@ -97,7 +97,13 @@ export function MembersSettings(props: MembersSettingsProps) {
       setInviteSuccess(`Invited ${parsed.length} ${parsed.length === 1 ? "person" : "people"}.`);
       setInviteEmails("");
     } catch (error) {
-      setInviteNotice(toErrorMessage(error, "Could not send invites."));
+      setInviteNotice(
+        toErrorMessage(
+          error,
+          "Could not send invites.",
+          "You don't have permission to invite members to this workspace. Only owners and admins can send invites.",
+        ),
+      );
     } finally {
       setIsInviteSubmitting(false);
     }
@@ -118,7 +124,13 @@ export function MembersSettings(props: MembersSettingsProps) {
         }),
       );
     } catch (error) {
-      setNotice(toErrorMessage(error, "Could not update member role."));
+      setNotice(
+        toErrorMessage(
+          error,
+          "Could not update member role.",
+          "You don't have permission to change this member's role.",
+        ),
+      );
     } finally {
       setPendingAction(null);
     }
@@ -131,7 +143,13 @@ export function MembersSettings(props: MembersSettingsProps) {
     try {
       await instantDB.transact(deleteWorkspaceMemberTx(member.id));
     } catch (error) {
-      setNotice(toErrorMessage(error, "Could not remove the member."));
+      setNotice(
+        toErrorMessage(
+          error,
+          "Could not remove the member.",
+          "You don't have permission to remove this member.",
+        ),
+      );
     } finally {
       setPendingAction(null);
     }
@@ -144,7 +162,13 @@ export function MembersSettings(props: MembersSettingsProps) {
     try {
       await instantDB.transact(deleteWorkspaceInviteTx(invite.id));
     } catch (error) {
-      setNotice(toErrorMessage(error, "Could not revoke the invite."));
+      setNotice(
+        toErrorMessage(
+          error,
+          "Could not revoke the invite.",
+          "You don't have permission to revoke this invite.",
+        ),
+      );
     } finally {
       setPendingAction(null);
     }
@@ -273,7 +297,7 @@ export function MembersSettings(props: MembersSettingsProps) {
 
           return (
             <div
-              className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors duration-100 hover:bg-amber-50/50"
+              className="flex flex-wrap items-center gap-3 rounded-xl px-3 py-2.5 transition-colors duration-100 hover:bg-amber-50/50"
               key={member.id}
             >
               <MemberAvatar
@@ -295,7 +319,7 @@ export function MembersSettings(props: MembersSettingsProps) {
                   Owner
                 </span>
               ) : canModify ? (
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="flex w-full shrink-0 items-center gap-2 pl-12 sm:w-auto sm:pl-0">
                   <SelectField
                     disabled={pendingAction === member.id}
                     onChange={(value) => {

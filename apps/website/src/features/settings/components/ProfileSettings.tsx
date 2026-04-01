@@ -112,7 +112,7 @@ export function ProfileSettings(props: ProfileSettingsProps) {
         This is how you appear to others in this workspace.
       </p>
 
-      <div className="mt-6 grid grid-cols-[auto_1fr] items-start gap-x-8 gap-y-5">
+      <div className="mt-6 grid grid-cols-1 items-start gap-x-8 gap-y-5 sm:grid-cols-[auto_1fr]">
         <div className="flex flex-col items-center gap-2">
           <button
             className="group relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-amber-200/60 bg-gradient-to-br from-amber-100 to-amber-200/80 shadow-sm transition-opacity duration-100 hover:opacity-90"

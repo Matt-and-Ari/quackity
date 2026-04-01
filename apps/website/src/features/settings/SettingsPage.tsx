@@ -57,12 +57,12 @@ export function SettingsPage(props: SettingsPageProps) {
         </button>
       </header>
 
-      <div className="flex min-h-0 flex-1">
-        <nav className="flex w-48 shrink-0 flex-col gap-0.5 border-r border-amber-100/70 px-3 py-4">
+      <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
+        <nav className="flex shrink-0 gap-1 overflow-x-auto border-b border-amber-100/70 px-3 py-2 sm:w-48 sm:flex-col sm:gap-0.5 sm:overflow-x-visible sm:border-b-0 sm:border-r sm:py-4">
           {visibleTabs.map((tab) => (
             <button
               className={clsx(
-                "rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors duration-100",
+                "whitespace-nowrap rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors duration-100",
                 activeTab === tab.id
                   ? "bg-amber-100/60 text-amber-900"
                   : "text-slate-600 hover:bg-amber-50/60 hover:text-slate-800",
@@ -76,7 +76,7 @@ export function SettingsPage(props: SettingsPageProps) {
           ))}
         </nav>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-8 py-6">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-8 sm:py-6">
           {activeTab === "profile" ? (
             <ProfileSettings
               currentUserMember={props.currentUserMember}

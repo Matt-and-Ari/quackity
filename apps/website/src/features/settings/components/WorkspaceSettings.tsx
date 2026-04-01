@@ -94,7 +94,7 @@ export function WorkspaceSettings(props: WorkspaceSettingsProps) {
       <h3 className="text-base font-semibold text-slate-900">Workspace</h3>
       <p className="mt-1 text-sm text-slate-500">General settings for this workspace.</p>
 
-      <div className="mt-6 grid grid-cols-[auto_1fr] items-start gap-x-8 gap-y-5">
+      <div className="mt-6 grid grid-cols-1 items-start gap-x-8 gap-y-5 sm:grid-cols-[auto_1fr]">
         <div className="flex flex-col items-center gap-2">
           <button
             className="group relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-amber-200/60 bg-gradient-to-br from-amber-400 to-amber-500 shadow-sm transition-opacity duration-100 hover:opacity-90"
