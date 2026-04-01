@@ -40,6 +40,9 @@ export function RichTextEditor(props: RichTextEditorProps) {
   const membersRef = useRef(props.members ?? []);
   membersRef.current = props.members ?? [];
 
+  const placeholderRef = useRef(props.placeholder ?? "");
+  placeholderRef.current = props.placeholder ?? "";
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -48,7 +51,7 @@ export function RichTextEditor(props: RichTextEditorProps) {
         dropcursor: false,
       }),
       Placeholder.configure({
-        placeholder: props.placeholder ?? "",
+        placeholder: () => placeholderRef.current,
       }),
       Underline,
       Link.extend({ name: "quackLink" }).configure({
@@ -137,12 +140,7 @@ export function RichTextEditor(props: RichTextEditorProps) {
 
   useEffect(() => {
     if (!editor) return;
-    editor.extensionManager.extensions.forEach((ext) => {
-      if (ext.name === "placeholder") {
-        (ext.options as { placeholder: string }).placeholder = props.placeholder ?? "";
-        editor.view.dispatch(editor.state.tr);
-      }
-    });
+    editor.view.dispatch(editor.state.tr.setMeta("addToHistory", false));
   }, [props.placeholder, editor]);
 
   useEffect(() => {
