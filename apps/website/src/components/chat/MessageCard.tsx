@@ -89,6 +89,16 @@ export function MessageCard(props: MessageCardProps) {
     props.onOpenReactionMenu(anchor);
   }
 
+  function handleArticleClick() {
+    const selection = window.getSelection();
+
+    if (selection && !selection.isCollapsed) {
+      return;
+    }
+
+    props.onClick?.();
+  }
+
   return (
     <article
       className={clsx(
@@ -100,7 +110,7 @@ export function MessageCard(props: MessageCardProps) {
             : "hover:bg-slate-50/80",
       )}
       data-message-id={props.message.id}
-      onClick={props.onClick}
+      onClick={handleArticleClick}
       onContextMenu={(event) => props.onContextMenu(event, props.message)}
       ref={messageRef}
     >
